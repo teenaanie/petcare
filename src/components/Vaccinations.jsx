@@ -52,8 +52,8 @@ export default function Vaccinations({ pet }) {
       {showForm && (
         <div className="card mb-4">
           <h3 className="font-semibold mb-4">New Vaccination Record</h3>
-          <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
               <label className="label">Vaccine *</label>
               <select value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} className="input">
                 {COMMON_VACCINES.map(v => <option key={v}>{v}</option>)}
@@ -75,11 +75,11 @@ export default function Vaccinations({ pet }) {
               <label className="label">Administering Vet</label>
               <input value={form.vet} onChange={e => setForm(f => ({...f, vet: e.target.value}))} className="input" placeholder="Dr. Smith" />
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className="label">Notes</label>
               <textarea value={form.notes} onChange={e => setForm(f => ({...f, notes: e.target.value}))} className="input" rows={2} />
             </div>
-            <div className="col-span-2 flex justify-end gap-3">
+            <div className="sm:col-span-2 flex justify-end gap-3">
               <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>
               <button type="submit" className="btn-primary">Save</button>
             </div>

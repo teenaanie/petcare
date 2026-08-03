@@ -25,42 +25,32 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
     : null
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       {/* Pet header */}
-      <div className="card mb-6 flex items-start justify-between">
-        <div className="flex items-center gap-5">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-3xl font-bold">
-            {pet.name[0]?.toUpperCase()}
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{pet.name}</h1>
-            <p className="text-gray-500">{pet.species} · {pet.breed} · {pet.gender}</p>
-            <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-500">
-              {age !== null && (
-                <span className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {age} yr old</span>
-              )}
-              {pet.weight && (
-                <span className="flex items-center gap-1"><Weight className="w-4 h-4" /> {pet.weight} kg</span>
-              )}
-              {pet.microchipId && (
-                <span className="flex items-center gap-1"><Shield className="w-4 h-4" /> {pet.microchipId}</span>
-              )}
-              {pet.vetPhone && (
-                <span className="flex items-center gap-1"><Phone className="w-4 h-4" /> {pet.vetPhone}</span>
-              )}
-              {pet.vetEmail && (
-                <span className="flex items-center gap-1"><Mail className="w-4 h-4" /> {pet.vetEmail}</span>
-              )}
+      <div className="card mb-4 md:mb-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-2xl md:text-3xl font-bold flex-shrink-0">
+              {pet.name[0]?.toUpperCase()}
+            </div>
+            <div>
+              <h1 className="text-lg md:text-2xl font-bold text-gray-900">{pet.name}</h1>
+              <p className="text-sm text-gray-500">{pet.species} · {pet.breed}</p>
+              <div className="flex flex-wrap gap-2 md:gap-4 mt-1 text-xs md:text-sm text-gray-500">
+                {age !== null && <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {age} yr</span>}
+                {pet.weight && <span className="flex items-center gap-1"><Weight className="w-3.5 h-3.5" /> {pet.weight}kg</span>}
+                {pet.vetPhone && <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" /> {pet.vetPhone}</span>}
+              </div>
             </div>
           </div>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => setShowEdit(true)} className="btn-secondary flex items-center gap-1.5 text-sm">
-            <Edit2 className="w-4 h-4" /> Edit
-          </button>
-          <button onClick={handleDelete} className="text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 text-sm">
-            <Trash2 className="w-4 h-4" /> Delete
-          </button>
+          <div className="flex gap-1.5 flex-shrink-0">
+            <button onClick={() => setShowEdit(true)} className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+              <Edit2 className="w-4 h-4" />
+            </button>
+            <button onClick={handleDelete} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 

@@ -12,7 +12,7 @@ const tabs = [
   { id: 'reminders',     label: 'Reminders',         icon: Bell },
 ]
 
-export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab, onTabChange, refresh, onRefresh }) {
+export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab, onTabChange, refresh, onRefresh, isOpen, onClose }) {
   const [pets, setPets]           = useState([])
   const [showMigrate, setShowMigrate] = useState(false)
 
@@ -26,7 +26,12 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
   }, [refresh])
 
   return (
-    <aside className="w-64 bg-white border-r border-gray-200 flex flex-col h-full">
+    <aside className={`
+      w-64 bg-white border-r border-gray-200 flex flex-col h-full flex-shrink-0
+      fixed md:relative z-40 inset-y-0 left-0
+      transition-transform duration-300 ease-in-out
+      ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+    `}>
       {/* Logo */}
       <div className="px-5 py-4 border-b border-gray-100">
         <div className="flex items-center gap-2">

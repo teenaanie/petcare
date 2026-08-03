@@ -357,7 +357,7 @@ export default function Reminders({ pet }) {
             <h3 className="font-semibold">{parsedPreview ? 'Review & Save' : 'New Reminder'}</h3>
             <button onClick={() => { setShowForm(false); setParsedPreview(null) }} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
           </div>
-          <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="label">Type *</label>
               <select value={form.type} onChange={e => setForm(f => ({...f, type: e.target.value}))} className="input">
@@ -382,11 +382,11 @@ export default function Reminders({ pet }) {
               <label className="label">WhatsApp Number</label>
               <input value={form.whatsapp} onChange={e => setForm(f => ({...f, whatsapp: e.target.value}))} className="input" placeholder="+1 555 0000 (with country code)" />
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className="label">Notes</label>
               <textarea value={form.notes} onChange={e => setForm(f => ({...f, notes: e.target.value}))} className="input" rows={2} placeholder="Any additional details..." />
             </div>
-            <div className="col-span-2 flex justify-end gap-3">
+            <div className="sm:col-span-2 flex justify-end gap-3">
               <button type="button" onClick={() => { setShowForm(false); setParsedPreview(null) }} className="btn-secondary">Cancel</button>
               <button type="submit" className="btn-primary">Save Reminder</button>
             </div>

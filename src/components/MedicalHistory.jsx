@@ -37,7 +37,7 @@ export default function MedicalHistory({ pet }) {
       {showForm && (
         <div className="card mb-4">
           <h3 className="font-semibold mb-4">New Medical Record</h3>
-          <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="label">Date *</label>
               <input type="date" value={form.date} onChange={e => setForm(f => ({...f, date: e.target.value}))} className="input" required />
@@ -48,11 +48,11 @@ export default function MedicalHistory({ pet }) {
                 {TYPES.map(t => <option key={t}>{t}</option>)}
               </select>
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className="label">Title / Diagnosis *</label>
               <input value={form.title} onChange={e => setForm(f => ({...f, title: e.target.value}))} className="input" required placeholder="e.g. Annual checkup — all clear" />
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className="label">Details / Notes</label>
               <textarea value={form.description} onChange={e => setForm(f => ({...f, description: e.target.value}))} className="input" rows={3} placeholder="Symptoms, treatment, medications prescribed..." />
             </div>
@@ -64,7 +64,7 @@ export default function MedicalHistory({ pet }) {
               <label className="label">Cost</label>
               <input type="number" value={form.cost} onChange={e => setForm(f => ({...f, cost: e.target.value}))} className="input" placeholder="0.00" />
             </div>
-            <div className="col-span-2 flex justify-end gap-3">
+            <div className="sm:col-span-2 flex justify-end gap-3">
               <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>
               <button type="submit" className="btn-primary">Save Record</button>
             </div>

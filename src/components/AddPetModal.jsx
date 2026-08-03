@@ -46,7 +46,7 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {/* Basic info */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="label">Pet Name *</label>
               <input name="name" value={form.name} onChange={handleChange} className="input" required placeholder="e.g. Buddy" />
@@ -94,7 +94,7 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
           {/* Vet info */}
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-3">Veterinarian</h3>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="label">Vet Name</label>
                 <input name="vetName" value={form.vetName} onChange={handleChange} className="input" placeholder="Dr. Smith" />
