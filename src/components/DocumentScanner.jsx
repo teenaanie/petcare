@@ -14,13 +14,40 @@ async function fileToBase64(file) {
   })
 }
 
+async function pdfToImageBase64(file) {
+  // Dynamically import pdfjs-dist to avoid SSR issues
+  const pdfjsLib = await import('pdfjs-dist')
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.mjs',
+    import.meta.url
+  ).toString()
+
+  const arrayBuffer = await file.arrayBuffer()
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+  const page = await pdf.getPage(1) // render first page
+
+  const scale = 2.0 // higher = better quality for OCR
+  const viewport = page.getViewport({ scale })
+  const canvas = document.createElement('canvas')
+  canvas.width = viewport.width
+  canvas.height = viewport.height
+
+  await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
+
+  // Convert canvas to base64 PNG
+  const dataUrl = canvas.toDataURL('image/png')
+  return dataUrl.split(',')[1]
+}
+
 async function analyzeDocument(file) {
   if (!OPENAI_KEY) {
     throw new Error('OpenAI API key not configured. Add VITE_OPENAI_API_KEY to your .env file.')
   }
 
   const isPdf = file.type === 'application/pdf'
-  const base64 = await fileToBase64(file)
+  // Convert PDF to image first — OpenAI vision only accepts image types
+  const base64 = isPdf ? await pdfToImageBase64(file) : await fileToBase64(file)
+  const mimeType = 'image/png' // always PNG after conversion
 
   const prompt = `You are a veterinary record parser. Analyze this ${isPdf ? 'PDF' : 'image'} of a pet medical document.
 
@@ -83,7 +110,7 @@ Only populate the relevant record section based on document type. Return valid J
         role: 'user',
         content: [
           { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: `data:${file.type};base64,${base64}` } }
+          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } }
         ]
       }]
     })
@@ -112,7 +139,7 @@ export default function DocumentScanner({ pet }) {
   const uploadRef = useRef()
   const cameraRef = useRef()
 
-  function handleFile(f) {
+  async function handleFile(f) {
     if (!f) return
     setFile(f)
     setResult(null)
@@ -121,6 +148,14 @@ export default function DocumentScanner({ pet }) {
     setSavedReminders([])
     if (f.type.startsWith('image/')) {
       setPreview(URL.createObjectURL(f))
+    } else if (f.type === 'application/pdf') {
+      // Render first page of PDF as preview
+      try {
+        const base64 = await pdfToImageBase64(f)
+        setPreview(`data:image/png;base64,${base64}`)
+      } catch {
+        setPreview(null)
+      }
     } else {
       setPreview(null)
     }
