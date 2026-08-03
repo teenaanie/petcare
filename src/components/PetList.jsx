@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { PawPrint, Plus, Calendar, Weight } from 'lucide-react'
 import { getPets } from '../lib/storage.js'
 import { format } from 'date-fns'
+import PetAvatar from './PetAvatar.jsx'
 
 export default function PetList({ refresh, onSelectPet, onAddPet }) {
   const [pets, setPets] = useState([])
@@ -56,10 +57,7 @@ export default function PetList({ refresh, onSelectPet, onAddPet }) {
             }}
           >
             <div className="flex items-center gap-4 mb-4">
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-2xl font-black flex-shrink-0"
-                style={{ background: 'linear-gradient(135deg, #F9D548, #8B9636)' }}>
-                {pet.name[0]?.toUpperCase()}
-              </div>
+              <PetAvatar pet={pet} size="lg" />
               <div>
                 <h3 className="font-black text-base" style={{ color: '#4A2C0A' }}>{pet.name}</h3>
                 <p className="text-sm" style={{ color: '#B8A080' }}>{pet.species} · {pet.breed}</p>

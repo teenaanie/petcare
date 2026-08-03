@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { PawPrint, Plus, Stethoscope, Syringe, AlertTriangle, FileText, Bell, ChevronRight, GitBranch, Upload } from 'lucide-react'
 import { getPets } from '../lib/storage.js'
 import MigrateData from './MigrateData.jsx'
+import PetAvatar from './PetAvatar.jsx'
 
 const tabs = [
   { id: 'timeline',      label: 'Timeline',          icon: GitBranch },
@@ -75,10 +76,7 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
               onMouseEnter={e => { if (selectedPet?.id !== pet.id) e.currentTarget.style.backgroundColor = '#FFF9D6' }}
               onMouseLeave={e => { if (selectedPet?.id !== pet.id) e.currentTarget.style.backgroundColor = '' }}
             >
-              <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-black flex-shrink-0"
-                style={{ background: 'linear-gradient(135deg, #F9D548, #8B9636)' }}>
-                {pet.name[0]?.toUpperCase()}
-              </div>
+              <PetAvatar pet={pet} size="sm" />
               <div className="flex-1 min-w-0">
                 <div className="font-bold text-sm truncate">{pet.name}</div>
                 <div className="text-xs truncate" style={{ color: '#B8A080' }}>{pet.species} · {pet.breed}</div>

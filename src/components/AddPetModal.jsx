@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import { savePet } from '../lib/storage.js'
+import PetAvatar from './PetAvatar.jsx'
 
 const SPECIES = ['Dog', 'Cat', 'Bird', 'Rabbit', 'Hamster', 'Fish', 'Reptile', 'Other']
 const GENDERS = ['Male', 'Female', 'Unknown']
@@ -20,6 +21,7 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
     vetPhone: existing?.vetPhone || '',
     vetEmail: existing?.vetEmail || '',
     notes: existing?.notes || '',
+    photo: existing?.photo || null,
     ...(existing?.id ? { id: existing.id, createdAt: existing.createdAt } : {}),
   })
 
@@ -30,27 +32,44 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
   async function handleSubmit(e) {
     e.preventDefault()
     if (!form.name.trim()) return
-    await savePet(form)
-    onSaved()
+    const saved = await savePet(form)
+    onSaved(saved)
   }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-lg font-bold">{existing ? 'Edit Pet' : 'Add New Pet'}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+      <div className="rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+        style={{ backgroundColor: '#FFFEF8', border: '1px solid #F0E6C8' }}>
+        <div className="flex items-center justify-between p-6" style={{ borderBottom: '1px solid #F0E6C8' }}>
+          <h2 className="text-lg font-black" style={{ color: '#4A2C0A' }}>
+            {existing ? 'Edit Pet' : 'Add New Pet 🐾'}
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-lg transition-colors"
+            style={{ color: '#B8A080' }}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#FFF9D6'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = ''}>
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* Basic info */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
+          {/* Photo + name row */}
+          <div className="flex items-center gap-4">
+            <PetAvatar
+              pet={form}
+              size="xl"
+              editable
+              onPhotoChange={photo => setForm(f => ({ ...f, photo }))}
+            />
+            <div className="flex-1">
               <label className="label">Pet Name *</label>
               <input name="name" value={form.name} onChange={handleChange} className="input" required placeholder="e.g. Buddy" />
+              <p className="text-xs mt-1" style={{ color: '#B8A080' }}>Tap the photo to upload or take a picture</p>
             </div>
+          </div>
+
+          {/* Basic info */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="label">Species</label>
               <select name="species" value={form.species} onChange={handleChange} className="input">
@@ -83,17 +102,15 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
               <label className="label">Microchip ID</label>
               <input name="microchipId" value={form.microchipId} onChange={handleChange} className="input" placeholder="Optional" />
             </div>
-          </div>
-
-          {/* Insurance */}
-          <div>
-            <label className="label">Insurance Policy #</label>
-            <input name="insurancePolicy" value={form.insurancePolicy} onChange={handleChange} className="input" placeholder="Optional" />
+            <div>
+              <label className="label">Insurance Policy #</label>
+              <input name="insurancePolicy" value={form.insurancePolicy} onChange={handleChange} className="input" placeholder="Optional" />
+            </div>
           </div>
 
           {/* Vet info */}
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">Veterinarian</h3>
+            <h3 className="text-sm font-black mb-3" style={{ color: '#6B4C1E' }}>Veterinarian</h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="label">Vet Name</label>

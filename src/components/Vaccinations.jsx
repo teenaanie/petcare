@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, Syringe, CheckCircle, AlertCircle, Clock, Check } from 'lucide-react'
+import { Plus, Trash2, Syringe, CheckCircle, AlertCircle, Clock, Check, Loader2 } from 'lucide-react'
 import { getVaccinations, saveVaccination, deleteVaccination, markVaccinationDone } from '../lib/storage.js'
 import { format, addDays, isBefore } from 'date-fns'
 
@@ -24,6 +24,7 @@ export default function Vaccinations({ pet }) {
   const [records, setRecords] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ name: 'Rabies', dateGiven: '', nextDue: '', batchNumber: '', vet: '', notes: '' })
+  const [togglingId, setTogglingId] = useState(null)
 
   function load() { getVaccinations(pet.id).then(setRecords).catch(console.error) }
   useEffect(load, [pet.id])
@@ -41,8 +42,19 @@ export default function Vaccinations({ pet }) {
   }
 
   async function handleToggleDone(r) {
-    await markVaccinationDone(r.id, !r.isDone)
-    load()
+    setTogglingId(r.id)
+    try {
+      await markVaccinationDone(r.id, !r.isDone)
+      load()
+    } catch (e) {
+      if (e.message?.includes('column') || e.code === '42703') {
+        alert('Please run this SQL in your Supabase SQL Editor first:\n\nALTER TABLE vaccinations ADD COLUMN IF NOT EXISTS is_done boolean DEFAULT false;\nALTER TABLE reminders ADD COLUMN IF NOT EXISTS is_done boolean DEFAULT false;')
+      } else {
+        alert('Failed to update: ' + e.message)
+      }
+    } finally {
+      setTogglingId(null)
+    }
   }
 
   return (
@@ -136,10 +148,13 @@ export default function Vaccinations({ pet }) {
               <div className="flex items-center gap-2 ml-4 opacity-0 group-hover:opacity-100 transition-all">
                 <button
                   onClick={() => handleToggleDone(r)}
+                  disabled={togglingId === r.id}
                   title={r.isDone ? 'Mark as pending' : 'Mark as given'}
                   className={`p-1.5 rounded-lg transition-colors ${r.isDone ? 'text-gray-400 hover:text-gray-600 bg-gray-100' : 'text-green-600 hover:bg-green-50'}`}
                 >
-                  <Check className="w-4 h-4" />
+                  {togglingId === r.id
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : <Check className="w-4 h-4" />}
                 </button>
                 <button onClick={() => handleDelete(r.id)} className="text-red-400 hover:text-red-600">
                   <Trash2 className="w-4 h-4" />

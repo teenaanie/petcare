@@ -166,6 +166,7 @@ export default function Reminders({ pet }) {
   const [form, setForm]             = useState({ type: 'Vaccination', dueDate: '', frequency: 'Once', email: '', whatsapp: '', notes: '' })
   const [sending, setSending]       = useState({})
   const [sentStatus, setSentStatus] = useState({})
+  const [togglingId, setTogglingId] = useState(null)
 
   // Voice AI state
   const [voiceMode, setVoiceMode]       = useState(false)  // is voice panel open
@@ -190,8 +191,19 @@ export default function Reminders({ pet }) {
   }
 
   async function handleToggleDone(r) {
-    await markReminderDone(r.id, !r.isDone)
-    load()
+    setTogglingId(r.id)
+    try {
+      await markReminderDone(r.id, !r.isDone)
+      load()
+    } catch (e) {
+      if (e.message?.includes('column') || e.code === '42703') {
+        alert('Please run this SQL in your Supabase SQL Editor first:\n\nALTER TABLE vaccinations ADD COLUMN IF NOT EXISTS is_done boolean DEFAULT false;\nALTER TABLE reminders ADD COLUMN IF NOT EXISTS is_done boolean DEFAULT false;')
+      } else {
+        alert('Failed to update: ' + e.message)
+      }
+    } finally {
+      setTogglingId(null)
+    }
   }
 
   async function handleSendEmail(reminder) {
@@ -435,10 +447,13 @@ export default function Reminders({ pet }) {
               <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all ml-3">
                 <button
                   onClick={() => handleToggleDone(r)}
+                  disabled={togglingId === r.id}
                   title={r.isDone ? 'Mark as pending' : 'Mark as done'}
                   className={`p-1.5 rounded-lg transition-colors ${r.isDone ? 'text-gray-400 hover:text-gray-600 bg-gray-100' : 'text-green-600 hover:bg-green-50'}`}
                 >
-                  <Check className="w-4 h-4" />
+                  {togglingId === r.id
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : <Check className="w-4 h-4" />}
                 </button>
                 <button onClick={() => handleDelete(r.id)} className="text-red-400 hover:text-red-600 p-1.5">
                   <Trash2 className="w-4 h-4" />

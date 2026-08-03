@@ -1,4 +1,5 @@
 import { Menu, ChevronLeft, Plus, PawPrint } from 'lucide-react'
+import PetAvatar from './PetAvatar.jsx'
 
 export default function MobileHeader({ selectedPet, onBack, onMenuOpen, onAddPet }) {
   return (
@@ -10,10 +11,7 @@ export default function MobileHeader({ selectedPet, onBack, onMenuOpen, onAddPet
             <ChevronLeft className="w-5 h-5" /> Pets
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-black"
-              style={{ background: 'linear-gradient(135deg, #F9D548, #8B9636)' }}>
-              {selectedPet.name[0]?.toUpperCase()}
-            </div>
+            <PetAvatar pet={selectedPet} size="xs" />
             <span className="font-bold text-sm" style={{ color: '#4A2C0A' }}>{selectedPet.name}</span>
           </div>
           <div className="w-10" />

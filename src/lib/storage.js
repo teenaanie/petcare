@@ -23,7 +23,7 @@ export async function getPets() {
   if (isConfigured) {
     const { data, error } = await supabase.from('pets').select('*').order('created_at', { ascending: false })
     if (error) throw error
-    return data
+    return data.map(fromSnakePet)
   }
   return lsGet(KEYS.pets)
 }
@@ -33,11 +33,11 @@ export async function savePet(pet) {
     if (pet.id) {
       const { data, error } = await supabase.from('pets').update(toSnake(pet)).eq('id', pet.id).select().single()
       if (error) throw error
-      return data
+      return fromSnakePet(data)
     } else {
       const { data, error } = await supabase.from('pets').insert(toSnake(pet)).select().single()
       if (error) throw error
-      return data
+      return fromSnakePet(data)
     }
   }
   // localStorage fallback
@@ -327,6 +327,29 @@ function toSnake(pet) {
     vet_phone:        pet.vetPhone,
     vet_email:        pet.vetEmail,
     notes:            pet.notes,
+    photo:            pet.photo     || null,
+  }
+}
+
+// Used when reading pets back from Supabase
+function fromSnakePet(r) {
+  return {
+    id:              r.id,
+    name:            r.name,
+    species:         r.species,
+    breed:           r.breed,
+    gender:          r.gender,
+    dob:             r.dob,
+    weight:          r.weight,
+    color:           r.color,
+    microchipId:     r.microchip_id,
+    insurancePolicy: r.insurance_policy,
+    vetName:         r.vet_name,
+    vetPhone:        r.vet_phone,
+    vetEmail:        r.vet_email,
+    notes:           r.notes,
+    photo:           r.photo || null,
+    createdAt:       r.created_at,
   }
 }
 
