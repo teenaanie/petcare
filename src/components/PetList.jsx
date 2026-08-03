@@ -12,15 +12,16 @@ export default function PetList({ refresh, onSelectPet, onAddPet }) {
 
   if (pets.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8">
-        <div className="w-20 h-20 bg-primary-50 rounded-full flex items-center justify-center">
-          <PawPrint className="w-10 h-10 text-primary-400" />
+      <div className="flex flex-col items-center justify-center h-full gap-5 text-center p-8">
+        <div className="w-24 h-24 rounded-3xl flex items-center justify-center"
+          style={{ backgroundColor: '#FFF5AA' }}>
+          <PawPrint className="w-12 h-12" style={{ color: '#4A2C0A' }} />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-gray-900 mb-1">No pets yet</h2>
-          <p className="text-gray-500 text-sm">Add your first pet to get started tracking their health.</p>
+          <h2 className="text-2xl font-black mb-1" style={{ color: '#4A2C0A' }}>No pets yet 🐾</h2>
+          <p className="text-sm" style={{ color: '#B8A080' }}>Add your first pet to start tracking their health.</p>
         </div>
-        <button onClick={onAddPet} className="btn-primary flex items-center gap-2">
+        <button onClick={onAddPet} className="btn-primary gap-2">
           <Plus className="w-4 h-4" /> Add my first pet
         </button>
       </div>
@@ -30,8 +31,8 @@ export default function PetList({ refresh, onSelectPet, onAddPet }) {
   return (
     <div className="p-4 md:p-8">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">My Pets</h1>
-        <button onClick={onAddPet} className="btn-primary flex items-center gap-2">
+        <h1 className="text-2xl font-black" style={{ color: '#4A2C0A' }}>My Pets 🐾</h1>
+        <button onClick={onAddPet} className="btn-primary gap-2">
           <Plus className="w-4 h-4" /> Add Pet
         </button>
       </div>
@@ -41,18 +42,30 @@ export default function PetList({ refresh, onSelectPet, onAddPet }) {
           <button
             key={pet.id}
             onClick={() => onSelectPet(pet)}
-            className="card text-left hover:shadow-md transition-shadow group"
+            className="card text-left transition-all group"
+            style={{ cursor: 'pointer' }}
+            onMouseEnter={e => {
+              e.currentTarget.style.transform = 'translateY(-2px)'
+              e.currentTarget.style.boxShadow = '0 8px 24px rgba(249, 213, 72, 0.3)'
+              e.currentTarget.style.borderColor = '#F9D548'
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.transform = ''
+              e.currentTarget.style.boxShadow = ''
+              e.currentTarget.style.borderColor = '#F0E6C8'
+            }}
           >
             <div className="flex items-center gap-4 mb-4">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-2xl font-black flex-shrink-0"
+                style={{ background: 'linear-gradient(135deg, #F9D548, #8B9636)' }}>
                 {pet.name[0]?.toUpperCase()}
               </div>
               <div>
-                <h3 className="font-bold text-gray-900 group-hover:text-primary-600 transition-colors">{pet.name}</h3>
-                <p className="text-sm text-gray-500">{pet.species} · {pet.breed}</p>
+                <h3 className="font-black text-base" style={{ color: '#4A2C0A' }}>{pet.name}</h3>
+                <p className="text-sm" style={{ color: '#B8A080' }}>{pet.species} · {pet.breed}</p>
               </div>
             </div>
-            <div className="flex gap-4 text-sm text-gray-500">
+            <div className="flex gap-4 text-sm" style={{ color: '#B8A080' }}>
               {pet.dob && (
                 <span className="flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5" />
@@ -67,7 +80,7 @@ export default function PetList({ refresh, onSelectPet, onAddPet }) {
               )}
             </div>
             {pet.color && (
-              <p className="text-xs text-gray-400 mt-2">Color: {pet.color}</p>
+              <p className="text-xs mt-2" style={{ color: '#B8A080' }}>Color: {pet.color}</p>
             )}
           </button>
         ))}

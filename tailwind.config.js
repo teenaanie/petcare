@@ -3,26 +3,38 @@ export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Nunito', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+      },
       colors: {
+        // Pippy primary — warm yellow scale
         primary: {
-          50: '#fef3f2',
-          100: '#fde8e4',
-          200: '#fbd5cd',
-          300: '#f8b3a9',
-          400: '#f28676',
-          500: '#e8604e',
-          600: '#d44232',
-          700: '#b23326',
-          800: '#932d23',
-          900: '#7a2b23',
+          50:  '#FFFEF0',
+          100: '#FFFAD6',
+          200: '#FFF5AA',
+          300: '#FFEC7A',
+          400: '#F9D548',  // THE Pippy yellow
+          500: '#F0C420',
+          600: '#D4A800',
+          700: '#A87E00',
+          800: '#7D5D00',
+          900: '#4A2C0A',  // dark brown
         },
-        pet: {
-          green: '#22c55e',
-          blue: '#3b82f6',
-          orange: '#f97316',
-          purple: '#a855f7',
-        }
-      }
+        // Pippy brand palette
+        pippy: {
+          yellow: '#F9D548',
+          blue:   '#C2DFF0',
+          olive:  '#8B9636',
+          pink:   '#E8909C',
+          brown:  '#4A2C0A',
+          cream:  '#FDFBF0',
+          card:   '#FFFEF5',
+        },
+      },
+      borderRadius: {
+        '2xl': '1rem',
+        '3xl': '1.5rem',
+      },
     },
   },
   plugins: [],
