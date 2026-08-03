@@ -194,6 +194,11 @@ export default function DocumentScanner({ pet }) {
     setSavedReminders([])
     try {
       const parsed = await analyzeDocument(file)
+      // Auto-save vaccination records immediately
+      if (parsed.type === 'vaccination' && parsed.vaccination?.name) {
+        saveVaccination({ ...parsed.vaccination, petId: pet.id })
+        setSaved(true) // mark as auto-saved
+      }
       setResult(parsed)
     } catch (e) {
       setError(e.message)
@@ -205,7 +210,8 @@ export default function DocumentScanner({ pet }) {
   function handleSave() {
     if (!result) return
     if (result.type === 'vaccination' && result.vaccination?.name) {
-      saveVaccination({ ...result.vaccination, petId: pet.id })
+      // Auto-save vaccination record — already done in handleAnalyze
+      // nothing extra needed here
     } else if (result.type === 'allergy' && result.allergy?.allergen) {
       saveAllergy({ ...result.allergy, petId: pet.id })
     } else if (result.medicalRecord?.title) {
@@ -218,6 +224,20 @@ export default function DocumentScanner({ pet }) {
       })
     }
     setSaved(true)
+  }
+
+  function handleSaveVaccinationReminder() {
+    if (!result?.vaccination?.nextDue) return
+    saveReminder({
+      petId: pet.id,
+      type: 'Vaccination',
+      dueDate: result.vaccination.nextDue,
+      frequency: 'Once',
+      notes: `${result.vaccination.name} booster due`,
+      email: '',
+      whatsapp: '',
+    })
+    setSavedReminders(prev => [...prev, 'vax-reminder'])
   }
 
   function handleSaveReminder(timeline) {
@@ -349,6 +369,12 @@ export default function DocumentScanner({ pet }) {
                   {result.vaccination.notes && <p><strong>Notes:</strong> {result.vaccination.notes}</p>}
                 </div>
               )}
+              {/* Auto-saved badge for vaccinations */}
+              {result.type === 'vaccination' && saved && (
+                <div className="flex items-center gap-2 text-green-600 text-sm font-medium mt-2">
+                  <CheckCircle className="w-4 h-4" /> Vaccination record saved automatically!
+                </div>
+              )}
 
               {result.type === 'allergy' && result.allergy && (
                 <div className="space-y-1 text-gray-600">
@@ -374,14 +400,40 @@ export default function DocumentScanner({ pet }) {
               )}
             </div>
 
-            {saved ? (
-              <div className="flex items-center gap-2 text-green-600 font-medium text-sm">
-                <CheckCircle className="w-4 h-4" /> Record saved to {pet.name}'s profile!
+            {result.type !== 'vaccination' && (
+              saved ? (
+                <div className="flex items-center gap-2 text-green-600 font-medium text-sm">
+                  <CheckCircle className="w-4 h-4" /> Record saved to {pet.name}'s profile!
+                </div>
+              ) : (
+                <button onClick={handleSave} className="btn-primary text-sm">
+                  Save to {pet.name}'s Records
+                </button>
+              )
+            )}
+
+            {/* Vaccination reminder suggestion */}
+            {result.type === 'vaccination' && result.vaccination?.nextDue && (
+              <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-purple-800">Set next vaccination reminder</p>
+                  <p className="text-xs text-purple-500 mt-0.5">
+                    {result.vaccination.name} due on {format(new Date(result.vaccination.nextDue), 'MMMM d, yyyy')}
+                  </p>
+                </div>
+                {savedReminders.includes('vax-reminder') ? (
+                  <span className="text-xs text-green-600 flex items-center gap-1 whitespace-nowrap">
+                    <CheckCircle className="w-4 h-4" /> Reminder set!
+                  </span>
+                ) : (
+                  <button
+                    onClick={handleSaveVaccinationReminder}
+                    className="text-sm bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors"
+                  >
+                    + Set Reminder
+                  </button>
+                )}
               </div>
-            ) : (
-              <button onClick={handleSave} className="btn-primary text-sm">
-                Save to {pet.name}'s Records
-              </button>
             )}
           </div>
 
