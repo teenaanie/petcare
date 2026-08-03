@@ -135,6 +135,17 @@ export async function getVaccinations(petId) {
   return petId ? all.filter(r => r.petId === petId) : all
 }
 
+export async function markVaccinationDone(id, isDone) {
+  if (isConfigured) {
+    const { data, error } = await supabase.from('vaccinations').update({ is_done: isDone }).eq('id', id).select().single()
+    if (error) throw error
+    return fromSnakeVax(data)
+  }
+  const all = lsGet(KEYS.vaccinations)
+  const idx = all.findIndex(r => r.id === id)
+  if (idx >= 0) { all[idx].isDone = isDone; lsSet(KEYS.vaccinations, all) }
+}
+
 export async function saveVaccination(record) {
   if (isConfigured) {
     const row = {
@@ -145,6 +156,7 @@ export async function saveVaccination(record) {
       batch_number: record.batchNumber,
       vet:          record.vet,
       notes:        record.notes,
+      is_done:      record.isDone || false,
     }
     if (record.id) {
       const { data, error } = await supabase.from('vaccinations').update(row).eq('id', record.id).select().single()
@@ -245,6 +257,17 @@ export async function getReminders(petId) {
   return petId ? all.filter(r => r.petId === petId) : all
 }
 
+export async function markReminderDone(id, isDone) {
+  if (isConfigured) {
+    const { data, error } = await supabase.from('reminders').update({ is_done: isDone }).eq('id', id).select().single()
+    if (error) throw error
+    return fromSnakeReminder(data)
+  }
+  const all = lsGet(KEYS.reminders)
+  const idx = all.findIndex(r => r.id === id)
+  if (idx >= 0) { all[idx].isDone = isDone; lsSet(KEYS.reminders, all) }
+}
+
 export async function saveReminder(record) {
   if (isConfigured) {
     const row = {
@@ -255,6 +278,7 @@ export async function saveReminder(record) {
       email:     record.email,
       whatsapp:  record.whatsapp,
       notes:     record.notes,
+      is_done:   record.isDone || false,
     }
     if (record.id) {
       const { data, error } = await supabase.from('reminders').update(row).eq('id', record.id).select().single()
@@ -332,6 +356,7 @@ function fromSnakeVax(r) {
     batchNumber: r.batch_number,
     vet:         r.vet,
     notes:       r.notes,
+    isDone:      r.is_done || false,
     createdAt:   r.created_at,
   }
 }
@@ -360,6 +385,7 @@ function fromSnakeReminder(r) {
     email:     r.email,
     whatsapp:  r.whatsapp,
     notes:     r.notes,
+    isDone:    r.is_done || false,
     createdAt: r.created_at,
   }
 }

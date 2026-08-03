@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
-import { Plus, Trash2, Bell, Mail, MessageCircle, CheckCircle, AlertCircle, Loader2, Mic, MicOff, Wand2, X } from 'lucide-react'
-import { getReminders, saveReminder, deleteReminder } from '../lib/storage.js'
+import { Plus, Trash2, Bell, Mail, MessageCircle, CheckCircle, AlertCircle, Loader2, Mic, MicOff, Wand2, X, Check } from 'lucide-react'
+import { getReminders, saveReminder, deleteReminder, markReminderDone } from '../lib/storage.js'
 import { format } from 'date-fns'
 
 const TYPES = ['Vaccination', 'Grooming', 'Vet Checkup', 'Medication', 'Other']
@@ -187,6 +187,11 @@ export default function Reminders({ pet }) {
 
   async function handleDelete(id) {
     if (confirm('Delete this reminder?')) { await deleteReminder(id); load() }
+  }
+
+  async function handleToggleDone(r) {
+    await markReminderDone(r.id, !r.isDone)
+    load()
   }
 
   async function handleSendEmail(reminder) {
@@ -404,44 +409,66 @@ export default function Reminders({ pet }) {
 
       {/* ── Reminder cards ───────────────────────────────────────────────── */}
       <div className="space-y-3">
-        {reminders.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)).map(r => (
-          <div key={r.id} className="card group">
+        {reminders.sort((a, b) => {
+          // Pending first (sorted by due date), done at bottom
+          if (a.isDone !== b.isDone) return a.isDone ? 1 : -1
+          return new Date(a.dueDate) - new Date(b.dueDate)
+        }).map(r => (
+          <div key={r.id} className={`card group transition-opacity ${r.isDone ? 'opacity-60' : ''}`}>
             <div className="flex justify-between items-start mb-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Bell className="w-4 h-4 text-primary-500" />
-                  <span className="font-semibold text-gray-900">{r.type}</span>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {r.isDone
+                    ? <CheckCircle className="w-4 h-4 text-green-500" />
+                    : <Bell className="w-4 h-4 text-primary-500" />}
+                  <span className={`font-semibold ${r.isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>{r.type}</span>
                   <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{r.frequency}</span>
+                  {r.isDone && (
+                    <span className="text-xs px-2 py-0.5 rounded-full text-green-600 bg-green-50 flex items-center gap-1">
+                      <Check className="w-3 h-3" /> Done
+                    </span>
+                  )}
                 </div>
                 {r.dueDate && <p className="text-sm text-gray-400 mt-0.5">Due: {format(new Date(r.dueDate), 'MMMM d, yyyy')}</p>}
                 {r.notes && <p className="text-sm text-gray-600 mt-1">{r.notes}</p>}
               </div>
-              <button onClick={() => handleDelete(r.id)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-all">
-                <Trash2 className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all ml-3">
+                <button
+                  onClick={() => handleToggleDone(r)}
+                  title={r.isDone ? 'Mark as pending' : 'Mark as done'}
+                  className={`p-1.5 rounded-lg transition-colors ${r.isDone ? 'text-gray-400 hover:text-gray-600 bg-gray-100' : 'text-green-600 hover:bg-green-50'}`}
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+                <button onClick={() => handleDelete(r.id)} className="text-red-400 hover:text-red-600 p-1.5">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
-            <div className="flex gap-2 flex-wrap">
-              {r.email && (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleSendEmail(r)}
-                    disabled={sending[r.id]}
-                    className="flex items-center gap-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    {sending[r.id] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
-                    Send Email
+            {!r.isDone && (
+              <div className="flex gap-2 flex-wrap">
+                {r.email && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleSendEmail(r)}
+                      disabled={sending[r.id]}
+                      className="flex items-center gap-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {sending[r.id] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+                      Send Email
+                    </button>
+                    {sentStatus[r.id] === 'success' && <span className="flex items-center gap-1 text-xs text-green-600"><CheckCircle className="w-3.5 h-3.5" /> Sent!</span>}
+                    {sentStatus[r.id] && sentStatus[r.id] !== 'success' && <span className="flex items-center gap-1 text-xs text-red-600"><AlertCircle className="w-3.5 h-3.5" /> Failed</span>}
+                  </div>
+                )}
+                {r.whatsapp && (
+                  <button onClick={() => handleWhatsApp(r)} className="flex items-center gap-1.5 text-sm bg-green-50 hover:bg-green-100 text-green-700 px-3 py-1.5 rounded-lg transition-colors">
+                    <MessageCircle className="w-3.5 h-3.5" /> Send WhatsApp
                   </button>
-                  {sentStatus[r.id] === 'success' && <span className="flex items-center gap-1 text-xs text-green-600"><CheckCircle className="w-3.5 h-3.5" /> Sent!</span>}
-                  {sentStatus[r.id] && sentStatus[r.id] !== 'success' && <span className="flex items-center gap-1 text-xs text-red-600"><AlertCircle className="w-3.5 h-3.5" /> Failed</span>}
-                </div>
-              )}
-              {r.whatsapp && (
-                <button onClick={() => handleWhatsApp(r)} className="flex items-center gap-1.5 text-sm bg-green-50 hover:bg-green-100 text-green-700 px-3 py-1.5 rounded-lg transition-colors">
-                  <MessageCircle className="w-3.5 h-3.5" /> Send WhatsApp
-                </button>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </div>

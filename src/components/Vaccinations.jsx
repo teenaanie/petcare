@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, Syringe, CheckCircle, AlertCircle, Clock } from 'lucide-react'
-import { getVaccinations, saveVaccination, deleteVaccination } from '../lib/storage.js'
-import { format, addDays, isBefore, isAfter } from 'date-fns'
+import { Plus, Trash2, Syringe, CheckCircle, AlertCircle, Clock, Check } from 'lucide-react'
+import { getVaccinations, saveVaccination, deleteVaccination, markVaccinationDone } from '../lib/storage.js'
+import { format, addDays, isBefore } from 'date-fns'
 
 const COMMON_VACCINES = ['Rabies', 'DHPP (Distemper/Parvovirus)', 'Bordetella', 'Leptospirosis', 'Lyme Disease', 'Influenza', 'FVRCP (Cats)', 'FeLV (Cats)', 'Other']
 
@@ -38,6 +38,11 @@ export default function Vaccinations({ pet }) {
 
   async function handleDelete(id) {
     if (confirm('Delete this vaccination record?')) { await deleteVaccination(id); load() }
+  }
+
+  async function handleToggleDone(r) {
+    await markVaccinationDone(r.id, !r.isDone)
+    load()
   }
 
   return (
@@ -95,24 +100,29 @@ export default function Vaccinations({ pet }) {
       )}
 
       <div className="space-y-3">
-        {records.sort((a, b) => new Date(b.dateGiven) - new Date(a.dateGiven)).map(r => {
-          const status = getStatus(r.nextDue)
+        {records.sort((a, b) => {
+          // Pending first, done at bottom; within each group sort by date
+          if (a.isDone !== b.isDone) return a.isDone ? 1 : -1
+          return new Date(b.dateGiven) - new Date(a.dateGiven)
+        }).map(r => {
+          const status = r.isDone ? null : getStatus(r.nextDue)
           const cfg = status ? STATUS_CONFIG[status] : null
           const Icon = cfg?.icon
           return (
-            <div key={r.id} className="card flex justify-between items-start group">
-              <div className="flex gap-4">
-                <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
-                  <Syringe className="w-5 h-5 text-purple-500" />
+            <div key={r.id} className={`card flex justify-between items-start group transition-opacity ${r.isDone ? 'opacity-60' : ''}`}>
+              <div className="flex gap-4 flex-1">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${r.isDone ? 'bg-green-50' : 'bg-purple-50'}`}>
+                  {r.isDone
+                    ? <CheckCircle className="w-5 h-5 text-green-500" />
+                    : <Syringe className="w-5 h-5 text-purple-500" />}
                 </div>
-                <div>
+                <div className="flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-gray-900">{r.name}</span>
-                    {cfg && (
-                      <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 ${cfg.color}`}>
-                        <Icon className="w-3 h-3" /> {cfg.label}
-                      </span>
-                    )}
+                    <span className={`font-semibold ${r.isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>{r.name}</span>
+                    {r.isDone
+                      ? <span className="text-xs px-2 py-0.5 rounded-full text-green-600 bg-green-50 flex items-center gap-1"><Check className="w-3 h-3" /> Done</span>
+                      : cfg && <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 ${cfg.color}`}><Icon className="w-3 h-3" /> {cfg.label}</span>
+                    }
                   </div>
                   <p className="text-sm text-gray-400 mt-0.5">
                     Given: {r.dateGiven ? format(new Date(r.dateGiven), 'MMM d, yyyy') : '—'}
@@ -123,9 +133,18 @@ export default function Vaccinations({ pet }) {
                   {r.notes && <p className="text-sm text-gray-600 mt-1">{r.notes}</p>}
                 </div>
               </div>
-              <button onClick={() => handleDelete(r.id)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-all ml-4">
-                <Trash2 className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2 ml-4 opacity-0 group-hover:opacity-100 transition-all">
+                <button
+                  onClick={() => handleToggleDone(r)}
+                  title={r.isDone ? 'Mark as pending' : 'Mark as given'}
+                  className={`p-1.5 rounded-lg transition-colors ${r.isDone ? 'text-gray-400 hover:text-gray-600 bg-gray-100' : 'text-green-600 hover:bg-green-50'}`}
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+                <button onClick={() => handleDelete(r.id)} className="text-red-400 hover:text-red-600">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           )
         })}

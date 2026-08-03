@@ -1,7 +1,12 @@
 import { useState, useRef } from 'react'
 import { Upload, Camera, FileText, Loader2, CheckCircle, AlertCircle, Wand2, Calendar, TriangleAlert } from 'lucide-react'
 import { saveMedicalRecord, saveVaccination, saveAllergy, saveReminder } from '../lib/storage.js'
-import { format } from 'date-fns'
+import { format, isPast, parseISO } from 'date-fns'
+
+function isFutureDate(dateStr) {
+  if (!dateStr) return false
+  try { return !isPast(parseISO(dateStr)) } catch { return false }
+}
 
 const OPENAI_KEY = import.meta.env.VITE_OPENAI_API_KEY
 
@@ -63,14 +68,16 @@ Extract and return a JSON object with this structure:
     "vet": "vet name or clinic",
     "cost": "number or empty"
   },
-  "vaccination": {
-    "name": "vaccine name",
-    "dateGiven": "YYYY-MM-DD",
-    "nextDue": "YYYY-MM-DD or empty",
-    "batchNumber": "lot number or empty",
-    "vet": "vet name or clinic",
-    "notes": "any additional notes"
-  },
+  "vaccinations": [
+    {
+      "name": "vaccine name (e.g. Canigen DHPPL, Rabisin, Nobivac KC)",
+      "dateGiven": "YYYY-MM-DD",
+      "nextDue": "YYYY-MM-DD or empty",
+      "batchNumber": "lot/batch number from the sticker or label, or empty",
+      "vet": "vet name or clinic",
+      "notes": "any additional notes"
+    }
+  ],
   "allergy": {
     "allergen": "substance name",
     "type": "Food|Environmental|Medication|Contact|Insect|Other",
@@ -98,6 +105,14 @@ Extract and return a JSON object with this structure:
     }
   ]
 }
+
+VACCINATION RULES — VERY IMPORTANT:
+- If the document is a vaccination certificate or card with a table of multiple rows, create ONE entry in the "vaccinations" array per row/per vaccine product.
+- Each vaccine sticker/label on the same row counts as a separate vaccine — e.g. Canigen DHPPL and Rabisin given on the same date should be TWO separate entries.
+- Extract the batch/lot number from the sticker label if visible.
+- If the same vaccine appears on multiple rows (different dates), create a separate entry for each date.
+- Always set type to "vaccination" if any vaccines are found, even if other info is present.
+- "vaccinations" must always be an array, even if there is only one vaccine.
 
 Be thorough about extracting ALL dates and future appointments — next due dates, follow-up visits, medication schedules, booster reminders. List each as a separate timeline entry.
 
@@ -194,10 +209,16 @@ export default function DocumentScanner({ pet }) {
     setSavedReminders([])
     try {
       const parsed = await analyzeDocument(file)
-      // Auto-save vaccination records immediately
-      if (parsed.type === 'vaccination' && parsed.vaccination?.name) {
-        saveVaccination({ ...parsed.vaccination, petId: pet.id })
-        setSaved(true) // mark as auto-saved
+      // Normalize: support both old singular `vaccination` and new `vaccinations` array
+      if (parsed.vaccination && !parsed.vaccinations) {
+        parsed.vaccinations = [parsed.vaccination]
+        delete parsed.vaccination
+      }
+      parsed.vaccinations = parsed.vaccinations || []
+      // Auto-save all vaccination records immediately
+      if (parsed.type === 'vaccination' && parsed.vaccinations.length > 0) {
+        await Promise.all(parsed.vaccinations.map(v => saveVaccination({ ...v, petId: pet.id })))
+        setSaved(true)
       }
       setResult(parsed)
     } catch (e) {
@@ -209,9 +230,8 @@ export default function DocumentScanner({ pet }) {
 
   function handleSave() {
     if (!result) return
-    if (result.type === 'vaccination' && result.vaccination?.name) {
-      // Auto-save vaccination record — already done in handleAnalyze
-      // nothing extra needed here
+    if (result.type === 'vaccination') {
+      // Already auto-saved in handleAnalyze
     } else if (result.type === 'allergy' && result.allergy?.allergen) {
       saveAllergy({ ...result.allergy, petId: pet.id })
     } else if (result.medicalRecord?.title) {
@@ -226,18 +246,19 @@ export default function DocumentScanner({ pet }) {
     setSaved(true)
   }
 
-  function handleSaveVaccinationReminder() {
-    if (!result?.vaccination?.nextDue) return
+  function handleSaveVaccinationReminder(vax) {
+    if (!vax?.nextDue) return
+    const key = `vax-${vax.name}-${vax.nextDue}`
     saveReminder({
       petId: pet.id,
       type: 'Vaccination',
-      dueDate: result.vaccination.nextDue,
+      dueDate: vax.nextDue,
       frequency: 'Once',
-      notes: `${result.vaccination.name} booster due`,
+      notes: `${vax.name} booster due`,
       email: '',
       whatsapp: '',
     })
-    setSavedReminders(prev => [...prev, 'vax-reminder'])
+    setSavedReminders(prev => [...prev, key])
   }
 
   function handleSaveReminder(timeline) {
@@ -359,20 +380,23 @@ export default function DocumentScanner({ pet }) {
             <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-2 mb-4">
               <p className="font-medium text-gray-700">{result.summary}</p>
 
-              {result.type === 'vaccination' && result.vaccination && (
-                <div className="space-y-1 text-gray-600">
-                  <p><strong>Vaccine:</strong> {result.vaccination.name}</p>
-                  {result.vaccination.dateGiven && <p><strong>Given:</strong> {result.vaccination.dateGiven}</p>}
-                  {result.vaccination.nextDue && <p><strong>Next due:</strong> {result.vaccination.nextDue}</p>}
-                  {result.vaccination.batchNumber && <p><strong>Batch:</strong> {result.vaccination.batchNumber}</p>}
-                  {result.vaccination.vet && <p><strong>Vet:</strong> {result.vaccination.vet}</p>}
-                  {result.vaccination.notes && <p><strong>Notes:</strong> {result.vaccination.notes}</p>}
-                </div>
-              )}
-              {/* Auto-saved badge for vaccinations */}
-              {result.type === 'vaccination' && saved && (
-                <div className="flex items-center gap-2 text-green-600 text-sm font-medium mt-2">
-                  <CheckCircle className="w-4 h-4" /> Vaccination record saved automatically!
+              {result.type === 'vaccination' && result.vaccinations?.length > 0 && (
+                <div className="space-y-3">
+                  {result.vaccinations.map((vax, i) => (
+                    <div key={i} className="bg-white border border-gray-200 rounded-lg p-3 text-gray-600 space-y-0.5">
+                      <p className="font-semibold text-gray-800">{vax.name}</p>
+                      {vax.dateGiven && <p className="text-sm"><strong>Given:</strong> {vax.dateGiven}</p>}
+                      {vax.nextDue && <p className="text-sm"><strong>Next due:</strong> {vax.nextDue}</p>}
+                      {vax.batchNumber && <p className="text-sm"><strong>Batch:</strong> {vax.batchNumber}</p>}
+                      {vax.vet && <p className="text-sm"><strong>Vet:</strong> {vax.vet}</p>}
+                      {vax.notes && <p className="text-sm"><strong>Notes:</strong> {vax.notes}</p>}
+                    </div>
+                  ))}
+                  {saved && (
+                    <div className="flex items-center gap-2 text-green-600 text-sm font-medium">
+                      <CheckCircle className="w-4 h-4" /> {result.vaccinations.length} vaccination record{result.vaccinations.length > 1 ? 's' : ''} saved automatically!
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -412,27 +436,34 @@ export default function DocumentScanner({ pet }) {
               )
             )}
 
-            {/* Vaccination reminder suggestion */}
-            {result.type === 'vaccination' && result.vaccination?.nextDue && (
-              <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium text-purple-800">Set next vaccination reminder</p>
-                  <p className="text-xs text-purple-500 mt-0.5">
-                    {result.vaccination.name} due on {format(new Date(result.vaccination.nextDue), 'MMMM d, yyyy')}
-                  </p>
-                </div>
-                {savedReminders.includes('vax-reminder') ? (
-                  <span className="text-xs text-green-600 flex items-center gap-1 whitespace-nowrap">
-                    <CheckCircle className="w-4 h-4" /> Reminder set!
-                  </span>
-                ) : (
-                  <button
-                    onClick={handleSaveVaccinationReminder}
-                    className="text-sm bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors"
-                  >
-                    + Set Reminder
-                  </button>
-                )}
+            {/* Vaccination reminder suggestions — one per vaccine with a future nextDue */}
+            {result.type === 'vaccination' && result.vaccinations?.some(v => isFutureDate(v.nextDue)) && (
+              <div className="mt-3 space-y-2">
+                {result.vaccinations.filter(v => isFutureDate(v.nextDue)).map((vax, i) => {
+                  const key = `vax-${vax.name}-${vax.nextDue}`
+                  return (
+                    <div key={i} className="p-3 bg-purple-50 border border-purple-200 rounded-lg flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-purple-800">Set reminder — {vax.name}</p>
+                        <p className="text-xs text-purple-500 mt-0.5">
+                          Due on {format(new Date(vax.nextDue), 'MMMM d, yyyy')}
+                        </p>
+                      </div>
+                      {savedReminders.includes(key) ? (
+                        <span className="text-xs text-green-600 flex items-center gap-1 whitespace-nowrap">
+                          <CheckCircle className="w-4 h-4" /> Set!
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleSaveVaccinationReminder(vax)}
+                          className="text-sm bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors"
+                        >
+                          + Reminder
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -489,8 +520,8 @@ export default function DocumentScanner({ pet }) {
             </div>
           )}
 
-          {/* Timelines */}
-          {result.timelines?.length > 0 && (
+          {/* Timelines — only show future dates */}
+          {result.timelines?.some(t => isFutureDate(t.date)) && (
             <div className="card border-blue-100 border">
               <div className="flex items-center gap-2 mb-3">
                 <Calendar className="w-5 h-5 text-blue-500" />
@@ -498,7 +529,7 @@ export default function DocumentScanner({ pet }) {
                 <span className="text-xs text-gray-400">· Save as reminders</span>
               </div>
               <div className="space-y-2">
-                {result.timelines.map((t, i) => {
+                {result.timelines.filter(t => isFutureDate(t.date)).map((t, i) => {
                   const key = t.date + t.label
                   const alreadySaved = savedReminders.includes(key)
                   return (
