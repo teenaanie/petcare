@@ -99,6 +99,8 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
             ))}
           </div>
         )}
+      </div>{/* end flex-1 scroll area */}
+
       {/* Migrate local data banner */}
       {hasLocalData && (
         <div className="px-3 py-3 border-t border-gray-100">
