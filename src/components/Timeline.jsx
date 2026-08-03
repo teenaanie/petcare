@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Stethoscope, Syringe, AlertTriangle, Bell, Calendar, CheckCircle, Clock, AlertCircle } from 'lucide-react'
+import { Stethoscope, Syringe, AlertTriangle, Bell, Calendar, CheckCircle, Clock, AlertCircle, TriangleAlert } from 'lucide-react'
 import { getMedicalHistory, getVaccinations, getAllergies, getReminders } from '../lib/storage.js'
 import { format, parseISO, isValid, isBefore, addDays } from 'date-fns'
 
@@ -43,6 +43,8 @@ function buildEvents(medicalRecords, vaccinations, allergies, reminders) {
       title: r.title,
       subtitle: `${r.type}${r.vet ? ` · ${r.vet}` : ''}${r.cost ? ` · $${r.cost}` : ''}`,
       body: r.description,
+      isAbnormal: r.isAbnormal,
+      abnormalities: r.abnormalities || [],
       raw: r,
     })
   })
@@ -144,17 +146,27 @@ export default function Timeline({ pet }) {
   function EventCard({ event }) {
     const cfg = TYPE_ICONS[event.kind]
     const Icon = cfg.icon
+    const cardBorder = event.isAbnormal ? 'border-red-200 bg-red-50/30' : 'border-gray-100'
     return (
       <div className="flex gap-4">
         {/* Timeline dot + line — handled by parent */}
-        <div className={`w-10 h-10 rounded-full ${cfg.bg} flex items-center justify-center flex-shrink-0`}>
-          <Icon className={`w-5 h-5 ${cfg.color}`} />
+        <div className={`w-10 h-10 rounded-full ${event.isAbnormal ? 'bg-red-100' : cfg.bg} flex items-center justify-center flex-shrink-0`}>
+          {event.isAbnormal
+            ? <TriangleAlert className="w-5 h-5 text-red-500" />
+            : <Icon className={`w-5 h-5 ${cfg.color}`} />}
         </div>
         <div className="flex-1 pb-6">
-          <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+          <div className={`bg-white border rounded-xl p-4 shadow-sm ${cardBorder}`}>
             <div className="flex items-start justify-between flex-wrap gap-2">
               <div>
-                <p className="font-semibold text-gray-900">{event.title}</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-semibold text-gray-900">{event.title}</p>
+                  {event.isAbnormal && (
+                    <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                      <TriangleAlert className="w-3 h-3" /> {event.abnormalities.length} Abnormal
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-gray-400 mt-0.5">{event.subtitle}</p>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
@@ -174,6 +186,19 @@ export default function Timeline({ pet }) {
             )}
             {event.extra && (
               <p className="text-xs text-purple-600 mt-2 font-medium">{event.extra}</p>
+            )}
+            {event.isAbnormal && event.abnormalities?.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {event.abnormalities.map((a, i) => {
+                  const color = { Severe: 'text-red-700 bg-red-50', Moderate: 'text-orange-700 bg-orange-50', Mild: 'text-yellow-700 bg-yellow-50' }[a.severity] || 'text-red-700 bg-red-50'
+                  return (
+                    <div key={i} className={`text-xs rounded px-2 py-1 ${color}`}>
+                      <span className="font-bold">{a.parameter}</span> {a.value}{a.unit} — <span className="font-semibold">{a.status} ({a.severity})</span>
+                      {a.clinicalNote && <span className="ml-1 opacity-75">· {a.clinicalNote}</span>}
+                    </div>
+                  )
+                })}
+              </div>
             )}
           </div>
         </div>

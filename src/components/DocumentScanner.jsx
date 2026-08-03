@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Upload, Camera, FileText, Loader2, CheckCircle, AlertCircle, Wand2, Calendar } from 'lucide-react'
+import { Upload, Camera, FileText, Loader2, CheckCircle, AlertCircle, Wand2, Calendar, TriangleAlert } from 'lucide-react'
 import { saveMedicalRecord, saveVaccination, saveAllergy, saveReminder } from '../lib/storage.js'
 import { format } from 'date-fns'
 
@@ -85,17 +85,41 @@ Extract and return a JSON object with this structure:
       "date": "YYYY-MM-DD",
       "type": "Vaccination|Vet Checkup|Medication|Grooming|Other"
     }
+  ],
+  "abnormalities": [
+    {
+      "parameter": "parameter name",
+      "value": "measured value",
+      "unit": "unit of measure",
+      "referenceRange": "normal range",
+      "status": "HIGH|LOW",
+      "severity": "Mild|Moderate|Severe",
+      "clinicalNote": "plain english explanation"
+    }
   ]
 }
 
-Be thorough about extracting ALL dates and future appointments from the document — next due dates, follow-up visits, medication schedules, booster reminders, etc. List each as a separate timeline entry.
+Be thorough about extracting ALL dates and future appointments — next due dates, follow-up visits, medication schedules, booster reminders. List each as a separate timeline entry.
 
 If this is a blood test / lab report, set type to "medical" and populate medicalRecord with:
-- title: "Blood Test Results" or the specific test name
-- description: list ALL key values found (e.g. "RBC: 6.5 (normal 5.5-8.5), WBC: 12.3 HIGH (normal 6-17), Platelets: 210 (normal 200-500)..."). Flag values as HIGH, LOW, or NORMAL based on reference ranges shown.
+- title: the specific test name (e.g. "Complete Blood Count", "Biochemistry Panel")
+- description: list ALL values found, one per line, format: "Parameter: Value (Reference: range) — STATUS" where STATUS is NORMAL, HIGH, or LOW
 - Include the lab name and vet if visible.
 
-Only populate the relevant record section based on document type. Return valid JSON only.`
+IMPORTANT — also populate the "abnormalities" array with ONLY the values that are outside normal range:
+{
+  "parameter": "WBC",
+  "value": "18.5",
+  "unit": "x10³/µL",
+  "referenceRange": "6.0–17.0",
+  "status": "HIGH",
+  "severity": "Mild|Moderate|Severe",
+  "clinicalNote": "brief plain-english note on what this could mean for the pet"
+}
+
+Severity rules: >20% outside range = Mild, >50% = Moderate, >100% = Severe.
+If no abnormalities exist, return an empty array.
+Only populate the relevant record section. Return valid JSON only.`
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -185,7 +209,13 @@ export default function DocumentScanner({ pet }) {
     } else if (result.type === 'allergy' && result.allergy?.allergen) {
       saveAllergy({ ...result.allergy, petId: pet.id })
     } else if (result.medicalRecord?.title) {
-      saveMedicalRecord({ ...result.medicalRecord, petId: pet.id })
+      const hasAbnormalities = result.abnormalities?.length > 0
+      saveMedicalRecord({
+        ...result.medicalRecord,
+        petId: pet.id,
+        isAbnormal: hasAbnormalities,
+        abnormalities: result.abnormalities || [],
+      })
     }
     setSaved(true)
   }
@@ -354,6 +384,58 @@ export default function DocumentScanner({ pet }) {
               </button>
             )}
           </div>
+
+          {/* Abnormalities */}
+          {result.abnormalities?.length > 0 && (
+            <div className="card border-red-200 border bg-red-50">
+              <div className="flex items-center gap-2 mb-3">
+                <TriangleAlert className="w-5 h-5 text-red-500" />
+                <span className="font-semibold text-red-800">
+                  {result.abnormalities.length} Abnormal Value{result.abnormalities.length > 1 ? 's' : ''} Found
+                </span>
+                <span className="text-xs text-red-400">· Consult your vet</span>
+              </div>
+              <div className="space-y-2">
+                {result.abnormalities.map((a, i) => {
+                  const severityColor = {
+                    Severe:   'bg-red-100 border-red-300 text-red-900',
+                    Moderate: 'bg-orange-50 border-orange-300 text-orange-900',
+                    Mild:     'bg-yellow-50 border-yellow-300 text-yellow-900',
+                  }[a.severity] || 'bg-red-50 border-red-200 text-red-800'
+
+                  const badgeColor = {
+                    Severe:   'bg-red-500 text-white',
+                    Moderate: 'bg-orange-500 text-white',
+                    Mild:     'bg-yellow-500 text-white',
+                  }[a.severity] || 'bg-red-500 text-white'
+
+                  return (
+                    <div key={i} className={`rounded-lg border p-3 ${severityColor}`}>
+                      <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm">{a.parameter}</span>
+                          <span className="text-sm">{a.value} {a.unit}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${badgeColor}`}>
+                            {a.status}
+                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badgeColor} opacity-80`}>
+                            {a.severity}
+                          </span>
+                        </div>
+                        <span className="text-xs opacity-70">Normal: {a.referenceRange}</span>
+                      </div>
+                      {a.clinicalNote && (
+                        <p className="text-xs opacity-80 mt-1">{a.clinicalNote}</p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              <p className="text-xs text-red-400 mt-3">
+                ⚠ This is an AI interpretation of the report. Always follow your vet's advice.
+              </p>
+            </div>
+          )}
 
           {/* Timelines */}
           {result.timelines?.length > 0 && (
