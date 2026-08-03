@@ -1,152 +1,365 @@
-// Local storage helpers — works without any backend.
-// Replace these with Supabase calls once you connect your account.
+// storage.js — uses Supabase when configured, falls back to localStorage.
+// This means all devices stay in sync automatically once Supabase is connected.
+
+import { supabase, isConfigured } from './supabase.js'
+
+// ── localStorage helpers (fallback) ──────────────────────────────────────────
 
 const KEYS = {
-  pets: 'mypetcare_pets',
-  medical: 'mypetcare_medical',
+  pets:         'mypetcare_pets',
+  medical:      'mypetcare_medical',
   vaccinations: 'mypetcare_vaccinations',
-  allergies: 'mypetcare_allergies',
-  reminders: 'mypetcare_reminders',
+  allergies:    'mypetcare_allergies',
+  reminders:    'mypetcare_reminders',
 }
 
-function get(key) {
-  try {
-    return JSON.parse(localStorage.getItem(key) || '[]')
-  } catch {
-    return []
-  }
-}
-
-function set(key, data) {
-  localStorage.setItem(key, JSON.stringify(data))
-}
-
-function uid() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2)
-}
+function lsGet(key)       { try { return JSON.parse(localStorage.getItem(key) || '[]') } catch { return [] } }
+function lsSet(key, data) { localStorage.setItem(key, JSON.stringify(data)) }
+function uid()            { return Date.now().toString(36) + Math.random().toString(36).slice(2) }
 
 // ── Pets ──────────────────────────────────────────────────────────────────────
 
-export function getPets() { return get(KEYS.pets) }
+export async function getPets() {
+  if (isConfigured) {
+    const { data, error } = await supabase.from('pets').select('*').order('created_at', { ascending: false })
+    if (error) throw error
+    return data
+  }
+  return lsGet(KEYS.pets)
+}
 
-export function savePet(pet) {
-  const pets = getPets()
+export async function savePet(pet) {
+  if (isConfigured) {
+    if (pet.id) {
+      const { data, error } = await supabase.from('pets').update(toSnake(pet)).eq('id', pet.id).select().single()
+      if (error) throw error
+      return data
+    } else {
+      const { data, error } = await supabase.from('pets').insert(toSnake(pet)).select().single()
+      if (error) throw error
+      return data
+    }
+  }
+  // localStorage fallback
+  const pets = lsGet(KEYS.pets)
   if (pet.id) {
     const idx = pets.findIndex(p => p.id === pet.id)
     if (idx >= 0) pets[idx] = pet; else pets.push(pet)
   } else {
-    pet.id = uid()
-    pet.createdAt = new Date().toISOString()
-    pets.push(pet)
+    pet.id = uid(); pet.createdAt = new Date().toISOString(); pets.push(pet)
   }
-  set(KEYS.pets, pets)
+  lsSet(KEYS.pets, pets)
   return pet
 }
 
-export function deletePet(id) {
-  set(KEYS.pets, getPets().filter(p => p.id !== id))
-  // cascade
-  set(KEYS.medical, getMedicalHistory().filter(r => r.petId !== id))
-  set(KEYS.vaccinations, getVaccinations().filter(r => r.petId !== id))
-  set(KEYS.allergies, getAllergies().filter(r => r.petId !== id))
+export async function deletePet(id) {
+  if (isConfigured) {
+    const { error } = await supabase.from('pets').delete().eq('id', id)
+    if (error) throw error
+    return
+  }
+  lsSet(KEYS.pets, lsGet(KEYS.pets).filter(p => p.id !== id))
+  lsSet(KEYS.medical, lsGet(KEYS.medical).filter(r => r.petId !== id))
+  lsSet(KEYS.vaccinations, lsGet(KEYS.vaccinations).filter(r => r.petId !== id))
+  lsSet(KEYS.allergies, lsGet(KEYS.allergies).filter(r => r.petId !== id))
 }
 
 // ── Medical History ───────────────────────────────────────────────────────────
 
-export function getMedicalHistory(petId) {
-  const all = get(KEYS.medical)
+export async function getMedicalHistory(petId) {
+  if (isConfigured) {
+    let q = supabase.from('medical_records').select('*').order('date', { ascending: false, nullsFirst: false })
+    if (petId) q = q.eq('pet_id', petId)
+    const { data, error } = await q
+    if (error) throw error
+    return data.map(fromSnakeMedical)
+  }
+  const all = lsGet(KEYS.medical)
   return petId ? all.filter(r => r.petId === petId) : all
 }
 
-export function saveMedicalRecord(record) {
-  const all = get(KEYS.medical)
+export async function saveMedicalRecord(record) {
+  if (isConfigured) {
+    const row = {
+      pet_id:        record.petId,
+      date:          record.date || null,
+      type:          record.type,
+      title:         record.title,
+      description:   record.description,
+      vet:           record.vet,
+      cost:          record.cost ? parseFloat(record.cost) : null,
+      is_abnormal:   record.isAbnormal || false,
+      abnormalities: record.abnormalities || [],
+    }
+    if (record.id) {
+      const { data, error } = await supabase.from('medical_records').update(row).eq('id', record.id).select().single()
+      if (error) throw error
+      return fromSnakeMedical(data)
+    } else {
+      const { data, error } = await supabase.from('medical_records').insert(row).select().single()
+      if (error) throw error
+      return fromSnakeMedical(data)
+    }
+  }
+  const all = lsGet(KEYS.medical)
   if (record.id) {
     const idx = all.findIndex(r => r.id === record.id)
     if (idx >= 0) all[idx] = record; else all.push(record)
   } else {
-    record.id = uid()
-    record.createdAt = new Date().toISOString()
-    all.push(record)
+    record.id = uid(); record.createdAt = new Date().toISOString(); all.push(record)
   }
-  set(KEYS.medical, all)
+  lsSet(KEYS.medical, all)
   return record
 }
 
-export function deleteMedicalRecord(id) {
-  set(KEYS.medical, get(KEYS.medical).filter(r => r.id !== id))
+export async function deleteMedicalRecord(id) {
+  if (isConfigured) {
+    const { error } = await supabase.from('medical_records').delete().eq('id', id)
+    if (error) throw error
+    return
+  }
+  lsSet(KEYS.medical, lsGet(KEYS.medical).filter(r => r.id !== id))
 }
 
 // ── Vaccinations ──────────────────────────────────────────────────────────────
 
-export function getVaccinations(petId) {
-  const all = get(KEYS.vaccinations)
+export async function getVaccinations(petId) {
+  if (isConfigured) {
+    let q = supabase.from('vaccinations').select('*').order('date_given', { ascending: false, nullsFirst: false })
+    if (petId) q = q.eq('pet_id', petId)
+    const { data, error } = await q
+    if (error) throw error
+    return data.map(fromSnakeVax)
+  }
+  const all = lsGet(KEYS.vaccinations)
   return petId ? all.filter(r => r.petId === petId) : all
 }
 
-export function saveVaccination(record) {
-  const all = get(KEYS.vaccinations)
+export async function saveVaccination(record) {
+  if (isConfigured) {
+    const row = {
+      pet_id:       record.petId,
+      name:         record.name,
+      date_given:   record.dateGiven || null,
+      next_due:     record.nextDue   || null,
+      batch_number: record.batchNumber,
+      vet:          record.vet,
+      notes:        record.notes,
+    }
+    if (record.id) {
+      const { data, error } = await supabase.from('vaccinations').update(row).eq('id', record.id).select().single()
+      if (error) throw error
+      return fromSnakeVax(data)
+    } else {
+      const { data, error } = await supabase.from('vaccinations').insert(row).select().single()
+      if (error) throw error
+      return fromSnakeVax(data)
+    }
+  }
+  const all = lsGet(KEYS.vaccinations)
   if (record.id) {
     const idx = all.findIndex(r => r.id === record.id)
     if (idx >= 0) all[idx] = record; else all.push(record)
   } else {
-    record.id = uid()
-    record.createdAt = new Date().toISOString()
-    all.push(record)
+    record.id = uid(); record.createdAt = new Date().toISOString(); all.push(record)
   }
-  set(KEYS.vaccinations, all)
+  lsSet(KEYS.vaccinations, all)
   return record
 }
 
-export function deleteVaccination(id) {
-  set(KEYS.vaccinations, get(KEYS.vaccinations).filter(r => r.id !== id))
+export async function deleteVaccination(id) {
+  if (isConfigured) {
+    const { error } = await supabase.from('vaccinations').delete().eq('id', id)
+    if (error) throw error
+    return
+  }
+  lsSet(KEYS.vaccinations, lsGet(KEYS.vaccinations).filter(r => r.id !== id))
 }
 
 // ── Allergies ─────────────────────────────────────────────────────────────────
 
-export function getAllergies(petId) {
-  const all = get(KEYS.allergies)
+export async function getAllergies(petId) {
+  if (isConfigured) {
+    let q = supabase.from('allergies').select('*').order('created_at', { ascending: false })
+    if (petId) q = q.eq('pet_id', petId)
+    const { data, error } = await q
+    if (error) throw error
+    return data.map(fromSnakeAllergy)
+  }
+  const all = lsGet(KEYS.allergies)
   return petId ? all.filter(r => r.petId === petId) : all
 }
 
-export function saveAllergy(record) {
-  const all = get(KEYS.allergies)
+export async function saveAllergy(record) {
+  if (isConfigured) {
+    const row = {
+      pet_id:        record.petId,
+      allergen:      record.allergen,
+      type:          record.type,
+      severity:      record.severity,
+      reactions:     record.reactions || [],
+      notes:         record.notes,
+      diagnosed_date: record.diagnosedDate || null,
+    }
+    if (record.id) {
+      const { data, error } = await supabase.from('allergies').update(row).eq('id', record.id).select().single()
+      if (error) throw error
+      return fromSnakeAllergy(data)
+    } else {
+      const { data, error } = await supabase.from('allergies').insert(row).select().single()
+      if (error) throw error
+      return fromSnakeAllergy(data)
+    }
+  }
+  const all = lsGet(KEYS.allergies)
   if (record.id) {
     const idx = all.findIndex(r => r.id === record.id)
     if (idx >= 0) all[idx] = record; else all.push(record)
   } else {
-    record.id = uid()
-    record.createdAt = new Date().toISOString()
-    all.push(record)
+    record.id = uid(); record.createdAt = new Date().toISOString(); all.push(record)
   }
-  set(KEYS.allergies, all)
+  lsSet(KEYS.allergies, all)
   return record
 }
 
-export function deleteAllergy(id) {
-  set(KEYS.allergies, get(KEYS.allergies).filter(r => r.id !== id))
+export async function deleteAllergy(id) {
+  if (isConfigured) {
+    const { error } = await supabase.from('allergies').delete().eq('id', id)
+    if (error) throw error
+    return
+  }
+  lsSet(KEYS.allergies, lsGet(KEYS.allergies).filter(r => r.id !== id))
 }
 
 // ── Reminders ─────────────────────────────────────────────────────────────────
 
-export function getReminders(petId) {
-  const all = get(KEYS.reminders)
+export async function getReminders(petId) {
+  if (isConfigured) {
+    let q = supabase.from('reminders').select('*').order('due_date', { ascending: true, nullsFirst: false })
+    if (petId) q = q.eq('pet_id', petId)
+    const { data, error } = await q
+    if (error) throw error
+    return data.map(fromSnakeReminder)
+  }
+  const all = lsGet(KEYS.reminders)
   return petId ? all.filter(r => r.petId === petId) : all
 }
 
-export function saveReminder(reminder) {
-  const all = get(KEYS.reminders)
-  if (reminder.id) {
-    const idx = all.findIndex(r => r.id === reminder.id)
-    if (idx >= 0) all[idx] = reminder; else all.push(reminder)
-  } else {
-    reminder.id = uid()
-    reminder.createdAt = new Date().toISOString()
-    all.push(reminder)
+export async function saveReminder(record) {
+  if (isConfigured) {
+    const row = {
+      pet_id:    record.petId,
+      type:      record.type,
+      due_date:  record.dueDate  || null,
+      frequency: record.frequency,
+      email:     record.email,
+      whatsapp:  record.whatsapp,
+      notes:     record.notes,
+    }
+    if (record.id) {
+      const { data, error } = await supabase.from('reminders').update(row).eq('id', record.id).select().single()
+      if (error) throw error
+      return fromSnakeReminder(data)
+    } else {
+      const { data, error } = await supabase.from('reminders').insert(row).select().single()
+      if (error) throw error
+      return fromSnakeReminder(data)
+    }
   }
-  set(KEYS.reminders, all)
-  return reminder
+  const all = lsGet(KEYS.reminders)
+  if (record.id) {
+    const idx = all.findIndex(r => r.id === record.id)
+    if (idx >= 0) all[idx] = record; else all.push(record)
+  } else {
+    record.id = uid(); record.createdAt = new Date().toISOString(); all.push(record)
+  }
+  lsSet(KEYS.reminders, all)
+  return record
 }
 
-export function deleteReminder(id) {
-  set(KEYS.reminders, get(KEYS.reminders).filter(r => r.id !== id))
+export async function deleteReminder(id) {
+  if (isConfigured) {
+    const { error } = await supabase.from('reminders').delete().eq('id', id)
+    if (error) throw error
+    return
+  }
+  lsSet(KEYS.reminders, lsGet(KEYS.reminders).filter(r => r.id !== id))
+}
+
+// ── Snake ↔ camelCase helpers ─────────────────────────────────────────────────
+
+function toSnake(pet) {
+  return {
+    name:             pet.name,
+    species:          pet.species,
+    breed:            pet.breed,
+    gender:           pet.gender,
+    dob:              pet.dob       || null,
+    weight:           pet.weight    ? parseFloat(pet.weight) : null,
+    color:            pet.color,
+    microchip_id:     pet.microchipId,
+    insurance_policy: pet.insurancePolicy,
+    vet_name:         pet.vetName,
+    vet_phone:        pet.vetPhone,
+    vet_email:        pet.vetEmail,
+    notes:            pet.notes,
+  }
+}
+
+function fromSnakeMedical(r) {
+  return {
+    id:            r.id,
+    petId:         r.pet_id,
+    date:          r.date,
+    type:          r.type,
+    title:         r.title,
+    description:   r.description,
+    vet:           r.vet,
+    cost:          r.cost,
+    isAbnormal:    r.is_abnormal,
+    abnormalities: r.abnormalities || [],
+    createdAt:     r.created_at,
+  }
+}
+
+function fromSnakeVax(r) {
+  return {
+    id:          r.id,
+    petId:       r.pet_id,
+    name:        r.name,
+    dateGiven:   r.date_given,
+    nextDue:     r.next_due,
+    batchNumber: r.batch_number,
+    vet:         r.vet,
+    notes:       r.notes,
+    createdAt:   r.created_at,
+  }
+}
+
+function fromSnakeAllergy(r) {
+  return {
+    id:           r.id,
+    petId:        r.pet_id,
+    allergen:     r.allergen,
+    type:         r.type,
+    severity:     r.severity,
+    reactions:    r.reactions || [],
+    notes:        r.notes,
+    diagnosedDate: r.diagnosed_date,
+    createdAt:    r.created_at,
+  }
+}
+
+function fromSnakeReminder(r) {
+  return {
+    id:        r.id,
+    petId:     r.pet_id,
+    type:      r.type,
+    dueDate:   r.due_date,
+    frequency: r.frequency,
+    email:     r.email,
+    whatsapp:  r.whatsapp,
+    notes:     r.notes,
+    createdAt: r.created_at,
+  }
 }

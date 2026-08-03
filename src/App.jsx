@@ -24,6 +24,7 @@ export default function App() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         refresh={refresh}
+        onRefresh={() => setRefresh(r => r + 1)}
       />
 
       <main className="flex-1 overflow-y-auto">

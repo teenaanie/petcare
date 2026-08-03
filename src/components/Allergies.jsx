@@ -17,7 +17,7 @@ export default function Allergies({ pet }) {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ allergen: '', type: 'Food', severity: 'Mild', reactions: [], notes: '', diagnosedDate: '' })
 
-  function load() { setRecords(getAllergies(pet.id)) }
+  function load() { getAllergies(pet.id).then(setRecords).catch(console.error) }
   useEffect(load, [pet.id])
 
   function toggleReaction(r) {
@@ -27,16 +27,16 @@ export default function Allergies({ pet }) {
     }))
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    saveAllergy({ ...form, petId: pet.id })
+    await saveAllergy({ ...form, petId: pet.id })
     setForm({ allergen: '', type: 'Food', severity: 'Mild', reactions: [], notes: '', diagnosedDate: '' })
     setShowForm(false)
     load()
   }
 
-  function handleDelete(id) {
-    if (confirm('Delete this allergy record?')) { deleteAllergy(id); load() }
+  async function handleDelete(id) {
+    if (confirm('Delete this allergy record?')) { await deleteAllergy(id); load() }
   }
 
   return (

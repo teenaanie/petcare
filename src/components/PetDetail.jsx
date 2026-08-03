@@ -13,9 +13,9 @@ import Reminders from './Reminders.jsx'
 export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, onPetDeleted }) {
   const [showEdit, setShowEdit] = useState(false)
 
-  function handleDelete() {
+  async function handleDelete() {
     if (confirm(`Delete ${pet.name}? This will remove all their records.`)) {
-      deletePet(pet.id)
+      await deletePet(pet.id)
       onPetDeleted()
     }
   }

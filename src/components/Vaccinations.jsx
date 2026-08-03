@@ -25,19 +25,19 @@ export default function Vaccinations({ pet }) {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ name: 'Rabies', dateGiven: '', nextDue: '', batchNumber: '', vet: '', notes: '' })
 
-  function load() { setRecords(getVaccinations(pet.id)) }
+  function load() { getVaccinations(pet.id).then(setRecords).catch(console.error) }
   useEffect(load, [pet.id])
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    saveVaccination({ ...form, petId: pet.id })
+    await saveVaccination({ ...form, petId: pet.id })
     setForm({ name: 'Rabies', dateGiven: '', nextDue: '', batchNumber: '', vet: '', notes: '' })
     setShowForm(false)
     load()
   }
 
-  function handleDelete(id) {
-    if (confirm('Delete this vaccination record?')) { deleteVaccination(id); load() }
+  async function handleDelete(id) {
+    if (confirm('Delete this vaccination record?')) { await deleteVaccination(id); load() }
   }
 
   return (

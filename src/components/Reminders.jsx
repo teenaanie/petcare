@@ -59,52 +59,104 @@ Rules:
   return JSON.parse(text)
 }
 
-// ── Voice recording hook ──────────────────────────────────────────────────────
+// ── Voice recording hook (MediaRecorder → Whisper API) ───────────────────────
 function useVoiceRecorder(onTranscript) {
-  const [listening, setListening]   = useState(false)
-  const [transcript, setTranscript] = useState('')
-  const [error, setError]           = useState(null)
-  const recognitionRef              = useRef(null)
+  const [listening, setListening]     = useState(false)
+  const [transcript, setTranscript]   = useState('')
+  const [transcribing, setTranscribing] = useState(false)
+  const [error, setError]             = useState(null)
+  const mediaRecorderRef              = useRef(null)
+  const chunksRef                     = useRef([])
+  const streamRef                     = useRef(null)
 
-  function start() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SpeechRecognition) {
-      setError('Speech recognition not supported in this browser. Try Chrome or Safari.')
-      return
-    }
+  async function start() {
     setError(null)
     setTranscript('')
-    const rec = new SpeechRecognition()
-    rec.continuous      = false
-    rec.interimResults  = true
-    rec.lang            = 'en-US'
-    rec.onresult = (e) => {
-      const t = Array.from(e.results).map(r => r[0].transcript).join('')
-      setTranscript(t)
+    chunksRef.current = []
+
+    try {
+      // Explicitly request the Mac's default input — bypasses iPhone Continuity mic
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          sampleRate: 16000,
+        }
+      })
+      streamRef.current = stream
+
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/mp4')
+        ? 'audio/mp4'
+        : 'audio/webm'
+
+      const recorder = new MediaRecorder(stream, { mimeType })
+      mediaRecorderRef.current = recorder
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data)
+      }
+
+      recorder.onstop = async () => {
+        // Stop all tracks to release the mic indicator
+        stream.getTracks().forEach(t => t.stop())
+
+        const blob = new Blob(chunksRef.current, { type: mimeType })
+        if (blob.size < 1000) {
+          setError('Recording too short — please hold the button and speak.')
+          return
+        }
+
+        // Transcribe with Whisper
+        setTranscribing(true)
+        try {
+          const formData = new FormData()
+          const ext = mimeType.includes('mp4') ? 'mp4' : 'webm'
+          formData.append('file', blob, `recording.${ext}`)
+          formData.append('model', 'whisper-1')
+          formData.append('language', 'en')
+
+          const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${OPENAI_KEY}` },
+            body: formData,
+          })
+          if (!res.ok) {
+            const err = await res.json()
+            throw new Error(err.error?.message || 'Transcription failed')
+          }
+          const data = await res.json()
+          const text = data.text?.trim()
+          setTranscript(text)
+          if (text) onTranscript(text)
+          else setError('No speech detected — please try again.')
+        } catch (e) {
+          setError(`Transcription error: ${e.message}`)
+        } finally {
+          setTranscribing(false)
+        }
+      }
+
+      recorder.start()
+      setListening(true)
+    } catch (e) {
+      if (e.name === 'NotAllowedError') {
+        setError('Microphone access denied. Allow mic access in your browser settings.')
+      } else {
+        setError(`Could not start recording: ${e.message}`)
+      }
     }
-    rec.onend = () => {
-      setListening(false)
-      const final = recognitionRef.current?._lastTranscript
-      if (final) onTranscript(final)
-    }
-    rec.onerror = (e) => { setError(`Mic error: ${e.error}`); setListening(false) }
-    // store transcript on each result for use in onend
-    rec.onresult = (e) => {
-      const t = Array.from(e.results).map(r => r[0].transcript).join('')
-      setTranscript(t)
-      rec._lastTranscript = t
-    }
-    recognitionRef.current = rec
-    rec.start()
-    setListening(true)
   }
 
   function stop() {
-    recognitionRef.current?.stop()
+    if (mediaRecorderRef.current?.state === 'recording') {
+      mediaRecorderRef.current.stop()
+    }
     setListening(false)
   }
 
-  return { listening, transcript, error, start, stop }
+  return { listening, transcribing, transcript, error, start, stop }
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -121,20 +173,20 @@ export default function Reminders({ pet }) {
   const [voiceError, setVoiceError]     = useState(null)
   const [parsedPreview, setParsedPreview] = useState(null) // AI-parsed form values
 
-  function load() { setReminders(getReminders(pet.id)) }
+  function load() { getReminders(pet.id).then(setReminders).catch(console.error) }
   useEffect(load, [pet.id])
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    saveReminder({ ...form, petId: pet.id })
+    await saveReminder({ ...form, petId: pet.id })
     setForm({ type: 'Vaccination', dueDate: '', frequency: 'Once', email: '', whatsapp: '', notes: '' })
     setShowForm(false)
     setParsedPreview(null)
     load()
   }
 
-  function handleDelete(id) {
-    if (confirm('Delete this reminder?')) { deleteReminder(id); load() }
+  async function handleDelete(id) {
+    if (confirm('Delete this reminder?')) { await deleteReminder(id); load() }
   }
 
   async function handleSendEmail(reminder) {
@@ -231,34 +283,38 @@ export default function Reminders({ pet }) {
           {/* Mic button */}
           <div className="flex flex-col items-center gap-3">
             <button
-              onClick={voice.listening ? voice.stop : voice.start}
-              disabled={aiParsing}
-              className={`w-16 h-16 rounded-full flex items-center justify-center transition-all shadow-lg ${
+              onMouseDown={voice.start}
+              onMouseUp={voice.stop}
+              onTouchStart={e => { e.preventDefault(); voice.start() }}
+              onTouchEnd={e => { e.preventDefault(); voice.stop() }}
+              onClick={!voice.listening ? undefined : voice.stop}
+              disabled={voice.transcribing || aiParsing}
+              className={`w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-lg select-none ${
                 voice.listening
-                  ? 'bg-red-500 hover:bg-red-600 animate-pulse'
-                  : 'bg-primary-600 hover:bg-primary-700'
+                  ? 'bg-red-500 scale-110 animate-pulse'
+                  : voice.transcribing || aiParsing
+                  ? 'bg-gray-400'
+                  : 'bg-primary-600 hover:bg-primary-700 active:scale-95'
               }`}
             >
-              {voice.listening
-                ? <MicOff className="w-7 h-7 text-white" />
-                : <Mic className="w-7 h-7 text-white" />}
+              {voice.transcribing || aiParsing
+                ? <Loader2 className="w-8 h-8 text-white animate-spin" />
+                : voice.listening
+                ? <MicOff className="w-8 h-8 text-white" />
+                : <Mic className="w-8 h-8 text-white" />}
             </button>
-            <p className="text-sm font-medium text-primary-800">
-              {voice.listening ? 'Listening... tap to stop' : 'Tap to speak'}
+
+            <p className="text-sm font-medium text-primary-800 text-center">
+              {voice.transcribing ? 'Transcribing...'
+                : aiParsing ? 'AI is understanding your request...'
+                : voice.listening ? 'Release to stop recording'
+                : 'Hold to speak'}
             </p>
 
-            {voice.transcript && (
+            {voice.transcript && !aiParsing && (
               <div className="w-full bg-white rounded-lg px-4 py-3 text-sm text-gray-700 border border-primary-200">
                 <p className="text-xs text-gray-400 mb-1">Heard:</p>
-                "{voice.transcript}"
-              </div>
-            )}
-
-            {aiParsing && (
-              <div className="flex items-center gap-2 text-primary-600 text-sm">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <Wand2 className="w-4 h-4" />
-                AI is understanding your request...
+                <p className="italic">"{voice.transcript}"</p>
               </div>
             )}
 
@@ -267,6 +323,12 @@ export default function Reminders({ pet }) {
                 <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                 {voice.error || voiceError}
               </div>
+            )}
+
+            {!OPENAI_KEY && (
+              <p className="text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg w-full text-center">
+                Add <code>VITE_OPENAI_API_KEY</code> to .env to enable voice transcription.
+              </p>
             )}
           </div>
         </div>

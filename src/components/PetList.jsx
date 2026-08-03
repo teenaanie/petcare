@@ -7,7 +7,7 @@ export default function PetList({ refresh, onSelectPet, onAddPet }) {
   const [pets, setPets] = useState([])
 
   useEffect(() => {
-    setPets(getPets())
+    getPets().then(setPets).catch(console.error)
   }, [refresh])
 
   if (pets.length === 0) {

@@ -10,19 +10,19 @@ export default function MedicalHistory({ pet }) {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ date: '', type: 'Checkup', title: '', description: '', vet: '', cost: '' })
 
-  function load() { setRecords(getMedicalHistory(pet.id)) }
+  function load() { getMedicalHistory(pet.id).then(setRecords).catch(console.error) }
   useEffect(load, [pet.id])
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    saveMedicalRecord({ ...form, petId: pet.id })
+    await saveMedicalRecord({ ...form, petId: pet.id })
     setForm({ date: '', type: 'Checkup', title: '', description: '', vet: '', cost: '' })
     setShowForm(false)
     load()
   }
 
-  function handleDelete(id) {
-    if (confirm('Delete this record?')) { deleteMedicalRecord(id); load() }
+  async function handleDelete(id) {
+    if (confirm('Delete this record?')) { await deleteMedicalRecord(id); load() }
   }
 
   return (

@@ -119,11 +119,14 @@ export default function Timeline({ pet }) {
   const [filter, setFilter] = useState('all')
 
   function load() {
-    const medical     = getMedicalHistory(pet.id)
-    const vaccinations = getVaccinations(pet.id)
-    const allergies   = getAllergies(pet.id)
-    const reminders   = getReminders(pet.id)
-    setEvents(buildEvents(medical, vaccinations, allergies, reminders))
+    Promise.all([
+      getMedicalHistory(pet.id),
+      getVaccinations(pet.id),
+      getAllergies(pet.id),
+      getReminders(pet.id),
+    ]).then(([medical, vaccinations, allergies, reminders]) => {
+      setEvents(buildEvents(medical, vaccinations, allergies, reminders))
+    }).catch(console.error)
   }
 
   useEffect(load, [pet.id])

@@ -27,10 +27,10 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
     setForm(f => ({ ...f, [e.target.name]: e.target.value }))
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     if (!form.name.trim()) return
-    savePet(form)
+    await savePet(form)
     onSaved()
   }
 

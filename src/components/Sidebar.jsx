@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { PawPrint, Plus, Stethoscope, Syringe, AlertTriangle, FileText, Bell, ChevronRight, GitBranch } from 'lucide-react'
+import { PawPrint, Plus, Stethoscope, Syringe, AlertTriangle, FileText, Bell, ChevronRight, GitBranch, Upload } from 'lucide-react'
 import { getPets } from '../lib/storage.js'
+import MigrateData from './MigrateData.jsx'
 
 const tabs = [
   { id: 'timeline',      label: 'Timeline',          icon: GitBranch },
@@ -11,11 +12,17 @@ const tabs = [
   { id: 'reminders',     label: 'Reminders',         icon: Bell },
 ]
 
-export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab, onTabChange, refresh }) {
-  const [pets, setPets] = useState([])
+export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab, onTabChange, refresh, onRefresh }) {
+  const [pets, setPets]           = useState([])
+  const [showMigrate, setShowMigrate] = useState(false)
+
+  // Show migrate banner if there's local data that hasn't been moved yet
+  const hasLocalData = (() => {
+    try { return ['mypetcare_pets','mypetcare_medical','mypetcare_vaccinations','mypetcare_allergies','mypetcare_reminders'].some(k => (JSON.parse(localStorage.getItem(k) || '[]')).length > 0) } catch { return false }
+  })()
 
   useEffect(() => {
-    setPets(getPets())
+    getPets().then(setPets).catch(console.error)
   }, [refresh])
 
   return (
@@ -92,7 +99,25 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
             ))}
           </div>
         )}
-      </div>
+      {/* Migrate local data banner */}
+      {hasLocalData && (
+        <div className="px-3 py-3 border-t border-gray-100">
+          <button
+            onClick={() => setShowMigrate(true)}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium transition-colors"
+          >
+            <Upload className="w-3.5 h-3.5 flex-shrink-0" />
+            Move local data to cloud
+          </button>
+        </div>
+      )}
+
+      {showMigrate && (
+        <MigrateData
+          onClose={() => setShowMigrate(false)}
+          onDone={() => { setShowMigrate(false); if (onRefresh) onRefresh() }}
+        />
+      )}
     </aside>
   )
 }
