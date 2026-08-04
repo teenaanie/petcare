@@ -16,6 +16,8 @@ export default function Allergies({ pet }) {
   const [records, setRecords] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ allergen: '', type: 'Food', severity: 'Mild', reactions: [], notes: '', diagnosedDate: '' })
+  const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState(null)
 
   function load() { getAllergies(pet.id).then(setRecords).catch(console.error) }
   useEffect(load, [pet.id])
@@ -29,14 +31,23 @@ export default function Allergies({ pet }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    await saveAllergy({ ...form, petId: pet.id })
-    setForm({ allergen: '', type: 'Food', severity: 'Mild', reactions: [], notes: '', diagnosedDate: '' })
-    setShowForm(false)
-    load()
+    setSaving(true); setFormError(null)
+    try {
+      await saveAllergy({ ...form, petId: pet.id })
+      setForm({ allergen: '', type: 'Food', severity: 'Mild', reactions: [], notes: '', diagnosedDate: '' })
+      setShowForm(false)
+      load()
+    } catch (err) {
+      setFormError(err?.message || 'Save failed — check if the allergies table exists in Supabase.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function handleDelete(id) {
-    if (confirm('Delete this allergy record?')) { await deleteAllergy(id); load() }
+    if (confirm('Delete this allergy record?')) {
+      try { await deleteAllergy(id); load() } catch (err) { alert('Delete failed: ' + err.message) }
+    }
   }
 
   return (
@@ -96,9 +107,12 @@ export default function Allergies({ pet }) {
               <label className="label">Notes</label>
               <textarea value={form.notes} onChange={e => setForm(f => ({...f, notes: e.target.value}))} className="input" rows={2} />
             </div>
+            {formError && (
+              <div className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{formError}</div>
+            )}
             <div className="flex justify-end gap-3">
-              <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>
-              <button type="submit" className="btn-primary">Save</button>
+              <button type="button" onClick={() => { setShowForm(false); setFormError(null) }} className="btn-secondary">Cancel</button>
+              <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
             </div>
           </form>
         </div>

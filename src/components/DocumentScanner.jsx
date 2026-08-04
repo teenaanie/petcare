@@ -235,6 +235,10 @@ export default function DocumentScanner({ pet }) {
   const [savedTimelines, setSavedTimelines]   = useState(new Set())
   const [abnormalities, setAbnormalities]     = useState([])
 
+  // Save state
+  const [savingSet, setSavingSet]   = useState(new Set())   // keys currently saving
+  const [saveErrors, setSaveErrors] = useState({})          // key → error message
+
   // Vet questions
   const [vetQuestions, setVetQuestions]         = useState([])
   const [loadingQuestions, setLoadingQuestions] = useState(false)
@@ -256,6 +260,7 @@ export default function DocumentScanner({ pet }) {
     setWeightItems([]); setSavedWeights(new Set())
     setTimelineItems([]); setSavedTimelines(new Set())
     setAbnormalities([]); setVetQuestions([])
+    setSavingSet(new Set()); setSaveErrors({})
     if (f.type.startsWith('image/')) {
       setPreview(URL.createObjectURL(f))
     } else if (f.type === 'application/pdf') {
@@ -304,48 +309,63 @@ export default function DocumentScanner({ pet }) {
     }
   }
 
+  // ── Save helpers ──────────────────────────────────────────────────────────
+
+  async function trySave(key, fn) {
+    setSavingSet(s => new Set([...s, key]))
+    setSaveErrors(e => { const n = { ...e }; delete n[key]; return n })
+    try {
+      await fn()
+    } catch (err) {
+      const msg = err?.message || 'Save failed — check if the Supabase table exists.'
+      setSaveErrors(e => ({ ...e, [key]: msg }))
+    } finally {
+      setSavingSet(s => { const n = new Set(s); n.delete(key); return n })
+    }
+  }
+
   // ── Save handlers ─────────────────────────────────────────────────────────
 
-  async function handleSaveVax(idx) {
+  const handleSaveVax = (idx) => trySave(`vax_${idx}`, async () => {
     await saveVaccination({ ...vaxItems[idx], petId: pet.id })
     setSavedVax(s => new Set([...s, idx]))
-  }
+  })
 
-  async function handleSaveMed(idx) {
+  const handleSaveMed = (idx) => trySave(`med_${idx}`, async () => {
     await saveMedicine({ ...medItems[idx], petId: pet.id })
     setSavedMeds(s => new Set([...s, idx]))
-  }
+  })
 
-  async function handleSaveBill() {
+  const handleSaveBill = () => trySave('bill', async () => {
     await saveBill({ ...billItem, petId: pet.id })
     setBillSaved(true)
-  }
+  })
 
-  async function handleSaveRecord() {
+  const handleSaveRecord = () => trySave('record', async () => {
     await saveMedicalRecord({
       ...recordItem, petId: pet.id,
       isAbnormal: abnormalities.length > 0,
       abnormalities,
     })
     setRecordSaved(true)
-  }
+  })
 
-  async function handleSaveAllergy() {
+  const handleSaveAllergy = () => trySave('allergy', async () => {
     await saveAllergy({ ...allergyItem, petId: pet.id })
     setAllergySaved(true)
-  }
+  })
 
-  async function handleSaveWeight(idx) {
+  const handleSaveWeight = (idx) => trySave(`wt_${idx}`, async () => {
     const w = weightItems[idx]
     await saveWeightLog({ petId: pet.id, date: w.date, weight: parseFloat(w.weight), notes: 'From scanned document' })
     setSavedWeights(s => new Set([...s, idx]))
-  }
+  })
 
-  async function handleSaveTimeline(idx) {
+  const handleSaveTimeline = (idx) => trySave(`tl_${idx}`, async () => {
     const t = timelineItems[idx]
     await saveReminder({ petId: pet.id, type: t.type || 'Other', dueDate: t.date, frequency: 'Once', notes: t.label, email: '', whatsapp: '' })
     setSavedTimelines(s => new Set([...s, idx]))
-  }
+  })
 
   function handleCopyQuestions() {
     const text = vetQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')
@@ -451,7 +471,10 @@ export default function DocumentScanner({ pet }) {
                   <Syringe className="w-4 h-4" style={{ color: '#7C3AED' }} />
                   <span className="font-black text-sm" style={{ color: '#4A2C0A' }}>Vaccination {vaxItems.length > 1 ? i + 1 : ''}</span>
                 </div>
-                {savedVax.has(i) ? <SavedBadge /> : <SaveBtn onClick={() => handleSaveVax(i)} label="Save Vaccination" />}
+                <div className="flex flex-col items-end gap-1">
+                  {savedVax.has(i) ? <SavedBadge /> : <SaveBtn onClick={() => handleSaveVax(i)} label="Save Vaccination" saving={savingSet.has(`vax_${i}`)} />}
+                  {saveErrors[`vax_${i}`] && <p className="text-xs text-red-500">{saveErrors[`vax_${i}`]}</p>}
+                </div>
               </div>
               {!savedVax.has(i) ? (
                 <div className="grid grid-cols-2 gap-2">
@@ -480,7 +503,10 @@ export default function DocumentScanner({ pet }) {
                   <Pill className="w-4 h-4" style={{ color: '#059669' }} />
                   <span className="font-black text-sm" style={{ color: '#4A2C0A' }}>Medicine {medItems.length > 1 ? i + 1 : ''}</span>
                 </div>
-                {savedMeds.has(i) ? <SavedBadge /> : <SaveBtn onClick={() => handleSaveMed(i)} label="Save Medicine" />}
+                <div className="flex flex-col items-end gap-1">
+                  {savedMeds.has(i) ? <SavedBadge /> : <SaveBtn onClick={() => handleSaveMed(i)} label="Save Medicine" saving={savingSet.has(`med_${i}`)} />}
+                  {saveErrors[`med_${i}`] && <p className="text-xs text-red-500">{saveErrors[`med_${i}`]}</p>}
+                </div>
               </div>
               {!savedMeds.has(i) ? (
                 <div className="grid grid-cols-2 gap-2">
@@ -524,7 +550,8 @@ export default function DocumentScanner({ pet }) {
                     </div>
                     {savedWeights.has(i)
                       ? <SavedBadge />
-                      : <SaveBtn onClick={() => handleSaveWeight(i)} label="→ Weight Tracker" />}
+                      : <SaveBtn onClick={() => handleSaveWeight(i)} label="→ Weight Tracker" saving={savingSet.has(`wt_${i}`)} />}
+                    {saveErrors[`wt_${i}`] && <p className="text-xs text-red-500 w-full">{saveErrors[`wt_${i}`]}</p>}
                   </div>
                 ))}
               </div>
@@ -539,7 +566,10 @@ export default function DocumentScanner({ pet }) {
                   <Receipt className="w-4 h-4" style={{ color: '#D97706' }} />
                   <span className="font-black text-sm" style={{ color: '#4A2C0A' }}>Bill / Invoice</span>
                 </div>
-                {billSaved ? <SavedBadge /> : <SaveBtn onClick={handleSaveBill} label="Save Bill" />}
+                <div className="flex flex-col items-end gap-1">
+                  {billSaved ? <SavedBadge /> : <SaveBtn onClick={handleSaveBill} label="Save Bill" saving={savingSet.has('bill')} />}
+                  {saveErrors['bill'] && <p className="text-xs text-red-500">{saveErrors['bill']}</p>}
+                </div>
               </div>
               {!billSaved ? (
                 <div className="space-y-2">
@@ -607,7 +637,10 @@ export default function DocumentScanner({ pet }) {
             <div className="card" style={{ borderColor: recordSaved ? '#A7F3D0' : '#BFDBFE', backgroundColor: recordSaved ? '#F0FDF4' : 'white' }}>
               <div className="flex items-center justify-between mb-3">
                 <span className="font-black text-sm" style={{ color: '#4A2C0A' }}>🏥 Medical Record</span>
-                {recordSaved ? <SavedBadge /> : <SaveBtn onClick={handleSaveRecord} label="Save Record" />}
+                <div className="flex flex-col items-end gap-1">
+                  {recordSaved ? <SavedBadge /> : <SaveBtn onClick={handleSaveRecord} label="Save Record" saving={savingSet.has('record')} />}
+                  {saveErrors['record'] && <p className="text-xs text-red-500">{saveErrors['record']}</p>}
+                </div>
               </div>
               {!recordSaved ? (
                 <div className="grid grid-cols-2 gap-2">
@@ -633,7 +666,10 @@ export default function DocumentScanner({ pet }) {
             <div className="card" style={{ borderColor: allergySaved ? '#A7F3D0' : '#FCA5A5', backgroundColor: allergySaved ? '#F0FDF4' : 'white' }}>
               <div className="flex items-center justify-between mb-3">
                 <span className="font-black text-sm" style={{ color: '#4A2C0A' }}>⚠️ Allergy</span>
-                {allergySaved ? <SavedBadge /> : <SaveBtn onClick={handleSaveAllergy} label="Save Allergy" />}
+                <div className="flex flex-col items-end gap-1">
+                  {allergySaved ? <SavedBadge /> : <SaveBtn onClick={handleSaveAllergy} label="Save Allergy" saving={savingSet.has('allergy')} />}
+                  {saveErrors['allergy'] && <p className="text-xs text-red-500">{saveErrors['allergy']}</p>}
+                </div>
               </div>
               {!allergySaved ? (
                 <div className="grid grid-cols-2 gap-2">
@@ -684,9 +720,12 @@ export default function DocumentScanner({ pet }) {
                         {format(parseISO(t.date), 'MMM d, yyyy')} · {t.type}
                       </p>
                     </div>
-                    {savedTimelines.has(i)
-                      ? <SavedBadge />
-                      : <SaveBtn onClick={() => handleSaveTimeline(i)} label="+ Reminder" />}
+                    <div className="flex flex-col items-end gap-1">
+                      {savedTimelines.has(i)
+                        ? <SavedBadge />
+                        : <SaveBtn onClick={() => handleSaveTimeline(i)} label="+ Reminder" saving={savingSet.has(`tl_${i}`)} />}
+                      {saveErrors[`tl_${i}`] && <p className="text-xs text-red-500">{saveErrors[`tl_${i}`]}</p>}
+                    </div>
                   </div>
                 ))}
               </div>

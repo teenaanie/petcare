@@ -9,20 +9,31 @@ export default function MedicalHistory({ pet }) {
   const [records, setRecords] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ date: '', type: 'Checkup', title: '', description: '', vet: '', cost: '' })
+  const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState(null)
 
   function load() { getMedicalHistory(pet.id).then(setRecords).catch(console.error) }
   useEffect(load, [pet.id])
 
   async function handleSubmit(e) {
     e.preventDefault()
-    await saveMedicalRecord({ ...form, petId: pet.id })
-    setForm({ date: '', type: 'Checkup', title: '', description: '', vet: '', cost: '' })
-    setShowForm(false)
-    load()
+    setSaving(true); setFormError(null)
+    try {
+      await saveMedicalRecord({ ...form, petId: pet.id })
+      setForm({ date: '', type: 'Checkup', title: '', description: '', vet: '', cost: '' })
+      setShowForm(false)
+      load()
+    } catch (err) {
+      setFormError(err?.message || 'Save failed — check your Supabase tables.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function handleDelete(id) {
-    if (confirm('Delete this record?')) { await deleteMedicalRecord(id); load() }
+    if (confirm('Delete this record?')) {
+      try { await deleteMedicalRecord(id); load() } catch (err) { alert('Delete failed: ' + err.message) }
+    }
   }
 
   return (
@@ -64,9 +75,14 @@ export default function MedicalHistory({ pet }) {
               <label className="label">Cost</label>
               <input type="number" value={form.cost} onChange={e => setForm(f => ({...f, cost: e.target.value}))} className="input" placeholder="0.00" />
             </div>
-            <div className="sm:col-span-2 flex justify-end gap-3">
-              <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>
-              <button type="submit" className="btn-primary">Save Record</button>
+            <div className="sm:col-span-2 space-y-2">
+              {formError && (
+                <div className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{formError}</div>
+              )}
+              <div className="flex justify-end gap-3">
+                <button type="button" onClick={() => { setShowForm(false); setFormError(null) }} className="btn-secondary">Cancel</button>
+                <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save Record'}</button>
+              </div>
             </div>
           </form>
         </div>
