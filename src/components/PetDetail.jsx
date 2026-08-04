@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Edit2, Trash2, Calendar, Weight, Phone } from 'lucide-react'
+import { Edit2, Trash2, Calendar, Weight, Phone, Sparkles } from 'lucide-react'
+import HealthSummary from './HealthSummary.jsx'
 
 // ── Life stage data ───────────────────────────────────────────────────────────
 const STAGES = {
@@ -128,9 +129,12 @@ import Allergies from './Allergies.jsx'
 import DocumentScanner from './DocumentScanner.jsx'
 import Reminders from './Reminders.jsx'
 import WeightLog from './WeightLog.jsx'
+import Medicines from './Medicines.jsx'
+import Bills from './Bills.jsx'
 
 export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, onPetDeleted }) {
-  const [showEdit, setShowEdit] = useState(false)
+  const [showEdit, setShowEdit]           = useState(false)
+  const [showHealthSummary, setShowHealthSummary] = useState(false)
 
   async function handleDelete() {
     if (confirm(`Delete ${pet.name}? This will remove all their records.`)) {
@@ -168,6 +172,13 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
             </div>
           </div>
           <div className="flex gap-1.5 flex-shrink-0">
+            <button onClick={() => setShowHealthSummary(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
+              style={{ backgroundColor: '#F9D548', color: '#4A2C0A' }}
+              title="AI Health Brief">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">AI Brief</span>
+            </button>
             <button onClick={() => setShowEdit(true)}
               className="p-2 rounded-xl transition-colors"
               style={{ color: '#6B4C1E' }}
@@ -187,7 +198,9 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
       {activeTab === 'timeline'     && <Timeline pet={pet} />}
       {activeTab === 'medical'      && <MedicalHistory pet={pet} />}
       {activeTab === 'vaccinations' && <Vaccinations pet={pet} />}
+      {activeTab === 'medicines'    && <Medicines pet={pet} />}
       {activeTab === 'weight'       && <WeightLog pet={pet} />}
+      {activeTab === 'bills'        && <Bills pet={pet} />}
       {activeTab === 'allergies'    && <Allergies pet={pet} />}
       {activeTab === 'scanner'      && <DocumentScanner pet={pet} />}
       {activeTab === 'reminders'    && <Reminders pet={pet} />}
@@ -201,6 +214,10 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
             onPetUpdated(updated || pet)
           }}
         />
+      )}
+
+      {showHealthSummary && (
+        <HealthSummary pet={pet} onClose={() => setShowHealthSummary(false)} />
       )}
     </div>
   )

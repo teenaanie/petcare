@@ -12,6 +12,8 @@ const KEYS = {
   allergies:    'mypetcare_allergies',
   reminders:    'mypetcare_reminders',
   weightLogs:   'mypetcare_weight_logs',
+  medicines:    'mypetcare_medicines',
+  bills:        'mypetcare_bills',
 }
 
 function lsGet(key)       { try { return JSON.parse(localStorage.getItem(key) || '[]') } catch { return [] } }
@@ -358,6 +360,114 @@ export async function deleteWeightLog(id) {
   lsSet(KEYS.weightLogs, lsGet(KEYS.weightLogs).filter(r => r.id !== id))
 }
 
+// ── Medicines ─────────────────────────────────────────────────────────────────
+
+export async function getMedicines(petId) {
+  if (isConfigured) {
+    let q = supabase.from('medicines').select('*').order('start_date', { ascending: false, nullsFirst: false })
+    if (petId) q = q.eq('pet_id', petId)
+    const { data, error } = await q
+    if (error) throw error
+    return data.map(fromSnakeMedicine)
+  }
+  const all = lsGet(KEYS.medicines)
+  return petId ? all.filter(r => r.petId === petId) : all
+}
+
+export async function saveMedicine(med) {
+  if (isConfigured) {
+    const row = {
+      pet_id: med.petId, name: med.name, dosage: med.dosage || null,
+      frequency: med.frequency || null, category: med.category || 'Other',
+      start_date: med.startDate || null, end_date: med.endDate || null,
+      next_due: med.nextDue || null, prescribed_by: med.prescribedBy || null,
+      reason: med.reason || null, notes: med.notes || null, is_done: med.isDone || false,
+    }
+    if (med.id) {
+      const { data, error } = await supabase.from('medicines').update(row).eq('id', med.id).select().single()
+      if (error) throw error
+      return fromSnakeMedicine(data)
+    } else {
+      const { data, error } = await supabase.from('medicines').insert(row).select().single()
+      if (error) throw error
+      return fromSnakeMedicine(data)
+    }
+  }
+  const all = lsGet(KEYS.medicines)
+  if (med.id) {
+    const idx = all.findIndex(r => r.id === med.id)
+    if (idx >= 0) all[idx] = med; else all.push(med)
+  } else {
+    med.id = uid(); med.createdAt = new Date().toISOString(); all.push(med)
+  }
+  lsSet(KEYS.medicines, all)
+  return med
+}
+
+export async function deleteMedicine(id) {
+  if (isConfigured) { const { error } = await supabase.from('medicines').delete().eq('id', id); if (error) throw error; return }
+  lsSet(KEYS.medicines, lsGet(KEYS.medicines).filter(r => r.id !== id))
+}
+
+export async function markMedicineDone(id, isDone) {
+  if (isConfigured) {
+    const { data, error } = await supabase.from('medicines').update({ is_done: isDone }).eq('id', id).select().single()
+    if (error) throw error
+    return fromSnakeMedicine(data)
+  }
+  const all = lsGet(KEYS.medicines)
+  const idx = all.findIndex(r => r.id === id)
+  if (idx >= 0) { all[idx].isDone = isDone; lsSet(KEYS.medicines, all) }
+}
+
+// ── Bills ─────────────────────────────────────────────────────────────────────
+
+export async function getBills(petId) {
+  if (isConfigured) {
+    let q = supabase.from('bills').select('*').order('date', { ascending: false, nullsFirst: false })
+    if (petId) q = q.eq('pet_id', petId)
+    const { data, error } = await q
+    if (error) throw error
+    return data.map(fromSnakeBill)
+  }
+  const all = lsGet(KEYS.bills)
+  return petId ? all.filter(r => r.petId === petId) : all
+}
+
+export async function saveBill(bill) {
+  if (isConfigured) {
+    const row = {
+      pet_id: bill.petId, date: bill.date || null, clinic: bill.clinic || null,
+      invoice_number: bill.invoiceNumber || null, line_items: bill.lineItems || [],
+      total_amount: bill.totalAmount ? parseFloat(bill.totalAmount) : null,
+      currency: bill.currency || 'INR', notes: bill.notes || null,
+    }
+    if (bill.id) {
+      const { data, error } = await supabase.from('bills').update(row).eq('id', bill.id).select().single()
+      if (error) throw error
+      return fromSnakeBill(data)
+    } else {
+      const { data, error } = await supabase.from('bills').insert(row).select().single()
+      if (error) throw error
+      return fromSnakeBill(data)
+    }
+  }
+  const all = lsGet(KEYS.bills)
+  if (bill.id) {
+    const idx = all.findIndex(r => r.id === bill.id)
+    if (idx >= 0) all[idx] = bill; else all.push(bill)
+  } else {
+    bill.id = uid(); bill.createdAt = new Date().toISOString(); all.push(bill)
+  }
+  lsSet(KEYS.bills, all)
+  return bill
+}
+
+export async function deleteBill(id) {
+  if (isConfigured) { const { error } = await supabase.from('bills').delete().eq('id', id); if (error) throw error; return }
+  lsSet(KEYS.bills, lsGet(KEYS.bills).filter(r => r.id !== id))
+}
+
 // ── Snake ↔ camelCase helpers ─────────────────────────────────────────────────
 
 function toSnake(pet) {
@@ -458,6 +568,25 @@ function fromSnakeReminder(r) {
     notes:     r.notes,
     isDone:    r.is_done || false,
     createdAt: r.created_at,
+  }
+}
+
+function fromSnakeMedicine(r) {
+  return {
+    id: r.id, petId: r.pet_id, name: r.name, dosage: r.dosage,
+    frequency: r.frequency, category: r.category || 'Other',
+    startDate: r.start_date, endDate: r.end_date, nextDue: r.next_due,
+    prescribedBy: r.prescribed_by, reason: r.reason, notes: r.notes,
+    isDone: r.is_done || false, createdAt: r.created_at,
+  }
+}
+
+function fromSnakeBill(r) {
+  return {
+    id: r.id, petId: r.pet_id, date: r.date, clinic: r.clinic,
+    invoiceNumber: r.invoice_number, lineItems: r.line_items || [],
+    totalAmount: r.total_amount, currency: r.currency || 'INR',
+    notes: r.notes, createdAt: r.created_at,
   }
 }
 

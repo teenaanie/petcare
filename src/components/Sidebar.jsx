@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { PawPrint, Plus, Stethoscope, Syringe, AlertTriangle, FileText, Bell, ChevronLeft, GitBranch, Upload, TrendingUp, ChevronRight } from 'lucide-react'
+import { PawPrint, Plus, Stethoscope, Syringe, AlertTriangle, FileText, Bell, ChevronLeft, GitBranch, Upload, TrendingUp, ChevronRight, Pill, Receipt } from 'lucide-react'
 import { getPets } from '../lib/storage.js'
 import MigrateData from './MigrateData.jsx'
 import PetAvatar from './PetAvatar.jsx'
@@ -8,7 +8,9 @@ const tabs = [
   { id: 'timeline',      label: 'Timeline',          icon: GitBranch },
   { id: 'medical',       label: 'Medical History',   icon: Stethoscope },
   { id: 'vaccinations',  label: 'Vaccinations',      icon: Syringe },
+  { id: 'medicines',     label: 'Medicines',         icon: Pill },
   { id: 'weight',        label: 'Weight Trend',      icon: TrendingUp },
+  { id: 'bills',         label: 'Bills',             icon: Receipt },
   { id: 'allergies',     label: 'Allergies',         icon: AlertTriangle },
   { id: 'scanner',       label: 'Scan Documents',    icon: FileText },
   { id: 'reminders',     label: 'Reminders',         icon: Bell },
