@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Upload, Camera, FileText, Loader2, CheckCircle, AlertCircle, Wand2, Calendar, TriangleAlert } from 'lucide-react'
+import { Upload, Camera, FileText, Loader2, CheckCircle, AlertCircle, Wand2, Calendar, TriangleAlert, MessageSquare, Copy, Check } from 'lucide-react'
 import { saveMedicalRecord, saveVaccination, saveAllergy, saveReminder } from '../lib/storage.js'
 import { format, isPast, parseISO } from 'date-fns'
 
@@ -19,14 +19,22 @@ async function fileToBase64(file) {
   })
 }
 
-async function pdfToImageBase64(file) {
-  // Dynamically import pdfjs-dist to avoid SSR issues
-  const pdfjsLib = await import('pdfjs-dist')
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.mjs',
-    import.meta.url
-  ).toString()
+// Singleton: import pdfjs once and reuse — avoids worker race condition on first scan
+let _pdfjsPromise = null
+async function getPdfJs() {
+  if (!_pdfjsPromise) {
+    _pdfjsPromise = import('pdfjs-dist').then(lib => {
+      // Use unpkg CDN for the worker to avoid Vite bundling issues
+      lib.GlobalWorkerOptions.workerSrc =
+        `https://unpkg.com/pdfjs-dist@${lib.version}/build/pdf.worker.min.mjs`
+      return lib
+    })
+  }
+  return _pdfjsPromise
+}
 
+async function pdfToImageBase64(file) {
+  const pdfjsLib = await getPdfJs()
   const arrayBuffer = await file.arrayBuffer()
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
   const page = await pdf.getPage(1) // render first page
@@ -144,7 +152,7 @@ Only populate the relevant record section. Return valid JSON only.`
     },
     body: JSON.stringify({
       model: 'gpt-4o-mini',
-      max_tokens: 1000,
+      max_tokens: 2000,
       messages: [{
         role: 'user',
         content: [
@@ -167,6 +175,60 @@ Only populate the relevant record section. Return valid JSON only.`
   return JSON.parse(json)
 }
 
+async function generateVetQuestions(parsed, petName) {
+  if (!OPENAI_KEY) return []
+
+  // Build a concise summary of the findings to feed into the prompt
+  const parts = [`Pet name: ${petName}`, `Report type: ${parsed.type}`, `Summary: ${parsed.summary}`]
+
+  if (parsed.abnormalities?.length > 0) {
+    parts.push('Abnormal findings: ' + parsed.abnormalities.map(a =>
+      `${a.parameter} ${a.value}${a.unit ? ' ' + a.unit : ''} (${a.status}, ${a.severity}) — ${a.clinicalNote || ''}`
+    ).join('; '))
+  }
+  if (parsed.medicalRecord) {
+    const r = parsed.medicalRecord
+    parts.push(`Diagnosis/procedure: ${r.title}`)
+    if (r.description) parts.push(`Details: ${r.description.slice(0, 400)}`)
+  }
+  if (parsed.vaccinations?.length) {
+    parts.push('Vaccines: ' + parsed.vaccinations.map(v => v.name).join(', '))
+  }
+  if (parsed.allergy) {
+    parts.push(`Allergy: ${parsed.allergy.allergen} (${parsed.allergy.severity})`)
+  }
+
+  const prompt = `You are a veterinary advisor helping a pet owner prepare for their vet visit.
+
+Based on this report for ${petName}:
+${parts.join('\n')}
+
+Generate 5–7 specific, practical questions the owner should ask their vet.
+- Make each question directly relevant to what's in this specific report.
+- If there are abnormal values, ask about their significance and what to do.
+- If there are medications or treatments, ask about side effects, duration, follow-up.
+- If it's a vaccination, ask about next steps and what to watch for.
+- Write in plain language a non-medical person would use.
+- Do NOT include generic questions — every question must reference something in this report.
+
+Return ONLY a valid JSON array of strings, no markdown:
+["Question 1?", "Question 2?", ...]`
+
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_KEY}` },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      max_tokens: 500,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  })
+  if (!res.ok) return []
+  const data = await res.json()
+  const text = data.choices[0].message.content.trim().replace(/^```json\n?/, '').replace(/\n?```$/, '')
+  try { return JSON.parse(text) } catch { return [] }
+}
+
 export default function DocumentScanner({ pet }) {
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState(null)
@@ -175,6 +237,9 @@ export default function DocumentScanner({ pet }) {
   const [error, setError] = useState(null)
   const [saved, setSaved] = useState(false)
   const [savedReminders, setSavedReminders] = useState([])
+  const [vetQuestions, setVetQuestions] = useState([])
+  const [loadingQuestions, setLoadingQuestions] = useState(false)
+  const [copied, setCopied] = useState(false)
   const uploadRef = useRef()
   const cameraRef = useRef()
 
@@ -185,6 +250,8 @@ export default function DocumentScanner({ pet }) {
     setError(null)
     setSaved(false)
     setSavedReminders([])
+    setVetQuestions([])
+    setCopied(false)
     if (f.type.startsWith('image/')) {
       setPreview(URL.createObjectURL(f))
     } else if (f.type === 'application/pdf') {
@@ -207,6 +274,8 @@ export default function DocumentScanner({ pet }) {
     setResult(null)
     setSaved(false)
     setSavedReminders([])
+    setVetQuestions([])
+    setCopied(false)
     try {
       const parsed = await analyzeDocument(file)
       // Normalize: support both old singular `vaccination` and new `vaccinations` array
@@ -221,6 +290,12 @@ export default function DocumentScanner({ pet }) {
         setSaved(true)
       }
       setResult(parsed)
+      // Generate vet questions in parallel (non-blocking)
+      setLoadingQuestions(true)
+      generateVetQuestions(parsed, pet.name)
+        .then(qs => setVetQuestions(qs || []))
+        .catch(() => {})
+        .finally(() => setLoadingQuestions(false))
     } catch (e) {
       setError(e.message)
     } finally {
@@ -272,6 +347,14 @@ export default function DocumentScanner({ pet }) {
       whatsapp: '',
     })
     setSavedReminders(prev => [...prev, timeline.date + timeline.label])
+  }
+
+  function handleCopyQuestions() {
+    const text = vetQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2500)
+    })
   }
 
   return (
@@ -556,6 +639,54 @@ export default function DocumentScanner({ pet }) {
                   )
                 })}
               </div>
+            </div>
+          )}
+
+          {/* ── Questions to ask your Vet ───────────────────────────────── */}
+          {(loadingQuestions || vetQuestions.length > 0) && (
+            <div className="card" style={{ borderColor: '#C2DFF0', backgroundColor: '#F0F8FF' }}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5" style={{ color: '#2563EB' }} />
+                  <span className="font-bold" style={{ color: '#1E3A5F' }}>Questions to ask your Vet</span>
+                </div>
+                {vetQuestions.length > 0 && (
+                  <button
+                    onClick={handleCopyQuestions}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-semibold transition-all"
+                    style={{ backgroundColor: copied ? '#D1FAE5' : '#DBEAFE', color: copied ? '#065F46' : '#1D4ED8' }}
+                  >
+                    {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copied ? 'Copied!' : 'Copy all'}
+                  </button>
+                )}
+              </div>
+
+              {loadingQuestions && (
+                <div className="flex items-center gap-2 text-sm py-2" style={{ color: '#2563EB' }}>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Generating questions based on this report...
+                </div>
+              )}
+
+              {vetQuestions.length > 0 && (
+                <ol className="space-y-2">
+                  {vetQuestions.map((q, i) => (
+                    <li key={i} className="flex gap-3 text-sm rounded-xl p-3"
+                      style={{ backgroundColor: 'white', border: '1px solid #BFDBFE' }}>
+                      <span className="font-black flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs"
+                        style={{ backgroundColor: '#F9D548', color: '#4A2C0A' }}>
+                        {i + 1}
+                      </span>
+                      <span style={{ color: '#1E3A5F' }}>{q}</span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+
+              <p className="text-xs mt-3" style={{ color: '#6B9FBF' }}>
+                💡 These questions are tailored to this specific report. Tap "Copy all" to paste into a message for your vet.
+              </p>
             </div>
           )}
         </div>

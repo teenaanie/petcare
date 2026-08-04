@@ -1,9 +1,10 @@
-import { GitBranch, Stethoscope, Syringe, AlertTriangle, FileText, Bell } from 'lucide-react'
+import { GitBranch, Stethoscope, Syringe, AlertTriangle, FileText, Bell, TrendingUp } from 'lucide-react'
 
 const tabs = [
   { id: 'timeline',     label: 'Timeline',    icon: GitBranch },
   { id: 'medical',      label: 'Medical',     icon: Stethoscope },
   { id: 'vaccinations', label: 'Vaccines',    icon: Syringe },
+  { id: 'weight',       label: 'Weight',      icon: TrendingUp },
   { id: 'allergies',    label: 'Allergies',   icon: AlertTriangle },
   { id: 'scanner',      label: 'Scan',        icon: FileText },
   { id: 'reminders',    label: 'Reminders',   icon: Bell },

@@ -11,6 +11,7 @@ const KEYS = {
   vaccinations: 'mypetcare_vaccinations',
   allergies:    'mypetcare_allergies',
   reminders:    'mypetcare_reminders',
+  weightLogs:   'mypetcare_weight_logs',
 }
 
 function lsGet(key)       { try { return JSON.parse(localStorage.getItem(key) || '[]') } catch { return [] } }
@@ -310,6 +311,53 @@ export async function deleteReminder(id) {
   lsSet(KEYS.reminders, lsGet(KEYS.reminders).filter(r => r.id !== id))
 }
 
+// ── Weight Logs ───────────────────────────────────────────────────────────────
+
+export async function getWeightLogs(petId) {
+  if (isConfigured) {
+    let q = supabase.from('weight_logs').select('*').order('date', { ascending: true })
+    if (petId) q = q.eq('pet_id', petId)
+    const { data, error } = await q
+    if (error) throw error
+    return data.map(fromSnakeWeightLog)
+  }
+  const all = lsGet(KEYS.weightLogs)
+  return petId ? all.filter(r => r.petId === petId) : all
+}
+
+export async function saveWeightLog(log) {
+  if (isConfigured) {
+    const row = { pet_id: log.petId, date: log.date, weight: parseFloat(log.weight), notes: log.notes || null }
+    if (log.id) {
+      const { data, error } = await supabase.from('weight_logs').update(row).eq('id', log.id).select().single()
+      if (error) throw error
+      return fromSnakeWeightLog(data)
+    } else {
+      const { data, error } = await supabase.from('weight_logs').insert(row).select().single()
+      if (error) throw error
+      return fromSnakeWeightLog(data)
+    }
+  }
+  const all = lsGet(KEYS.weightLogs)
+  if (log.id) {
+    const idx = all.findIndex(r => r.id === log.id)
+    if (idx >= 0) all[idx] = log; else all.push(log)
+  } else {
+    log.id = uid(); log.createdAt = new Date().toISOString(); all.push(log)
+  }
+  lsSet(KEYS.weightLogs, all)
+  return log
+}
+
+export async function deleteWeightLog(id) {
+  if (isConfigured) {
+    const { error } = await supabase.from('weight_logs').delete().eq('id', id)
+    if (error) throw error
+    return
+  }
+  lsSet(KEYS.weightLogs, lsGet(KEYS.weightLogs).filter(r => r.id !== id))
+}
+
 // ── Snake ↔ camelCase helpers ─────────────────────────────────────────────────
 
 function toSnake(pet) {
@@ -409,6 +457,17 @@ function fromSnakeReminder(r) {
     whatsapp:  r.whatsapp,
     notes:     r.notes,
     isDone:    r.is_done || false,
+    createdAt: r.created_at,
+  }
+}
+
+function fromSnakeWeightLog(r) {
+  return {
+    id:        r.id,
+    petId:     r.pet_id,
+    date:      r.date,
+    weight:    r.weight,
+    notes:     r.notes,
     createdAt: r.created_at,
   }
 }

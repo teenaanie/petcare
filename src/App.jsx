@@ -20,7 +20,7 @@ export default function App() {
 
   function selectPet(pet) {
     setSelectedPet(pet)
-    setActiveTab('timeline')
+    if (pet) setActiveTab('timeline')
     setSidebarOpen(false)
   }
 
