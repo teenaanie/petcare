@@ -33,12 +33,16 @@ export async function getPets() {
 
 export async function savePet(pet) {
   if (isConfigured) {
+    const { data: { user } } = await supabase.auth.getUser()
+    const row = { ...toSnake(pet) }
+    // Only set user_id on insert (don't overwrite on update)
+    if (!pet.id && user) row.user_id = user.id
     if (pet.id) {
-      const { data, error } = await supabase.from('pets').update(toSnake(pet)).eq('id', pet.id).select().single()
+      const { data, error } = await supabase.from('pets').update(row).eq('id', pet.id).select().single()
       if (error) throw error
       return fromSnakePet(data)
     } else {
-      const { data, error } = await supabase.from('pets').insert(toSnake(pet)).select().single()
+      const { data, error } = await supabase.from('pets').insert(row).select().single()
       if (error) throw error
       return fromSnakePet(data)
     }

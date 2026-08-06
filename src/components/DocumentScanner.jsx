@@ -20,13 +20,32 @@ async function getPdfJs() {
   return _pdfjsPromise
 }
 
+// Compress any image to max 1280px / 80% JPEG — reduces 5MB phone photos to ~200-300KB
+async function compressImage(base64, mimeHint = 'image/jpeg') {
+  return new Promise(resolve => {
+    const img = new Image()
+    img.onload = () => {
+      const MAX = 1280
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height))
+      const canvas = document.createElement('canvas')
+      canvas.width  = Math.round(img.width  * scale)
+      canvas.height = Math.round(img.height * scale)
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+      resolve(canvas.toDataURL('image/jpeg', 0.82).split(',')[1])
+    }
+    img.onerror = () => resolve(base64) // fallback: use original
+    img.src = `data:${mimeHint};base64,${base64}`
+  })
+}
+
 async function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
+  const raw = await new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(reader.result.split(',')[1])
     reader.onerror = reject
     reader.readAsDataURL(file)
   })
+  return compressImage(raw, file.type || 'image/jpeg')
 }
 
 async function pdfToImageBase64(file) {
@@ -34,12 +53,14 @@ async function pdfToImageBase64(file) {
   const arrayBuffer = await file.arrayBuffer()
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
   const page = await pdf.getPage(1)
-  const viewport = page.getViewport({ scale: 2.0 })
+  // Scale 1.5 is enough; we'll compress afterwards anyway
+  const viewport = page.getViewport({ scale: 1.5 })
   const canvas = document.createElement('canvas')
   canvas.width = viewport.width
   canvas.height = viewport.height
   await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
-  return canvas.toDataURL('image/png').split(',')[1]
+  const raw = canvas.toDataURL('image/png').split(',')[1]
+  return compressImage(raw, 'image/png')
 }
 
 // ── AI analysis ───────────────────────────────────────────────────────────────
@@ -215,6 +236,7 @@ export default function DocumentScanner({ pet }) {
   const [file, setFile]           = useState(null)
   const [preview, setPreview]     = useState(null)
   const [loading, setLoading]     = useState(false)
+  const [loadingStep, setLoadingStep] = useState('')
   const [error, setError]         = useState(null)
   const [parsed, setParsed]       = useState(null)
 
@@ -272,9 +294,11 @@ export default function DocumentScanner({ pet }) {
 
   async function handleAnalyze() {
     if (!file) return
-    setLoading(true); setError(null)
+    setLoading(true); setError(null); setLoadingStep('Compressing image…')
     try {
+      setLoadingStep('Reading document…')
       const result = await analyzeDocument(file)
+      setLoadingStep('')
 
       // Normalize old singular vaccination format
       if (result.vaccination && !result.vaccinations) {
@@ -386,8 +410,11 @@ export default function DocumentScanner({ pet }) {
   return (
     <div>
       <h2 className="text-lg font-black mb-1" style={{ color: '#4A2C0A' }}>Scan Medical Documents</h2>
+      <p className="text-sm mb-1" style={{ color: '#4A2C0A', fontWeight: 700 }}>
+        Just snap or upload — we'll handle the rest. ✨
+      </p>
       <p className="text-sm mb-5" style={{ color: '#B8A080' }}>
-        Upload or scan any vet document — vaccination cards, prescriptions, bills, deworming schedules. AI extracts everything and you can edit before saving.
+        Vet bills, prescriptions, vaccination cards, deworming schedules — our AI reads them and fills in every detail for you.
       </p>
 
       {!OPENAI_KEY && (
@@ -438,7 +465,10 @@ export default function DocumentScanner({ pet }) {
       {loading && (
         <div className="flex items-center gap-3 mb-4 py-3 px-4 rounded-xl" style={{ backgroundColor: '#FFF5AA', color: '#4A2C0A' }}>
           <Loader2 className="w-5 h-5 animate-spin flex-shrink-0" />
-          <span className="text-sm font-semibold">Reading document and extracting details…</span>
+          <div>
+            <p className="text-sm font-semibold">Analysing with AI…</p>
+            {loadingStep && <p className="text-xs mt-0.5" style={{ color: '#B8A080' }}>{loadingStep}</p>}
+          </div>
         </div>
       )}
 

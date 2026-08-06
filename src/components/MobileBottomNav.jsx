@@ -1,6 +1,7 @@
 import { GitBranch, Stethoscope, Syringe, AlertTriangle, FileText, Bell, TrendingUp, Pill, Receipt } from 'lucide-react'
 
 const tabs = [
+  { id: 'scanner',      label: 'Scan',        icon: FileText },
   { id: 'timeline',     label: 'Timeline',    icon: GitBranch },
   { id: 'medical',      label: 'Medical',     icon: Stethoscope },
   { id: 'vaccinations', label: 'Vaccines',    icon: Syringe },
@@ -8,7 +9,6 @@ const tabs = [
   { id: 'weight',       label: 'Weight',      icon: TrendingUp },
   { id: 'bills',        label: 'Bills',       icon: Receipt },
   { id: 'allergies',    label: 'Allergies',   icon: AlertTriangle },
-  { id: 'scanner',      label: 'Scan',        icon: FileText },
   { id: 'reminders',    label: 'Reminders',   icon: Bell },
 ]
 

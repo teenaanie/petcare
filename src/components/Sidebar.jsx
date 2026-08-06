@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { PawPrint, Plus, Stethoscope, Syringe, AlertTriangle, FileText, Bell, ChevronLeft, GitBranch, Upload, TrendingUp, ChevronRight, Pill, Receipt } from 'lucide-react'
+import { PawPrint, Plus, Stethoscope, Syringe, AlertTriangle, FileText, Bell, ChevronLeft, GitBranch, Upload, TrendingUp, ChevronRight, Pill, Receipt, LogOut, ShieldCheck } from 'lucide-react'
 import { getPets } from '../lib/storage.js'
 import MigrateData from './MigrateData.jsx'
 import PetAvatar from './PetAvatar.jsx'
 
 const tabs = [
+  { id: 'scanner',       label: 'Scan Documents',    icon: FileText },
   { id: 'timeline',      label: 'Timeline',          icon: GitBranch },
   { id: 'medical',       label: 'Medical History',   icon: Stethoscope },
   { id: 'vaccinations',  label: 'Vaccinations',      icon: Syringe },
@@ -12,11 +13,10 @@ const tabs = [
   { id: 'weight',        label: 'Weight Trend',      icon: TrendingUp },
   { id: 'bills',         label: 'Bills',             icon: Receipt },
   { id: 'allergies',     label: 'Allergies',         icon: AlertTriangle },
-  { id: 'scanner',       label: 'Scan Documents',    icon: FileText },
   { id: 'reminders',     label: 'Reminders',         icon: Bell },
 ]
 
-export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab, onTabChange, refresh, onRefresh, isOpen, onClose }) {
+export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab, onTabChange, refresh, onRefresh, isOpen, onClose, user, isAdmin, onSignOut }) {
   const [pets, setPets]               = useState([])
   const [showMigrate, setShowMigrate] = useState(false)
 
@@ -151,7 +151,7 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
 
           {/* Migrate banner */}
           {hasLocalData && (
-            <div className="px-3 py-3 flex-shrink-0" style={{ borderTop: '1px solid #F0E6C8' }}>
+            <div className="px-3 pt-3 flex-shrink-0" style={{ borderTop: '1px solid #F0E6C8' }}>
               <button
                 onClick={() => setShowMigrate(true)}
                 className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold"
@@ -160,6 +160,30 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
                 <Upload className="w-3.5 h-3.5 flex-shrink-0" />
                 Move local data to cloud
               </button>
+            </div>
+          )}
+
+          {/* User + sign out */}
+          {user && onSignOut && (
+            <div className="px-3 py-3 flex-shrink-0" style={{ borderTop: hasLocalData ? 'none' : '1px solid #F0E6C8' }}>
+              <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-xl"
+                style={{ backgroundColor: '#FFF9D6' }}>
+                <div className="min-w-0">
+                  {isAdmin && (
+                    <div className="flex items-center gap-1 mb-0.5">
+                      <ShieldCheck className="w-3 h-3" style={{ color: '#D97706' }} />
+                      <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#D97706' }}>Admin</span>
+                    </div>
+                  )}
+                  <p className="text-xs font-bold truncate" style={{ color: '#4A2C0A' }}>
+                    {user.phone || user.email || 'Logged in'}
+                  </p>
+                </div>
+                <button onClick={onSignOut} title="Sign out"
+                  className="p-1.5 rounded-lg flex-shrink-0 hover:bg-amber-100 transition-colors">
+                  <LogOut className="w-3.5 h-3.5" style={{ color: '#B8A080' }} />
+                </button>
+              </div>
             </div>
           )}
         </>
