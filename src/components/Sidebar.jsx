@@ -5,18 +5,18 @@ import MigrateData from './MigrateData.jsx'
 import PetAvatar from './PetAvatar.jsx'
 
 const tabs = [
-  { id: 'scanner',       label: 'Scan Documents',    icon: FileText },
   { id: 'timeline',      label: 'Timeline',          icon: GitBranch },
+  { id: 'reminders',     label: 'Reminders',         icon: Bell },
+  { id: 'scanner',       label: 'Scan Documents',    icon: FileText },
   { id: 'medical',       label: 'Medical History',   icon: Stethoscope },
   { id: 'vaccinations',  label: 'Vaccinations',      icon: Syringe },
   { id: 'medicines',     label: 'Medicines',         icon: Pill },
   { id: 'weight',        label: 'Weight Trend',      icon: TrendingUp },
-  { id: 'bills',         label: 'Bills',             icon: Receipt },
   { id: 'allergies',     label: 'Allergies',         icon: AlertTriangle },
-  { id: 'reminders',     label: 'Reminders',         icon: Bell },
+  { id: 'bills',         label: 'Bills',             icon: Receipt },
 ]
 
-export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab, onTabChange, refresh, onRefresh, isOpen, onClose, user, isAdmin, onSignOut }) {
+export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab, onTabChange, refresh, onRefresh, isOpen, onClose, user, isAdmin, onSignOut, adminView, onToggleAdmin }) {
   const [pets, setPets]               = useState([])
   const [showMigrate, setShowMigrate] = useState(false)
 
@@ -149,9 +149,25 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
             </div>
           </div>
 
+          {/* Admin Panel toggle */}
+          {isAdmin && (
+            <div className="px-3 pt-3 flex-shrink-0" style={{ borderTop: '1px solid #F0E6C8' }}>
+              <button
+                onClick={onToggleAdmin}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all"
+                style={adminView
+                  ? { backgroundColor: '#F9D548', color: '#4A2C0A' }
+                  : { backgroundColor: '#FFF5AA', color: '#4A2C0A' }}
+              >
+                <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#D97706' }} />
+                {adminView ? 'Exit Admin View' : 'Admin Panel'}
+              </button>
+            </div>
+          )}
+
           {/* Migrate banner */}
           {hasLocalData && (
-            <div className="px-3 pt-3 flex-shrink-0" style={{ borderTop: '1px solid #F0E6C8' }}>
+            <div className="px-3 pt-3 flex-shrink-0" style={{ borderTop: isAdmin ? 'none' : '1px solid #F0E6C8' }}>
               <button
                 onClick={() => setShowMigrate(true)}
                 className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold"

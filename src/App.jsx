@@ -8,6 +8,7 @@ import PetDetail from './components/PetDetail.jsx'
 import AddPetModal from './components/AddPetModal.jsx'
 import MobileHeader from './components/MobileHeader.jsx'
 import MobileBottomNav from './components/MobileBottomNav.jsx'
+import AdminDashboard from './components/AdminDashboard.jsx'
 
 const ADMIN_EMAIL = 'teena.anie9@gmail.com'
 
@@ -70,10 +71,11 @@ export default function App() {
 
   // ── App state ──────────────────────────────────────────────────────────────
   const [selectedPet, setSelectedPet]   = useState(null)
-  const [activeTab, setActiveTab]       = useState('scanner')
+  const [activeTab, setActiveTab]       = useState('timeline')
   const [showAddPet, setShowAddPet]     = useState(false)
   const [refresh, setRefresh]           = useState(0)
   const [sidebarOpen, setSidebarOpen]   = useState(false)
+  const [adminView, setAdminView]       = useState(false)  // show AdminDashboard
 
   function onPetSaved() {
     setRefresh(r => r + 1)
@@ -82,7 +84,7 @@ export default function App() {
 
   function selectPet(pet) {
     setSelectedPet(pet)
-    if (pet) setActiveTab('scanner')
+    if (pet) setActiveTab('timeline')
     setSidebarOpen(false)
   }
 
@@ -111,6 +113,8 @@ export default function App() {
         user={session?.user}
         isAdmin={isAdmin}
         onSignOut={handleSignOut}
+        adminView={adminView}
+        onToggleAdmin={() => { setAdminView(v => !v); setSelectedPet(null); setSidebarOpen(false) }}
       />
 
       {/* Mobile overlay */}
@@ -129,7 +133,9 @@ export default function App() {
         />
 
         <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
-          {selectedPet ? (
+          {adminView ? (
+            <AdminDashboard />
+          ) : selectedPet ? (
             <PetDetail
               pet={selectedPet}
               activeTab={activeTab}

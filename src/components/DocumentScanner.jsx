@@ -3,7 +3,8 @@ import { Upload, Camera, FileText, Loader2, CheckCircle, AlertCircle, Wand2, Cal
 import { saveMedicalRecord, saveVaccination, saveAllergy, saveReminder, saveMedicine, saveBill, saveWeightLog } from '../lib/storage.js'
 import { format, isPast, parseISO } from 'date-fns'
 
-const OPENAI_KEY = import.meta.env.VITE_OPENAI_API_KEY
+const OPENAI_KEY = import.meta.env.VITE_OPENAI_API_KEY  // fallback for local dev only
+const USE_FUNCTION = !OPENAI_KEY  // use Netlify Function in prod where VITE key isn't set
 const MED_CATS = ['Deworming', 'Flea/Tick', 'Antibiotic', 'Anti-inflammatory', 'Supplement', 'Vaccination', 'Other']
 const CURRENCIES = ['INR', 'USD', 'GBP', 'AUD', 'EUR', 'SGD']
 
@@ -65,13 +66,44 @@ async function pdfToImageBase64(file) {
 
 // ── AI analysis ───────────────────────────────────────────────────────────────
 
-async function analyzeDocument(file) {
-  if (!OPENAI_KEY) throw new Error('OpenAI API key not configured. Add VITE_OPENAI_API_KEY to your .env file.')
-
+async function analyzeDocument(file, session) {
   const isPdf = file.type === 'application/pdf'
   const base64 = isPdf ? await pdfToImageBase64(file) : await fileToBase64(file)
+  const mimeType = isPdf ? 'image/png' : (file.type || 'image/jpeg')
 
-  const prompt = `You are a veterinary record parser. Analyze this pet medical document image.
+  // ── Route through Netlify Function (production) ──────────────────────────
+  if (!OPENAI_KEY) {
+    if (!session?.access_token) throw new Error('Not logged in — please sign in to use the scanner.')
+    const res = await fetch('/.netlify/functions/analyze-document', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ base64, mimeType }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      if (data.limitReached) throw new Error(data.error)
+      throw new Error(data.error || `Server error ${res.status}`)
+    }
+    return data.result
+  }
+
+  // ── Direct OpenAI call (local dev only — key set in .env) ────────────────
+  const today = new Date().toISOString().split('T')[0]  // e.g. "2026-08-06"
+  const prompt = `You are a veterinary record parser. Analyze this pet medical document image carefully.
+
+TODAY'S DATE IS ${today}. Use this as your reference for what is past vs future.
+
+⚠️ CRITICAL DATE RULES — these override everything else:
+1. ONLY extract a date if you can CLEARLY and LITERALLY read every digit in the document. If ANY digit is unclear, return "" (empty string). NEVER guess, estimate, or use a date from memory.
+2. Indian documents use DD/MM/YYYY format — convert correctly to YYYY-MM-DD. E.g. "06/08/2025" → "2025-08-06". "27/08/2026" → "2026-08-27".
+3. For vaccinations: "dateGiven" must be a past date (before ${today}) found in the DATE GIVEN column only. "nextDue" must be a future date found in the NEXT DUE column only.
+4. NEVER use MFG (manufacture date) or EXP (expiry date) from vaccine stickers as dateGiven or nextDue. Those are product manufacturing/expiry dates, not visit dates.
+5. The image may be rotated or photographed at an angle. Correct for orientation before reading.
+6. If you cannot read the full year (all 4 digits) from the document, return "" — do NOT assume the year.
+7. Extract the ACTUAL vaccine product name from the sticker or document (e.g. "Felocell 3", "Nobivac", "Rabivax") — not generic labels like "Vaccine 1".
 
 Return a JSON object:
 {
@@ -83,8 +115,9 @@ Return a JSON object:
     "vet": "vet name or clinic", "cost": "number or empty"
   },
   "vaccinations": [
-    { "name": "vaccine name", "dateGiven": "YYYY-MM-DD", "nextDue": "YYYY-MM-DD or empty",
-      "batchNumber": "lot number or empty", "vet": "vet name", "notes": "" }
+    { "name": "actual vaccine product name from label/text", "dateGiven": "YYYY-MM-DD or empty if unclear",
+      "nextDue": "YYYY-MM-DD or empty if unclear",
+      "batchNumber": "SER/lot number from sticker or empty", "vet": "vet name or empty", "notes": "" }
   ],
   "medicines": [
     { "name": "drug name e.g. Simparica, Amoxicillin", "dosage": "e.g. 40mg, 5ml",
@@ -97,11 +130,11 @@ Return a JSON object:
     "severity": "Mild|Moderate|Severe", "reactions": ["list"], "notes": "", "diagnosedDate": "YYYY-MM-DD or empty"
   },
   "bill": {
-    "date": "YYYY-MM-DD", "clinic": "clinic name", "invoiceNumber": "if visible",
+    "date": "YYYY-MM-DD or empty", "clinic": "clinic name", "invoiceNumber": "if visible",
     "lineItems": [{ "description": "item name", "amount": 0 }],
     "totalAmount": 0, "currency": "INR"
   },
-  "weightReadings": [{ "date": "YYYY-MM-DD", "weight": 0 }],
+  "weightReadings": [{ "date": "YYYY-MM-DD or empty", "weight": 0 }],
   "timelines": [
     { "label": "e.g. Next vaccination due", "date": "YYYY-MM-DD", "type": "Vaccination|Vet Checkup|Medication|Other" }
   ],
@@ -111,19 +144,19 @@ Return a JSON object:
   ]
 }
 
-VACCINATION RULES: one entry per vaccine product per row; separate entries for same vaccine on different dates; always return an array.
+VACCINATION RULES: one entry per vaccine product per row; separate entries for same vaccine on different dates; always return an array. Use the actual product name, not "Vaccine N".
 
 MEDICINES: extract ALL drugs/medications regardless of document type. For deworming schedules, one entry per row. Category = Flea/Tick for tick prevention, Deworming for dewormers.
 
-WEIGHT READINGS: extract any weight column in tables (e.g. deworming schedule weight column). One entry per row with a date and weight.
+WEIGHT READINGS: extract any weight column in tables. One entry per row with a date and weight.
 
-BILL: if this is a receipt or invoice, set type="bill". Extract every line item. Indian clinics use INR. Use the printed total if visible.
+BILL: if this is a receipt or invoice, set type="bill". Extract every line item. Indian clinics use INR.
 
-TIMELINES: extract ALL future dates — next due dates, follow-ups, medication end dates.
+TIMELINES: extract ALL clearly legible future dates — next due dates, follow-ups, medication end dates.
 
 ABNORMALITIES: only values outside normal range from lab reports.
 
-Return valid JSON only. Only populate relevant sections.`
+Return valid JSON only. Only populate relevant sections. Leave dates empty rather than guessing.`
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -134,7 +167,7 @@ Return valid JSON only. Only populate relevant sections.`
       response_format: { type: 'json_object' },
       messages: [{ role: 'user', content: [
         { type: 'text', text: prompt },
-        { type: 'image_url', image_url: { url: `data:image/png;base64,${base64}` } }
+        { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } }
       ]}]
     })
   })
@@ -232,7 +265,7 @@ function Field({ label, value, onChange, type = 'text', options, rows }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function DocumentScanner({ pet }) {
+export default function DocumentScanner({ pet, session }) {
   const [file, setFile]           = useState(null)
   const [preview, setPreview]     = useState(null)
   const [loading, setLoading]     = useState(false)
@@ -297,7 +330,7 @@ export default function DocumentScanner({ pet }) {
     setLoading(true); setError(null); setLoadingStep('Compressing image…')
     try {
       setLoadingStep('Reading document…')
-      const result = await analyzeDocument(file)
+      const result = await analyzeDocument(file, session)
       setLoadingStep('')
 
       // Normalize old singular vaccination format
@@ -457,9 +490,16 @@ export default function DocumentScanner({ pet }) {
       )}
 
       {file && !loading && !parsed && (
-        <button onClick={handleAnalyze} className="btn-primary flex items-center gap-2 mb-4">
-          <Wand2 className="w-4 h-4" /> Analyze with AI
-        </button>
+        <div className="flex items-center gap-3 mb-4">
+          <button onClick={handleAnalyze} className="btn-primary flex items-center gap-2">
+            <Wand2 className="w-4 h-4" /> Analyze with AI
+          </button>
+          <button onClick={() => { setFile(null); setPreview(null); setError(null) }}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-colors"
+            style={{ backgroundColor: '#F0E6C8', color: '#6B4C1E' }}>
+            <X className="w-4 h-4" /> Cancel
+          </button>
+        </div>
       )}
 
       {loading && (
@@ -488,9 +528,18 @@ export default function DocumentScanner({ pet }) {
 
       {parsed && (
         <div className="space-y-4">
-          {/* Summary */}
+          {/* Summary + cancel */}
           <div className="rounded-xl p-3 text-sm" style={{ backgroundColor: '#FFF5AA', color: '#4A2C0A' }}>
-            <span className="font-bold">Summary: </span>{parsed.summary}
+            <div className="flex items-start justify-between gap-2">
+              <p><span className="font-bold">Summary: </span>{parsed.summary}</p>
+              <button
+                onClick={() => { setFile(null); setPreview(null); setParsed(null); setError(null) }}
+                title="Cancel and start over"
+                className="flex-shrink-0 p-1 rounded-lg hover:bg-amber-200 transition-colors"
+                style={{ color: '#6B4C1E' }}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {/* ── Vaccinations ────────────────────────────────────────────────── */}

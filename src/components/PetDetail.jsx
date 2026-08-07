@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Edit2, Trash2, Calendar, Weight, Phone, Sparkles } from 'lucide-react'
+import { supabase } from '../lib/supabase.js'
 import HealthSummary from './HealthSummary.jsx'
 
 // ── Life stage data ───────────────────────────────────────────────────────────
@@ -135,6 +136,11 @@ import Bills from './Bills.jsx'
 export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, onPetDeleted }) {
   const [showEdit, setShowEdit]           = useState(false)
   const [showHealthSummary, setShowHealthSummary] = useState(false)
+  const [session, setSession]             = useState(null)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
+  }, [])
 
   async function handleDelete() {
     if (confirm(`Delete ${pet.name}? This will remove all their records.`)) {
@@ -202,7 +208,7 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
       {activeTab === 'weight'       && <WeightLog pet={pet} />}
       {activeTab === 'bills'        && <Bills pet={pet} />}
       {activeTab === 'allergies'    && <Allergies pet={pet} />}
-      {activeTab === 'scanner'      && <DocumentScanner pet={pet} />}
+      {activeTab === 'scanner'      && <DocumentScanner pet={pet} session={session} />}
       {activeTab === 'reminders'    && <Reminders pet={pet} />}
 
       {showEdit && (

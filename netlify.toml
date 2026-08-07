@@ -1,0 +1,17 @@
+[build]
+  command   = "npm run build"
+  publish   = "dist"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Morning reminder agent — 7:00 AM IST (1:30 AM UTC) every day
+[functions."morning-reminders"]
+  schedule = "30 1 * * *"
+
+# Redirect all non-asset requests to index.html (React SPA routing)
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200

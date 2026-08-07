@@ -1,15 +1,15 @@
 import { GitBranch, Stethoscope, Syringe, AlertTriangle, FileText, Bell, TrendingUp, Pill, Receipt } from 'lucide-react'
 
 const tabs = [
-  { id: 'scanner',      label: 'Scan',        icon: FileText },
   { id: 'timeline',     label: 'Timeline',    icon: GitBranch },
+  { id: 'reminders',    label: 'Reminders',   icon: Bell },
+  { id: 'scanner',      label: 'Scan',        icon: FileText },
   { id: 'medical',      label: 'Medical',     icon: Stethoscope },
   { id: 'vaccinations', label: 'Vaccines',    icon: Syringe },
   { id: 'medicines',    label: 'Medicines',   icon: Pill },
   { id: 'weight',       label: 'Weight',      icon: TrendingUp },
-  { id: 'bills',        label: 'Bills',       icon: Receipt },
   { id: 'allergies',    label: 'Allergies',   icon: AlertTriangle },
-  { id: 'reminders',    label: 'Reminders',   icon: Bell },
+  { id: 'bills',        label: 'Bills',       icon: Receipt },
 ]
 
 export default function MobileBottomNav({ activeTab, onTabChange }) {

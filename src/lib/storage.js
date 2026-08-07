@@ -22,13 +22,22 @@ function uid()            { return Date.now().toString(36) + Math.random().toStr
 
 // ── Pets ──────────────────────────────────────────────────────────────────────
 
-export async function getPets() {
+export async function getPets(filterUserId = null) {
   if (isConfigured) {
-    const { data, error } = await supabase.from('pets').select('*').order('created_at', { ascending: false })
+    let q = supabase.from('pets').select('*').order('created_at', { ascending: false })
+    if (filterUserId) q = q.eq('user_id', filterUserId)
+    const { data, error } = await q
     if (error) throw error
     return data.map(fromSnakePet)
   }
   return lsGet(KEYS.pets)
+}
+
+export async function getAdminUsers() {
+  if (!isConfigured) return []
+  const { data, error } = await supabase.rpc('get_all_users_for_admin')
+  if (error) throw error
+  return data || []
 }
 
 export async function savePet(pet) {
