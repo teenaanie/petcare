@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { PawPrint, Phone, Mail, MessageSquare, Loader2, AlertCircle, ArrowLeft, CheckCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 
@@ -12,21 +12,44 @@ const COUNTRY_CODES = [
   { code: '+60',  label: '🇲🇾 +60' },
 ]
 
+const SESSION_KEY = 'pippy_otp_state'
+
 export default function PhoneAuth() {
-  const [method, setMethod]           = useState('phone')   // 'phone' | 'email'
-  const [step, setStep]               = useState('entry')   // 'entry' | 'otp'
+  const [method, setMethod]           = useState('phone')
+  const [step, setStep]               = useState('entry')
   const [countryCode, setCountryCode] = useState('+91')
   const [phone, setPhone]             = useState('')
   const [email, setEmail]             = useState('')
   const [otp, setOtp]                 = useState('')
   const [loading, setLoading]         = useState(false)
   const [error, setError]             = useState(null)
-  const [sentTo, setSentTo]           = useState('')        // what we sent the OTP to
+  const [sentTo, setSentTo]           = useState('')
+
+  // ── Restore OTP step if page was refreshed mid-flow ──────────────────────
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(SESSION_KEY)
+      if (saved) {
+        const { method: m, sentTo: s, step: st } = JSON.parse(saved)
+        if (st === 'otp' && s) {
+          setMethod(m); setSentTo(s); setStep('otp')
+        }
+      }
+    } catch {}
+  }, [])
+
+  function saveOtpState(method, sentTo) {
+    try { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ method, sentTo, step: 'otp' })) } catch {}
+  }
+
+  function clearOtpState() {
+    try { sessionStorage.removeItem(SESSION_KEY) } catch {}
+  }
 
   const formattedPhone = countryCode + phone.replace(/\D/g, '')
 
   function switchMethod(m) {
-    setMethod(m); setStep('entry'); setError(null); setOtp(''); setSentTo('')
+    setMethod(m); setStep('entry'); setError(null); setOtp(''); setSentTo(''); clearOtpState()
   }
 
   // ── Step 1: Send OTP ────────────────────────────────────────────────────────
@@ -39,13 +62,18 @@ export default function PhoneAuth() {
         const { error } = await supabase.auth.signInWithOtp({ phone: formattedPhone })
         if (error) throw error
         setSentTo(formattedPhone)
+        saveOtpState(method, formattedPhone)
       } else {
         const { error } = await supabase.auth.signInWithOtp({
           email,
-          options: { shouldCreateUser: true },
+          options: {
+            shouldCreateUser: true,
+            emailRedirectTo: window.location.origin,
+          },
         })
         if (error) throw error
         setSentTo(email)
+        // No sessionStorage for magic link — no code to restore
       }
       setStep('otp')
     } catch (err) {
@@ -67,7 +95,7 @@ export default function PhoneAuth() {
         : { email: sentTo, token: otp, type: 'email' }
       const { error } = await supabase.auth.verifyOtp(params)
       if (error) throw error
-      // onAuthStateChange in App.jsx picks up the session automatically
+      clearOtpState()  // clean up on success
     } catch (err) {
       setError(err.message || 'Invalid code. Please try again.')
     } finally {
@@ -180,7 +208,7 @@ export default function PhoneAuth() {
                       value={email} onChange={e => setEmail(e.target.value)}
                       autoFocus required />
                     <p className="text-xs mt-1.5" style={{ color: '#B8A080' }}>
-                      We'll send a one-time code to this email
+                      We'll send a sign-in link to this email
                     </p>
                   </div>
                 )}
@@ -197,17 +225,15 @@ export default function PhoneAuth() {
             </>
           )}
 
-          {/* ── OTP step ───────────────────────────────────────────────── */}
-          {step === 'otp' && (
+          {/* ── OTP step: Phone ────────────────────────────────────────── */}
+          {step === 'otp' && method === 'phone' && (
             <>
               <div className="text-center mb-6">
                 <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
                   style={{ backgroundColor: '#FFF5AA' }}>
                   <MessageSquare className="w-7 h-7" style={{ color: '#4A2C0A' }} />
                 </div>
-                <h1 className="text-xl font-black mb-1" style={{ color: '#4A2C0A' }}>
-                  {method === 'phone' ? 'Check your messages' : 'Check your email'}
-                </h1>
+                <h1 className="text-xl font-black mb-1" style={{ color: '#4A2C0A' }}>Check your messages</h1>
                 <p className="text-sm" style={{ color: '#B8A080' }}>
                   We sent a 6-digit code to{' '}
                   <span className="font-bold" style={{ color: '#4A2C0A' }}>{sentTo}</span>
@@ -216,9 +242,10 @@ export default function PhoneAuth() {
 
               <form onSubmit={handleVerify} className="space-y-4">
                 <div>
-                  <label className="label text-xs">Enter the 6-digit code</label>
+                  <label className="label text-xs">Enter your 6-digit code</label>
                   <input
-                    type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6}
+                    type="text" inputMode="numeric" pattern="[0-9]*"
+                    maxLength={6}
                     className="input text-center text-2xl font-black tracking-[0.3em]"
                     placeholder="• • • • • •"
                     value={otp}
@@ -237,10 +264,10 @@ export default function PhoneAuth() {
 
                 <div className="flex items-center justify-between text-xs" style={{ color: '#B8A080' }}>
                   <button type="button"
-                    onClick={() => { setStep('entry'); setError(null); setOtp('') }}
+                    onClick={() => { setStep('entry'); setError(null); setOtp(''); clearOtpState() }}
                     className="flex items-center gap-1 hover:underline">
                     <ArrowLeft className="w-3.5 h-3.5" />
-                    {method === 'phone' ? 'Change number' : 'Change email'}
+                    Change number
                   </button>
                   <button type="button" onClick={handleResend} disabled={loading}
                     className="hover:underline">
@@ -248,6 +275,41 @@ export default function PhoneAuth() {
                   </button>
                 </div>
               </form>
+            </>
+          )}
+
+          {/* ── Magic link step: Email ──────────────────────────────────── */}
+          {step === 'otp' && method === 'email' && (
+            <>
+              <div className="text-center mb-6">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                  style={{ backgroundColor: '#FFF5AA' }}>
+                  <Mail className="w-7 h-7" style={{ color: '#4A2C0A' }} />
+                </div>
+                <h1 className="text-xl font-black mb-2" style={{ color: '#4A2C0A' }}>Check your email</h1>
+                <p className="text-sm mb-1" style={{ color: '#B8A080' }}>
+                  We sent a sign-in link to
+                </p>
+                <p className="text-sm font-bold mb-4" style={{ color: '#4A2C0A' }}>{sentTo}</p>
+                <p className="text-xs" style={{ color: '#B8A080' }}>
+                  Click the link in the email to sign in. You can close this tab.
+                </p>
+              </div>
+
+              {error && <ErrorBox message={error} />}
+
+              <div className="flex items-center justify-between text-xs mt-4" style={{ color: '#B8A080' }}>
+                <button type="button"
+                  onClick={() => { setStep('entry'); setError(null); clearOtpState() }}
+                  className="flex items-center gap-1 hover:underline">
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  Change email
+                </button>
+                <button type="button" onClick={handleResend} disabled={loading}
+                  className="hover:underline">
+                  {loading ? 'Sending…' : 'Resend link'}
+                </button>
+              </div>
             </>
           )}
         </div>
