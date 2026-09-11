@@ -15,7 +15,7 @@ const COUNTRY_CODES = [
 const SESSION_KEY = 'pippy_otp_state'
 
 export default function PhoneAuth() {
-  const [method, setMethod]           = useState('phone')
+  const [method, setMethod]           = useState('email')
   const [step, setStep]               = useState('entry')
   const [countryCode, setCountryCode] = useState('+91')
   const [phone, setPhone]             = useState('')
@@ -293,6 +293,9 @@ export default function PhoneAuth() {
                 <p className="text-sm font-bold mb-4" style={{ color: '#4A2C0A' }}>{sentTo}</p>
                 <p className="text-xs" style={{ color: '#B8A080' }}>
                   Click the link in the email to sign in. You can close this tab.
+                </p>
+                <p className="text-xs mt-3 px-3 py-2 rounded-xl" style={{ backgroundColor: '#FFF5AA', color: '#6B4C1E' }}>
+                  💡 The email will arrive from <strong>Supabase Auth</strong> — that's our login system. Just click "Sign in" inside it.
                 </p>
               </div>
 

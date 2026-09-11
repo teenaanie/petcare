@@ -105,7 +105,8 @@ function buildEvents(medicalRecords, vaccinations, allergies, reminders) {
     })
   })
 
-  return events.sort((a, b) => b.sortDate - a.sortDate)
+  const toMs = d => (d instanceof Date && !isNaN(d) ? d.getTime() : 0)
+  return events.sort((a, b) => toMs(b.sortDate) - toMs(a.sortDate))
 }
 
 // ── Event Card ────────────────────────────────────────────────────────────────
@@ -190,11 +191,12 @@ function EventCard({ event }) {
 function Section({ title, items }) {
   if (items.length === 0) return null
 
-  // Group by year-month
+  // Group by year-month — preserve insertion order explicitly
+  const groupOrder = []
   const groups = {}
   items.forEach(e => {
     const key = format(e.sortDate, 'MMMM yyyy')
-    if (!groups[key]) groups[key] = []
+    if (!groups[key]) { groups[key] = []; groupOrder.push(key) }
     groups[key].push(e)
   })
 
@@ -202,7 +204,7 @@ function Section({ title, items }) {
     <div className="mb-8">
       <h3 className="text-xs font-black uppercase tracking-widest mb-4"
         style={{ color: '#B8A080' }}>{title}</h3>
-      {Object.entries(groups).map(([month, evts]) => (
+      {groupOrder.map(month => { const evts = groups[month]; return (
         <div key={month} className="mb-5">
           {/* Month header */}
           <div className="flex items-center gap-2 mb-3">
@@ -213,13 +215,12 @@ function Section({ title, items }) {
 
           {/* Timeline: line on the left, dots aligned to it */}
           <div className="relative pl-4">
-            {/* Vertical line through dot centres (each dot is w-8 = 32px, sits at left-0, centre = 16px from left of pl-4 container = left: 4+16 = 20... actually let's use left-4 of this container) */}
             <div className="absolute top-4 bottom-0 w-0.5 rounded-full"
               style={{ left: '15px', backgroundColor: '#F0E6C8' }} />
             {evts.map(e => <EventCard key={e.id} event={e} />)}
           </div>
         </div>
-      ))}
+      )})}
     </div>
   )
 }

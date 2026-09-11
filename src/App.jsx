@@ -9,6 +9,7 @@ import AddPetModal from './components/AddPetModal.jsx'
 import MobileHeader from './components/MobileHeader.jsx'
 import MobileBottomNav from './components/MobileBottomNav.jsx'
 import AdminDashboard from './components/AdminDashboard.jsx'
+import FeedbackButton from './components/FeedbackButton.jsx'
 
 const ADMIN_EMAIL = 'teena.anie9@gmail.com'
 
@@ -163,6 +164,8 @@ export default function App() {
           onSaved={onPetSaved}
         />
       )}
+
+      <FeedbackButton user={session?.user} />
     </div>
   )
 }

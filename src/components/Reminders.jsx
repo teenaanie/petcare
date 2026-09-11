@@ -61,29 +61,27 @@ Rules:
 
 // ── Voice recording hook (MediaRecorder → Whisper API) ───────────────────────
 function useVoiceRecorder(onTranscript) {
-  const [listening, setListening]     = useState(false)
-  const [transcript, setTranscript]   = useState('')
+  const [listening, setListening]       = useState(false)
+  const [transcript, setTranscript]     = useState('')
   const [transcribing, setTranscribing] = useState(false)
-  const [error, setError]             = useState(null)
-  const mediaRecorderRef              = useRef(null)
-  const chunksRef                     = useRef([])
-  const streamRef                     = useRef(null)
+  const [error, setError]               = useState(null)
+  const mediaRecorderRef                = useRef(null)
+  const chunksRef                       = useRef([])
+  const startTimeRef                    = useRef(null)
+  const readyRef                        = useRef(false)   // true once recorder is recording
 
   async function start() {
+    if (listening) { stop(); return }   // tap-to-toggle: second tap = stop
     setError(null)
     setTranscript('')
     chunksRef.current = []
+    readyRef.current  = false
 
     try {
-      // Explicitly request the Mac's default input — bypasses iPhone Continuity mic
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          sampleRate: 16000,
-        }
-      })
-      streamRef.current = stream
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('Microphone access requires HTTPS. Open the app via https:// or use localhost.')
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
 
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'
@@ -99,23 +97,22 @@ function useVoiceRecorder(onTranscript) {
       }
 
       recorder.onstop = async () => {
-        // Stop all tracks to release the mic indicator
         stream.getTracks().forEach(t => t.stop())
+        const elapsed = Date.now() - (startTimeRef.current || 0)
+        const blob    = new Blob(chunksRef.current, { type: mimeType })
 
-        const blob = new Blob(chunksRef.current, { type: mimeType })
-        if (blob.size < 1000) {
-          setError('Recording too short — please hold the button and speak.')
+        if (elapsed < 1500 || blob.size < 500) {
+          setError('Recording too short — tap the mic, speak, then tap again to stop.')
           return
         }
 
-        // Transcribe with Whisper
         setTranscribing(true)
         try {
           const formData = new FormData()
           const ext = mimeType.includes('mp4') ? 'mp4' : 'webm'
           formData.append('file', blob, `recording.${ext}`)
           formData.append('model', 'whisper-1')
-          formData.append('language', 'en')
+          // No language lock — let Whisper auto-detect (handles Indian English / mixed)
 
           const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
             method: 'POST',
@@ -138,7 +135,9 @@ function useVoiceRecorder(onTranscript) {
         }
       }
 
-      recorder.start()
+      recorder.start(250)   // collect data every 250 ms
+      startTimeRef.current = Date.now()
+      readyRef.current     = true
       setListening(true)
     } catch (e) {
       if (e.name === 'NotAllowedError') {
@@ -150,9 +149,10 @@ function useVoiceRecorder(onTranscript) {
   }
 
   function stop() {
-    if (mediaRecorderRef.current?.state === 'recording') {
+    if (readyRef.current && mediaRecorderRef.current?.state === 'recording') {
       mediaRecorderRef.current.stop()
     }
+    readyRef.current = false
     setListening(false)
   }
 
@@ -300,11 +300,7 @@ export default function Reminders({ pet }) {
           {/* Mic button */}
           <div className="flex flex-col items-center gap-3">
             <button
-              onMouseDown={voice.start}
-              onMouseUp={voice.stop}
-              onTouchStart={e => { e.preventDefault(); voice.start() }}
-              onTouchEnd={e => { e.preventDefault(); voice.stop() }}
-              onClick={!voice.listening ? undefined : voice.stop}
+              onClick={voice.start}
               disabled={voice.transcribing || aiParsing}
               className={`w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-lg select-none ${
                 voice.listening
@@ -324,8 +320,8 @@ export default function Reminders({ pet }) {
             <p className="text-sm font-medium text-primary-800 text-center">
               {voice.transcribing ? 'Transcribing...'
                 : aiParsing ? 'AI is understanding your request...'
-                : voice.listening ? 'Release to stop recording'
-                : 'Hold to speak'}
+                : voice.listening ? 'Tap again to stop'
+                : 'Tap to start speaking'}
             </p>
 
             {voice.transcript && !aiParsing && (
@@ -422,9 +418,11 @@ export default function Reminders({ pet }) {
       {/* ── Reminder cards ───────────────────────────────────────────────── */}
       <div className="space-y-3">
         {reminders.sort((a, b) => {
-          // Pending first (sorted by due date), done at bottom
+          // Pending first (sorted by due date asc), done at bottom
           if (a.isDone !== b.isDone) return a.isDone ? 1 : -1
-          return new Date(a.dueDate) - new Date(b.dueDate)
+          const da = a.dueDate ? new Date(a.dueDate).getTime() : Infinity
+          const db = b.dueDate ? new Date(b.dueDate).getTime() : Infinity
+          return da - db
         }).map(r => (
           <div key={r.id} className={`card group transition-opacity ${r.isDone ? 'opacity-60' : ''}`}>
             <div className="flex justify-between items-start mb-3">

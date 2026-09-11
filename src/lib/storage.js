@@ -481,6 +481,16 @@ export async function deleteBill(id) {
   lsSet(KEYS.bills, lsGet(KEYS.bills).filter(r => r.id !== id))
 }
 
+export async function getFeedback() {
+  if (!isConfigured) return []
+  const { data, error } = await supabase
+    .from('feedback')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
 // ── Snake ↔ camelCase helpers ─────────────────────────────────────────────────
 
 function toSnake(pet) {

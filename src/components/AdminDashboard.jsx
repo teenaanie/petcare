@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { ShieldCheck, Users, PawPrint, ChevronRight, ChevronLeft, Search, Phone, Mail, Loader2, AlertCircle, Stethoscope, Syringe, Pill, Receipt, TrendingUp, Bell } from 'lucide-react'
-import { getAdminUsers, getPets, getMedicalHistory, getVaccinations, getMedicines, getBills } from '../lib/storage.js'
+import { ShieldCheck, Users, PawPrint, ChevronRight, ChevronLeft, Search, Phone, Mail, Loader2, AlertCircle, Stethoscope, Syringe, Pill, Receipt, Bell, ChevronDown, ChevronUp, Star, MessageSquarePlus } from 'lucide-react'
+import { getAdminUsers, getPets, getMedicalHistory, getVaccinations, getMedicines, getBills, getReminders, getFeedback } from '../lib/storage.js'
 import PetAvatar from './PetAvatar.jsx'
 
 // ── User Card ────────────────────────────────────────────────────────────────
@@ -80,27 +80,69 @@ function StatChip({ icon: Icon, label, count, color = '#4A2C0A' }) {
   )
 }
 
+function Section({ icon: Icon, title, count, color, children }) {
+  const [open, setOpen] = useState(true)
+  return (
+    <div className="mb-4 rounded-2xl overflow-hidden border" style={{ borderColor: '#F0E6C8' }}>
+      <button onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-3"
+        style={{ backgroundColor: '#FFF9D6' }}>
+        <div className="flex items-center gap-2">
+          <Icon className="w-4 h-4" style={{ color }} />
+          <span className="text-sm font-black" style={{ color: '#4A2C0A' }}>{title}</span>
+          <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+            style={{ backgroundColor: color + '22', color }}>{count}</span>
+        </div>
+        {open ? <ChevronUp className="w-4 h-4" style={{ color: '#B8A080' }} />
+               : <ChevronDown className="w-4 h-4" style={{ color: '#B8A080' }} />}
+      </button>
+      {open && <div className="divide-y" style={{ divideColor: '#F0E6C8' }}>{children}</div>}
+    </div>
+  )
+}
+
+function Row({ primary, secondary, tertiary }) {
+  return (
+    <div className="px-4 py-3" style={{ backgroundColor: '#FFFEF8' }}>
+      <p className="text-sm font-bold" style={{ color: '#4A2C0A' }}>{primary}</p>
+      {secondary && <p className="text-xs mt-0.5" style={{ color: '#B8A080' }}>{secondary}</p>}
+      {tertiary  && <p className="text-xs mt-0.5" style={{ color: '#6B4C1E' }}>{tertiary}</p>}
+    </div>
+  )
+}
+
+function EmptyRow({ label }) {
+  return (
+    <div className="px-4 py-3 text-xs italic" style={{ color: '#B8A080', backgroundColor: '#FFFEF8' }}>
+      No {label} recorded
+    </div>
+  )
+}
+
 function PetStatsPanel({ pet, onBack }) {
-  const [stats, setStats] = useState(null)
+  const [data, setData]     = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
       setLoading(true)
       try {
-        const [medical, vaccinations, medicines, bills] = await Promise.all([
+        const [medical, vaccinations, medicines, bills, reminders] = await Promise.all([
           getMedicalHistory(pet.id).catch(() => []),
           getVaccinations(pet.id).catch(() => []),
           getMedicines(pet.id).catch(() => []),
           getBills(pet.id).catch(() => []),
+          getReminders(pet.id).catch(() => []),
         ])
-        setStats({ medical, vaccinations, medicines, bills })
+        setData({ medical, vaccinations, medicines, bills, reminders })
       } finally {
         setLoading(false)
       }
     }
     load()
   }, [pet.id])
+
+  const fmt = str => str ? new Date(str).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
 
   return (
     <div>
@@ -116,22 +158,72 @@ function PetStatsPanel({ pet, onBack }) {
           <h3 className="text-xl font-black" style={{ color: '#4A2C0A' }}>{pet.name}</h3>
           <p className="text-sm" style={{ color: '#B8A080' }}>
             {pet.species} · {pet.breed}{pet.age ? ` · ${pet.age} yrs` : ''}
+            {pet.weight ? ` · ${pet.weight} kg` : ''}
           </p>
         </div>
       </div>
 
       {loading ? (
-        <div className="flex items-center gap-2 py-4" style={{ color: '#B8A080' }}>
+        <div className="flex items-center gap-2 py-6" style={{ color: '#B8A080' }}>
           <Loader2 className="w-4 h-4 animate-spin" />
           <span className="text-sm">Loading records…</span>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3">
-          <StatChip icon={Stethoscope} label="Medical visits" count={stats.medical.length} />
-          <StatChip icon={Syringe} label="Vaccinations" count={stats.vaccinations.length} />
-          <StatChip icon={Pill} label="Medicines" count={stats.medicines.length} />
-          <StatChip icon={Receipt} label="Bills" count={stats.bills.length} />
-        </div>
+        <>
+          {/* Medical */}
+          <Section icon={Stethoscope} title="Medical Records" count={data.medical.length} color="#2563EB">
+            {data.medical.length === 0 ? <EmptyRow label="medical records" /> :
+              data.medical.map(r => (
+                <Row key={r.id}
+                  primary={r.title || r.type}
+                  secondary={[r.type, r.vet, fmt(r.date)].filter(Boolean).join(' · ')}
+                  tertiary={r.description} />
+              ))}
+          </Section>
+
+          {/* Vaccinations */}
+          <Section icon={Syringe} title="Vaccinations" count={data.vaccinations.length} color="#7C3AED">
+            {data.vaccinations.length === 0 ? <EmptyRow label="vaccinations" /> :
+              data.vaccinations.map(r => (
+                <Row key={r.id}
+                  primary={r.name}
+                  secondary={[r.vet ? `By ${r.vet}` : null, `Given: ${fmt(r.dateGiven)}`, r.nextDue ? `Next due: ${fmt(r.nextDue)}` : null].filter(Boolean).join(' · ')}
+                  tertiary={r.notes} />
+              ))}
+          </Section>
+
+          {/* Medicines */}
+          <Section icon={Pill} title="Medicines" count={data.medicines.length} color="#059669">
+            {data.medicines.length === 0 ? <EmptyRow label="medicines" /> :
+              data.medicines.map(r => (
+                <Row key={r.id}
+                  primary={r.name}
+                  secondary={[r.dosage, r.frequency, r.startDate ? `From ${fmt(r.startDate)}` : null].filter(Boolean).join(' · ')}
+                  tertiary={r.notes} />
+              ))}
+          </Section>
+
+          {/* Bills */}
+          <Section icon={Receipt} title="Bills" count={data.bills.length} color="#D97706">
+            {data.bills.length === 0 ? <EmptyRow label="bills" /> :
+              data.bills.map(r => (
+                <Row key={r.id}
+                  primary={r.description || r.category}
+                  secondary={[r.category, fmt(r.date), r.total ? `₹${r.total}` : null].filter(Boolean).join(' · ')} />
+              ))}
+          </Section>
+
+          {/* Reminders */}
+          <Section icon={Bell} title="Reminders" count={data.reminders.length} color="#DC2626">
+            {data.reminders.length === 0 ? <EmptyRow label="reminders" /> :
+              data.reminders.map(r => (
+                <Row key={r.id}
+                  primary={r.type}
+                  secondary={[`Due: ${fmt(r.dueDate)}`, r.frequency, r.isDone ? '✓ Done' : 'Pending'].filter(Boolean).join(' · ')}
+                  tertiary={r.notes} />
+              ))}
+          </Section>
+        </>
       )}
     </div>
   )
@@ -214,6 +306,102 @@ function UserPetsView({ user, onBack }) {
   )
 }
 
+// ── Feedback Panel ───────────────────────────────────────────────────────────
+
+const STAR_LABELS = ['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent']
+
+function FeedbackPanel() {
+  const [items, setItems]     = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState(null)
+
+  useEffect(() => {
+    getFeedback()
+      .then(setItems)
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const avg = items.filter(i => i.rating).length
+    ? (items.filter(i => i.rating).reduce((s, i) => s + i.rating, 0) / items.filter(i => i.rating).length).toFixed(1)
+    : null
+
+  return (
+    <div>
+      {/* Summary strip */}
+      {!loading && !error && items.length > 0 && (
+        <div className="flex items-center gap-6 mb-5 p-4 rounded-2xl"
+          style={{ backgroundColor: '#FFF5AA', border: '1.5px solid #F9D548' }}>
+          <div className="text-center">
+            <p className="text-2xl font-black" style={{ color: '#4A2C0A' }}>{items.length}</p>
+            <p className="text-xs" style={{ color: '#6B4C1E' }}>responses</p>
+          </div>
+          {avg && (
+            <div className="flex items-center gap-1.5">
+              <Star className="w-6 h-6" fill="#F9D548" style={{ color: '#D4A800' }} />
+              <div>
+                <p className="text-2xl font-black leading-none" style={{ color: '#4A2C0A' }}>{avg}</p>
+                <p className="text-xs" style={{ color: '#6B4C1E' }}>avg rating</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {loading && (
+        <div className="flex items-center justify-center gap-2 py-16" style={{ color: '#B8A080' }}>
+          <Loader2 className="w-5 h-5 animate-spin" />
+          <span>Loading feedback…</span>
+        </div>
+      )}
+      {error && (
+        <div className="flex items-center gap-2 p-4 rounded-xl text-sm"
+          style={{ backgroundColor: '#FEE2E2', color: '#DC2626' }}>
+          <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
+        </div>
+      )}
+      {!loading && !error && items.length === 0 && (
+        <div className="text-center py-16">
+          <MessageSquarePlus className="w-12 h-12 mx-auto mb-3 opacity-20" style={{ color: '#4A2C0A' }} />
+          <p className="text-sm" style={{ color: '#B8A080' }}>No feedback submitted yet.</p>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {items.map(item => (
+          <div key={item.id} className="p-4 rounded-2xl"
+            style={{ backgroundColor: '#FFFEF8', border: '1.5px solid #F0E6C8' }}>
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <div className="flex gap-0.5">
+                {[1,2,3,4,5].map(n => (
+                  <Star key={n} className="w-4 h-4"
+                    fill={item.rating >= n ? '#F9D548' : 'none'}
+                    style={{ color: item.rating >= n ? '#D4A800' : '#D1C4A8' }} />
+                ))}
+                {item.rating && (
+                  <span className="text-xs ml-1 font-bold" style={{ color: '#6B4C1E' }}>
+                    {STAR_LABELS[item.rating]}
+                  </span>
+                )}
+              </div>
+              <span className="text-xs flex-shrink-0" style={{ color: '#B8A080' }}>
+                {new Date(item.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </span>
+            </div>
+            {item.category && (
+              <span className="inline-block text-xs font-bold px-2.5 py-1 rounded-full mb-2"
+                style={{ backgroundColor: '#F0E6C8', color: '#6B4C1E' }}>
+                {item.category}
+              </span>
+            )}
+            <p className="text-sm leading-relaxed" style={{ color: '#4A2C0A' }}>{item.message}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Main AdminDashboard ──────────────────────────────────────────────────────
 
 export default function AdminDashboard() {
@@ -222,6 +410,7 @@ export default function AdminDashboard() {
   const [error, setError]         = useState(null)
   const [search, setSearch]       = useState('')
   const [selectedUser, setSelectedUser] = useState(null)
+  const [tab, setTab]             = useState('users')   // 'users' | 'feedback'
 
   useEffect(() => {
     setLoading(true)
@@ -254,7 +443,27 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {selectedUser ? (
+        {/* Tab switcher */}
+        {!selectedUser && (
+          <div className="flex rounded-xl p-1 mb-5" style={{ backgroundColor: '#F0E6C8' }}>
+            <button
+              onClick={() => setTab('users')}
+              className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
+              style={tab === 'users' ? { backgroundColor: '#F9D548', color: '#4A2C0A' } : { color: '#B8A080' }}>
+              <Users className="w-4 h-4" /> Users
+            </button>
+            <button
+              onClick={() => setTab('feedback')}
+              className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
+              style={tab === 'feedback' ? { backgroundColor: '#F9D548', color: '#4A2C0A' } : { color: '#B8A080' }}>
+              <MessageSquarePlus className="w-4 h-4" /> Feedback
+            </button>
+          </div>
+        )}
+
+        {tab === 'feedback' && !selectedUser ? (
+          <FeedbackPanel />
+        ) : selectedUser ? (
           <UserPetsView user={selectedUser} onBack={() => setSelectedUser(null)} />
         ) : (
           <>

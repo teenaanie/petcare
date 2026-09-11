@@ -78,6 +78,10 @@ Return a JSON object with this exact structure:
   "observations": [
     { "type": "positive" | "warning" | "info", "text": "observation about something specific in the data" }
   ],
+  "findings": {
+    "good": ["thing that is healthy or on track", "another positive finding"],
+    "concerns": ["something that needs attention or monitoring", "another concern if any"]
+  },
   "weightTrend": "brief comment on weight trend or null if no data",
   "upcomingActions": [
     { "action": "what to do", "dueDate": "YYYY-MM-DD or timeframe like 'Next month'", "priority": "high" | "medium" | "low" }
@@ -88,6 +92,8 @@ Return a JSON object with this exact structure:
 }
 
 Rules:
+- findings.good: 2-4 specific positive things from the data (vaccinations up to date, weight stable, no allergies, regular vet visits etc.)
+- findings.concerns: 1-4 specific concerns or gaps (overdue vaccines, weight change, missing records, no recent vet visit etc.). Empty array [] if everything looks fine.
 - observations: 3-6 bullet points mixing positive and warnings. Be specific — reference actual data.
 - upcomingActions: only things due in the near future (overdue meds, upcoming vaccines, follow-ups)
 - vetQuestions: 4-6 specific questions the owner should ask at their next appointment. Reference actual data.
@@ -366,6 +372,60 @@ export default function HealthSummary({ pet, onClose }) {
                       </div>
                     )
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* AI Findings — what's good vs what needs attention */}
+            {summary.findings && (summary.findings.good?.length > 0 || summary.findings.concerns?.length > 0) && (
+              <div className="rounded-2xl overflow-hidden" style={{ border: '1.5px solid #F0E6C8' }}>
+                <div className="px-4 py-3 flex items-center gap-2"
+                  style={{ backgroundColor: '#FFF9D6' }}>
+                  <Sparkles className="w-4 h-4" style={{ color: '#4A2C0A' }} />
+                  <span className="font-black text-sm" style={{ color: '#4A2C0A' }}>AI Findings</span>
+                </div>
+
+                <div className="divide-y" style={{ divideColor: '#F0E6C8' }}>
+                  {/* What's good */}
+                  {summary.findings.good?.length > 0 && (
+                    <div className="px-4 py-3" style={{ backgroundColor: '#F0FDF4' }}>
+                      <p className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: '#059669' }}>
+                        ✅ Looking Good
+                      </p>
+                      <ul className="space-y-1.5">
+                        {summary.findings.good.map((item, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm" style={{ color: '#065F46' }}>
+                            <span className="mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: '#059669' }} />
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* What needs attention */}
+                  {summary.findings.concerns?.length > 0 && (
+                    <div className="px-4 py-3" style={{ backgroundColor: '#FFFBEB' }}>
+                      <p className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: '#D97706' }}>
+                        ⚠️ Needs Attention
+                      </p>
+                      <ul className="space-y-1.5">
+                        {summary.findings.concerns.map((item, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm" style={{ color: '#92400E' }}>
+                            <span className="mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: '#D97706' }} />
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* All clear */}
+                  {summary.findings.concerns?.length === 0 && (
+                    <div className="px-4 py-2.5 text-sm" style={{ backgroundColor: '#F0FDF4', color: '#059669' }}>
+                      🎉 No concerns found — keep up the great care!
+                    </div>
+                  )}
                 </div>
               </div>
             )}
