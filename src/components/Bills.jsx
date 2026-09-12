@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Receipt, Plus, Trash2, ChevronDown, ChevronUp, X, IndianRupee } from 'lucide-react'
+import { Receipt, Plus, Trash2, ChevronDown, ChevronUp, X, TrendingUp } from 'lucide-react'
 import { getBills, saveBill, deleteBill } from '../lib/storage.js'
 import { format, parseISO, isValid } from 'date-fns'
 
@@ -17,6 +17,72 @@ function fmt(amount, currency) {
 function parseDate(str) {
   if (!str) return null
   try { const d = parseISO(str); return isValid(d) ? d : null } catch { return null }
+}
+
+// ── Spend Analytics ───────────────────────────────────────────────────────────
+
+function SpendChart({ bills, currency }) {
+  if (bills.length === 0) return null
+
+  // Group bills by YYYY-MM
+  const byMonth = {}
+  bills.forEach(b => {
+    if (!b.date || !b.totalAmount) return
+    const key = b.date.slice(0, 7)          // "2024-03"
+    byMonth[key] = (byMonth[key] || 0) + parseFloat(b.totalAmount)
+  })
+
+  const months = Object.keys(byMonth).sort()
+  if (months.length === 0) return null
+
+  const maxVal = Math.max(...months.map(m => byMonth[m]))
+
+  // Show last 6 months max
+  const recent = months.slice(-6)
+
+  function monthLabel(key) {
+    const [y, m] = key.split('-')
+    return new Date(+y, +m - 1).toLocaleString('default', { month: 'short', year: '2-digit' })
+  }
+
+  return (
+    <div className="card mb-4">
+      <div className="flex items-center gap-2 mb-4">
+        <TrendingUp className="w-4 h-4" style={{ color: '#4A2C0A' }} />
+        <span className="font-black text-sm" style={{ color: '#4A2C0A' }}>Monthly Spend</span>
+      </div>
+
+      {/* Bars */}
+      <div className="flex items-end gap-2" style={{ height: 100 }}>
+        {recent.map(m => {
+          const val = byMonth[m]
+          const pct = maxVal > 0 ? (val / maxVal) * 100 : 0
+          return (
+            <div key={m} className="flex-1 flex flex-col items-center gap-1">
+              <span className="text-[9px] font-bold leading-none" style={{ color: '#B8A080' }}>
+                {currencySymbol(currency)}{val >= 1000 ? `${(val / 1000).toFixed(1)}k` : Math.round(val)}
+              </span>
+              <div className="w-full rounded-t-lg transition-all"
+                style={{
+                  height: `${Math.max(pct, 4)}%`,
+                  backgroundColor: '#F9D548',
+                  minHeight: 4,
+                }} />
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Month labels */}
+      <div className="flex gap-2 mt-1">
+        {recent.map(m => (
+          <div key={m} className="flex-1 text-center">
+            <span className="text-[9px]" style={{ color: '#B8A080' }}>{monthLabel(m)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 // ── Add form ──────────────────────────────────────────────────────────────────
@@ -253,6 +319,9 @@ export default function Bills({ pet }) {
           <Plus className="w-4 h-4" /> Add Bill
         </button>
       </div>
+
+      {/* Spend chart */}
+      <SpendChart bills={bills} currency={mainCurrency} />
 
       {/* Add form */}
       {showForm && (

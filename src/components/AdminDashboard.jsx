@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { ShieldCheck, Users, PawPrint, ChevronRight, ChevronLeft, Search, Phone, Mail, Loader2, AlertCircle, Stethoscope, Syringe, Pill, Receipt, Bell, ChevronDown, ChevronUp, Star, MessageSquarePlus } from 'lucide-react'
-import { getAdminUsers, getPets, getMedicalHistory, getVaccinations, getMedicines, getBills, getReminders, getFeedback } from '../lib/storage.js'
+import { ShieldCheck, Users, PawPrint, ChevronRight, ChevronLeft, Search, Phone, Mail, Loader2, AlertCircle, Stethoscope, Syringe, Pill, Receipt, Bell, ChevronDown, ChevronUp, Star, MessageSquarePlus, MapPin, Clock, Scissors, ShoppingBag, Home, Plus, Check, X, Trash2, ToggleLeft, ToggleRight } from 'lucide-react'
+import { getAdminUsers, getPets, getMedicalHistory, getVaccinations, getMedicines, getBills, getReminders, getFeedback, getProviders, saveProvider, deleteProvider } from '../lib/storage.js'
 import PetAvatar from './PetAvatar.jsx'
 
 // ── User Card ────────────────────────────────────────────────────────────────
@@ -402,6 +402,188 @@ function FeedbackPanel() {
   )
 }
 
+// ── Providers Panel ──────────────────────────────────────────────────────────
+
+const PROVIDER_TYPES = ['Vet', 'Groomer', 'Store', 'Boarder']
+const EMPTY_PROVIDER = { name: '', type: 'Vet', description: '', address: '', city: '', phone: '', whatsapp: '', email: '', website: '', hours: '', photo_url: '', maps_url: '', is_approved: false }
+
+const TYPE_ICONS = { Vet: Stethoscope, Groomer: Scissors, Store: ShoppingBag, Boarder: Home }
+const TYPE_COLORS = { Vet: '#2563EB', Groomer: '#7C3AED', Store: '#059669', Boarder: '#D97706' }
+
+function ProviderForm({ initial, onSave, onCancel, saving }) {
+  const [form, setForm] = useState(initial)
+  const set = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }))
+
+  return (
+    <div className="p-4 rounded-2xl space-y-3" style={{ backgroundColor: '#FFF9D6', border: '1.5px solid #F9D548' }}>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="col-span-2">
+          <label className="label text-xs">Name *</label>
+          <input name="name" value={form.name} onChange={set} className="input w-full" required placeholder="e.g. PawCare Clinic" />
+        </div>
+        <div>
+          <label className="label text-xs">Type</label>
+          <select name="type" value={form.type} onChange={set} className="input w-full">
+            {PROVIDER_TYPES.map(t => <option key={t}>{t}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label text-xs">City</label>
+          <input name="city" value={form.city} onChange={set} className="input w-full" placeholder="Mumbai" />
+        </div>
+        <div className="col-span-2">
+          <label className="label text-xs">Address</label>
+          <input name="address" value={form.address} onChange={set} className="input w-full" placeholder="123 MG Road" />
+        </div>
+        <div>
+          <label className="label text-xs">Phone</label>
+          <input name="phone" value={form.phone} onChange={set} className="input w-full" placeholder="+91 98765 43210" />
+        </div>
+        <div>
+          <label className="label text-xs">WhatsApp number</label>
+          <input name="whatsapp" value={form.whatsapp} onChange={set} className="input w-full" placeholder="+91 98765 43210" />
+        </div>
+        <div>
+          <label className="label text-xs">Hours</label>
+          <input name="hours" value={form.hours} onChange={set} className="input w-full" placeholder="Mon–Sat 9am–7pm" />
+        </div>
+        <div>
+          <label className="label text-xs">Google Maps URL</label>
+          <input name="maps_url" value={form.maps_url} onChange={set} className="input w-full" placeholder="https://maps.google.com/..." />
+        </div>
+        <div className="col-span-2">
+          <label className="label text-xs">Photo URL</label>
+          <input name="photo_url" value={form.photo_url} onChange={set} className="input w-full" placeholder="https://..." />
+        </div>
+        <div className="col-span-2">
+          <label className="label text-xs">Description</label>
+          <textarea name="description" value={form.description} onChange={set} className="input w-full" rows={2} placeholder="Short description visible to users" />
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button type="button" onClick={onCancel} className="btn-secondary flex-1 justify-center text-sm">Cancel</button>
+        <button type="button" onClick={() => onSave(form)} disabled={saving || !form.name.trim()}
+          className="btn-primary flex-1 justify-center gap-2 text-sm">
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+          Save Provider
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function ProvidersPanel() {
+  const [providers, setProviders] = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [error, setError]         = useState(null)
+  const [adding, setAdding]       = useState(false)
+  const [editing, setEditing]     = useState(null)  // provider id
+  const [saving, setSaving]       = useState(false)
+
+  function load() {
+    getProviders(false)
+      .then(setProviders)
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+  }
+  useEffect(load, [])
+
+  async function handleSave(form) {
+    setSaving(true)
+    try { await saveProvider(form); load(); setAdding(false); setEditing(null) }
+    catch (e) { alert(e.message) }
+    finally { setSaving(false) }
+  }
+
+  async function handleToggleApprove(p) {
+    setSaving(true)
+    try { await saveProvider({ ...p, is_approved: !p.is_approved }); load() }
+    catch (e) { alert(e.message) }
+    finally { setSaving(false) }
+  }
+
+  async function handleDelete(id) {
+    if (!confirm('Delete this provider?')) return
+    await deleteProvider(id); load()
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-xs font-black uppercase tracking-wider" style={{ color: '#B8A080' }}>
+          {providers.length} providers
+        </p>
+        <button onClick={() => { setAdding(true); setEditing(null) }}
+          className="btn-primary text-sm gap-1.5">
+          <Plus className="w-4 h-4" /> Add Provider
+        </button>
+      </div>
+
+      {adding && (
+        <div className="mb-4">
+          <ProviderForm initial={EMPTY_PROVIDER} onSave={handleSave} onCancel={() => setAdding(false)} saving={saving} />
+        </div>
+      )}
+
+      {loading && <div className="flex items-center gap-2 py-8" style={{ color: '#B8A080' }}><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>}
+      {error && <div className="flex gap-2 p-3 rounded-xl text-sm" style={{ backgroundColor: '#FEE2E2', color: '#DC2626' }}><AlertCircle className="w-4 h-4 flex-shrink-0" />{error}</div>}
+
+      <div className="space-y-3">
+        {providers.map(p => {
+          const Icon = TYPE_ICONS[p.type] || ShoppingBag
+          const color = TYPE_COLORS[p.type] || '#6B7280'
+          return editing === p.id ? (
+            <ProviderForm key={p.id} initial={p} onSave={handleSave} onCancel={() => setEditing(null)} saving={saving} />
+          ) : (
+            <div key={p.id} className="p-4 rounded-2xl" style={{ backgroundColor: '#FFFEF8', border: '1.5px solid #F0E6C8' }}>
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: color + '18' }}>
+                  <Icon className="w-5 h-5" style={{ color }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-black text-sm" style={{ color: '#4A2C0A' }}>{p.name}</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full font-bold"
+                      style={{ backgroundColor: color + '18', color }}>{p.type}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${p.is_approved ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {p.is_approved ? '✓ Approved' : '⏳ Pending'}
+                    </span>
+                  </div>
+                  {p.city && <p className="text-xs mt-0.5" style={{ color: '#B8A080' }}>{p.city}{p.address ? ` · ${p.address}` : ''}</p>}
+                  {p.phone && <p className="text-xs" style={{ color: '#B8A080' }}>{p.phone}</p>}
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button onClick={() => handleToggleApprove(p)} title={p.is_approved ? 'Unapprove' : 'Approve'}
+                    className="p-1.5 rounded-lg hover:bg-amber-50 transition-colors">
+                    {p.is_approved
+                      ? <ToggleRight className="w-5 h-5" style={{ color: '#059669' }} />
+                      : <ToggleLeft className="w-5 h-5" style={{ color: '#B8A080' }} />}
+                  </button>
+                  <button onClick={() => setEditing(p.id)} title="Edit"
+                    className="p-1.5 rounded-lg hover:bg-amber-50 transition-colors text-xs font-bold"
+                    style={{ color: '#6B4C1E' }}>Edit</button>
+                  <button onClick={() => handleDelete(p.id)} title="Delete"
+                    className="p-1.5 rounded-lg hover:bg-red-50 transition-colors">
+                    <Trash2 className="w-4 h-4 text-red-400" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {!loading && providers.length === 0 && !adding && (
+        <div className="text-center py-10">
+          <ShoppingBag className="w-10 h-10 mx-auto mb-2 opacity-20" style={{ color: '#4A2C0A' }} />
+          <p className="text-sm" style={{ color: '#B8A080' }}>No providers yet. Add one above.</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main AdminDashboard ──────────────────────────────────────────────────────
 
 export default function AdminDashboard() {
@@ -410,7 +592,7 @@ export default function AdminDashboard() {
   const [error, setError]         = useState(null)
   const [search, setSearch]       = useState('')
   const [selectedUser, setSelectedUser] = useState(null)
-  const [tab, setTab]             = useState('users')   // 'users' | 'feedback'
+  const [tab, setTab]             = useState('users')   // 'users' | 'feedback' | 'providers'
 
   useEffect(() => {
     setLoading(true)
@@ -458,10 +640,18 @@ export default function AdminDashboard() {
               style={tab === 'feedback' ? { backgroundColor: '#F9D548', color: '#4A2C0A' } : { color: '#B8A080' }}>
               <MessageSquarePlus className="w-4 h-4" /> Feedback
             </button>
+            <button
+              onClick={() => setTab('providers')}
+              className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
+              style={tab === 'providers' ? { backgroundColor: '#F9D548', color: '#4A2C0A' } : { color: '#B8A080' }}>
+              <MapPin className="w-4 h-4" /> Providers
+            </button>
           </div>
         )}
 
-        {tab === 'feedback' && !selectedUser ? (
+        {tab === 'providers' && !selectedUser ? (
+          <ProvidersPanel />
+        ) : tab === 'feedback' && !selectedUser ? (
           <FeedbackPanel />
         ) : selectedUser ? (
           <UserPetsView user={selectedUser} onBack={() => setSelectedUser(null)} />

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { PawPrint, Plus, Stethoscope, Syringe, AlertTriangle, FileText, Bell, ChevronLeft, GitBranch, Upload, TrendingUp, ChevronRight, Pill, Receipt, LogOut, ShieldCheck } from 'lucide-react'
+import { PawPrint, Plus, Stethoscope, Syringe, AlertTriangle, FileText, Bell, ChevronLeft, GitBranch, Upload, TrendingUp, ChevronRight, Pill, Receipt, LogOut, ShieldCheck, Store } from 'lucide-react'
 import { getPets } from '../lib/storage.js'
 import MigrateData from './MigrateData.jsx'
 import PetAvatar from './PetAvatar.jsx'
@@ -16,7 +16,7 @@ const tabs = [
   { id: 'bills',         label: 'Bills',             icon: Receipt },
 ]
 
-export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab, onTabChange, refresh, onRefresh, isOpen, onClose, user, isAdmin, onSignOut, adminView, onToggleAdmin }) {
+export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab, onTabChange, refresh, onRefresh, isOpen, onClose, user, isAdmin, onSignOut, adminView, onToggleAdmin, servicesView, onToggleServices }) {
   const [pets, setPets]               = useState([])
   const [showMigrate, setShowMigrate] = useState(false)
 
@@ -149,9 +149,23 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
             </div>
           </div>
 
+          {/* Find Services */}
+          <div className="px-3 pt-3 flex-shrink-0" style={{ borderTop: '1px solid #F0E6C8' }}>
+            <button
+              onClick={onToggleServices}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all"
+              style={servicesView
+                ? { backgroundColor: '#F9D548', color: '#4A2C0A' }
+                : { backgroundColor: '#FFF5AA', color: '#4A2C0A' }}
+            >
+              <Store className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#059669' }} />
+              Find Services
+            </button>
+          </div>
+
           {/* Admin Panel toggle */}
           {isAdmin && (
-            <div className="px-3 pt-3 flex-shrink-0" style={{ borderTop: '1px solid #F0E6C8' }}>
+            <div className="px-3 pt-1.5 flex-shrink-0">
               <button
                 onClick={onToggleAdmin}
                 className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all"

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Edit2, Trash2, Calendar, Weight, Phone, Sparkles } from 'lucide-react'
+import { Edit2, Trash2, Calendar, Weight, Phone, Sparkles, ShieldAlert, Users } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import HealthSummary from './HealthSummary.jsx'
 
@@ -132,10 +132,15 @@ import Reminders from './Reminders.jsx'
 import WeightLog from './WeightLog.jsx'
 import Medicines from './Medicines.jsx'
 import Bills from './Bills.jsx'
+import EmergencyCard from './EmergencyCard.jsx'
+import PetSharing from './PetSharing.jsx'
+import BreedAlert from './BreedAlert.jsx'
 
 export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, onPetDeleted }) {
-  const [showEdit, setShowEdit]           = useState(false)
+  const [showEdit, setShowEdit]                   = useState(false)
   const [showHealthSummary, setShowHealthSummary] = useState(false)
+  const [showEmergencyCard, setShowEmergencyCard] = useState(false)
+  const [showSharing, setShowSharing]             = useState(false)
   const [session, setSession]             = useState(null)
 
   useEffect(() => {
@@ -178,6 +183,20 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
             </div>
           </div>
           <div className="flex gap-1.5 flex-shrink-0">
+            <button onClick={() => setShowSharing(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
+              style={{ backgroundColor: '#EFF6FF', color: '#1D4ED8' }}
+              title="Share with family">
+              <Users className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Share</span>
+            </button>
+            <button onClick={() => setShowEmergencyCard(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
+              style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}
+              title="Emergency Card">
+              <ShieldAlert className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">SOS</span>
+            </button>
             <button onClick={() => setShowHealthSummary(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
               style={{ backgroundColor: '#F9D548', color: '#4A2C0A' }}
@@ -199,6 +218,9 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
           </div>
         </div>
       </div>
+
+      {/* Breed health alert */}
+      {pet.breed && activeTab === 'timeline' && <BreedAlert pet={pet} />}
 
       {/* Tab content */}
       {activeTab === 'timeline'     && <Timeline pet={pet} />}
@@ -224,6 +246,14 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
 
       {showHealthSummary && (
         <HealthSummary pet={pet} onClose={() => setShowHealthSummary(false)} />
+      )}
+
+      {showEmergencyCard && (
+        <EmergencyCard pet={pet} onClose={() => setShowEmergencyCard(false)} />
+      )}
+
+      {showSharing && (
+        <PetSharing pet={pet} onClose={() => setShowSharing(false)} />
       )}
     </div>
   )

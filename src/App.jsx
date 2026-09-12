@@ -10,6 +10,8 @@ import MobileHeader from './components/MobileHeader.jsx'
 import MobileBottomNav from './components/MobileBottomNav.jsx'
 import AdminDashboard from './components/AdminDashboard.jsx'
 import FeedbackButton from './components/FeedbackButton.jsx'
+import ProviderDirectory from './components/ProviderDirectory.jsx'
+import InstallPrompt from './components/InstallPrompt.jsx'
 
 const ADMIN_EMAIL = 'teena.anie9@gmail.com'
 
@@ -76,7 +78,8 @@ export default function App() {
   const [showAddPet, setShowAddPet]     = useState(false)
   const [refresh, setRefresh]           = useState(0)
   const [sidebarOpen, setSidebarOpen]   = useState(false)
-  const [adminView, setAdminView]       = useState(false)  // show AdminDashboard
+  const [adminView, setAdminView]       = useState(false)
+  const [servicesView, setServicesView] = useState(false)
 
   function onPetSaved() {
     setRefresh(r => r + 1)
@@ -115,7 +118,9 @@ export default function App() {
         isAdmin={isAdmin}
         onSignOut={handleSignOut}
         adminView={adminView}
-        onToggleAdmin={() => { setAdminView(v => !v); setSelectedPet(null); setSidebarOpen(false) }}
+        onToggleAdmin={() => { setAdminView(v => !v); setServicesView(false); setSelectedPet(null); setSidebarOpen(false) }}
+        servicesView={servicesView}
+        onToggleServices={() => { setServicesView(v => !v); setAdminView(false); setSelectedPet(null); setSidebarOpen(false) }}
       />
 
       {/* Mobile overlay */}
@@ -136,6 +141,8 @@ export default function App() {
         <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
           {adminView ? (
             <AdminDashboard />
+          ) : servicesView ? (
+            <ProviderDirectory />
           ) : selectedPet ? (
             <PetDetail
               pet={selectedPet}
@@ -166,6 +173,7 @@ export default function App() {
       )}
 
       <FeedbackButton user={session?.user} />
+      <InstallPrompt />
     </div>
   )
 }

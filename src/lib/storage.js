@@ -491,6 +491,36 @@ export async function getFeedback() {
   return data || []
 }
 
+// ── Providers ────────────────────────────────────────────────────────────────
+
+export async function getProviders(approvedOnly = true) {
+  if (!isConfigured) return []
+  let q = supabase.from('providers').select('*').order('name')
+  if (approvedOnly) q = q.eq('is_approved', true)
+  const { data, error } = await q
+  if (error) throw error
+  return data || []
+}
+
+export async function saveProvider(provider) {
+  if (!isConfigured) return provider
+  const { id, ...rest } = provider
+  if (id) {
+    const { data, error } = await supabase.from('providers').update(rest).eq('id', id).select().single()
+    if (error) throw error
+    return data
+  }
+  const { data, error } = await supabase.from('providers').insert(rest).select().single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteProvider(id) {
+  if (!isConfigured) return
+  const { error } = await supabase.from('providers').delete().eq('id', id)
+  if (error) throw error
+}
+
 // ── Snake ↔ camelCase helpers ─────────────────────────────────────────────────
 
 function toSnake(pet) {
