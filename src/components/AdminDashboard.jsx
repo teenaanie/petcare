@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ShieldCheck, Users, PawPrint, ChevronRight, ChevronLeft, Search, Phone, Mail, Loader2, AlertCircle, Stethoscope, Syringe, Pill, Receipt, Bell, ChevronDown, ChevronUp, Star, MessageSquarePlus, MapPin, Clock, Scissors, ShoppingBag, Home, Plus, Check, X, Trash2, ToggleLeft, ToggleRight } from 'lucide-react'
+import { ShieldCheck, Users, PawPrint, ChevronRight, ChevronLeft, Search, Phone, Mail, Loader2, AlertCircle, Stethoscope, Syringe, Pill, Receipt, Bell, ChevronDown, ChevronUp, Star, MessageSquarePlus, MapPin, Clock, Scissors, ShoppingBag, Home, Camera, Flower2, Plus, Check, X, Trash2, ToggleLeft, ToggleRight } from 'lucide-react'
 import { getAdminUsers, getPets, getMedicalHistory, getVaccinations, getMedicines, getBills, getReminders, getFeedback, getProviders, saveProvider, deleteProvider } from '../lib/storage.js'
 import PetAvatar from './PetAvatar.jsx'
 
@@ -404,11 +404,11 @@ function FeedbackPanel() {
 
 // ── Providers Panel ──────────────────────────────────────────────────────────
 
-const PROVIDER_TYPES = ['Vet', 'Groomer', 'Store', 'Boarder']
+const PROVIDER_TYPES = ['Vet', 'Groomer', 'Store', 'Boarder', 'Special Services', 'Pet Loss & Memorial Services']
 const EMPTY_PROVIDER = { name: '', type: 'Vet', description: '', address: '', city: '', phone: '', whatsapp: '', email: '', website: '', hours: '', photo_url: '', maps_url: '', is_approved: false }
 
-const TYPE_ICONS = { Vet: Stethoscope, Groomer: Scissors, Store: ShoppingBag, Boarder: Home }
-const TYPE_COLORS = { Vet: '#2563EB', Groomer: '#7C3AED', Store: '#059669', Boarder: '#D97706' }
+const TYPE_ICONS = { Vet: Stethoscope, Groomer: Scissors, Store: ShoppingBag, Boarder: Home, 'Special Services': Camera, 'Pet Loss & Memorial Services': Flower2 }
+const TYPE_COLORS = { Vet: '#2563EB', Groomer: '#7C3AED', Store: '#059669', Boarder: '#D97706', 'Special Services': '#DB2777', 'Pet Loss & Memorial Services': '#475569' }
 
 function ProviderForm({ initial, onSave, onCancel, saving }) {
   const [form, setForm] = useState(initial)

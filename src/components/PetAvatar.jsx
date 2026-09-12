@@ -1,5 +1,5 @@
-import { useRef } from 'react'
-import { Camera } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Camera, Image, X } from 'lucide-react'
 
 const SPECIES_EMOJI = {
   Dog:     '🐕',
@@ -41,7 +41,9 @@ const SIZES = {
  * Pass `editable` + `onPhotoChange` to show a camera overlay on click.
  */
 export default function PetAvatar({ pet, size = 'md', editable = false, onPhotoChange, className = '' }) {
-  const fileRef = useRef()
+  const cameraRef = useRef()
+  const libraryRef = useRef()
+  const [showPhotoMenu, setShowPhotoMenu] = useState(false)
   const s = SIZES[size] || SIZES.md
   const emoji = SPECIES_EMOJI[pet?.species] || '🐾'
 
@@ -78,7 +80,7 @@ export default function PetAvatar({ pet, size = 'md', editable = false, onPhotoC
     <>
       <button
         type="button"
-        onClick={() => fileRef.current?.click()}
+        onClick={() => setShowPhotoMenu(true)}
         className={`relative ${s.wrap} ${s.radius} overflow-hidden flex-shrink-0 group ${className}`}
         title="Change photo"
       >
@@ -95,7 +97,45 @@ export default function PetAvatar({ pet, size = 'md', editable = false, onPhotoC
           <Camera className="w-5 h-5 text-white" />
         </div>
       </button>
-      <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
+
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
+      <input ref={libraryRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+
+      {showPhotoMenu && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+          onClick={() => setShowPhotoMenu(false)}>
+          <div className="w-full max-w-xs rounded-3xl shadow-2xl overflow-hidden"
+            style={{ backgroundColor: '#FFFEF8' }}
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4"
+              style={{ borderBottom: '1px solid #F0E6C8' }}>
+              <span className="font-black" style={{ color: '#4A2C0A' }}>Update Photo</span>
+              <button onClick={() => setShowPhotoMenu(false)}>
+                <X className="w-5 h-5" style={{ color: '#B8A080' }} />
+              </button>
+            </div>
+            <div className="p-3 space-y-2">
+              <button
+                type="button"
+                onClick={() => { setShowPhotoMenu(false); cameraRef.current?.click() }}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left font-bold transition-colors"
+                style={{ backgroundColor: '#FFF9D6', color: '#4A2C0A' }}
+              >
+                <Camera className="w-5 h-5" /> Take Photo
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowPhotoMenu(false); libraryRef.current?.click() }}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left font-bold transition-colors"
+                style={{ backgroundColor: '#FFF9D6', color: '#4A2C0A' }}
+              >
+                <Image className="w-5 h-5" /> Choose from Library
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
