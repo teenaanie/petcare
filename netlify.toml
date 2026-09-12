@@ -2,6 +2,7 @@
   command   = "npm run build"
   publish   = "dist"
   functions = "netlify/functions"
+  ignore    = "git diff --quiet HEAD^ HEAD -- . ':(exclude)*.md' ':(exclude)CLAUDE.md'"
 
 [functions]
   node_bundler = "esbuild"
@@ -15,5 +16,3 @@
   from   = "/*"
   to     = "/index.html"
   status = 200
-[build]
-  ignore = "git diff --quiet HEAD^ HEAD -- . ':(exclude)*.md' ':(exclude)CLAUDE.md'"
