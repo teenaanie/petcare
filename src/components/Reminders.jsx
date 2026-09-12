@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
-import { Plus, Trash2, Bell, Mail, MessageCircle, CheckCircle, AlertCircle, Loader2, Mic, MicOff, Wand2, X, Check } from 'lucide-react'
+import { Plus, Trash2, Bell, BellOff, BellRing, Mail, MessageCircle, CheckCircle, AlertCircle, Loader2, Mic, MicOff, Wand2, X, Check } from 'lucide-react'
 import { getReminders, saveReminder, deleteReminder, markReminderDone } from '../lib/storage.js'
+import { pushSupported, getPushSubscriptionStatus, subscribeToPush, unsubscribeFromPush } from '../lib/push.js'
 import { format } from 'date-fns'
 
 const TYPES = ['Vaccination', 'Grooming', 'Vet Checkup', 'Medication', 'Other']
@@ -174,6 +175,35 @@ export default function Reminders({ pet }) {
   const [voiceError, setVoiceError]     = useState(null)
   const [parsedPreview, setParsedPreview] = useState(null) // AI-parsed form values
 
+  // Push notification opt-in
+  const [pushStatus, setPushStatus]   = useState('checking') // checking | unsupported | denied | unsubscribed | subscribed
+  const [pushBusy, setPushBusy]       = useState(false)
+  const [pushError, setPushError]     = useState(null)
+
+  function loadPushStatus() {
+    if (!pushSupported) { setPushStatus('unsupported'); return }
+    getPushSubscriptionStatus().then(setPushStatus).catch(() => setPushStatus('unsubscribed'))
+  }
+  useEffect(loadPushStatus, [])
+
+  async function handleTogglePush() {
+    setPushBusy(true)
+    setPushError(null)
+    try {
+      if (pushStatus === 'subscribed') {
+        await unsubscribeFromPush()
+        setPushStatus('unsubscribed')
+      } else {
+        await subscribeToPush()
+        setPushStatus('subscribed')
+      }
+    } catch (e) {
+      setPushError(e.message)
+    } finally {
+      setPushBusy(false)
+    }
+  }
+
   function load() { getReminders(pet.id).then(setReminders).catch(console.error) }
   useEffect(load, [pet.id])
 
@@ -264,6 +294,23 @@ export default function Reminders({ pet }) {
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-bold text-gray-900">Reminders</h2>
         <div className="flex gap-2">
+          {/* Push notification toggle */}
+          {pushStatus !== 'unsupported' && (
+            <button
+              onClick={handleTogglePush}
+              disabled={pushBusy || pushStatus === 'denied' || pushStatus === 'checking'}
+              title={pushStatus === 'denied' ? 'Notifications blocked — enable them in your browser settings' : pushStatus === 'subscribed' ? 'Turn off push notifications' : 'Turn on push notifications'}
+              className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border transition-colors disabled:opacity-50 ${
+                pushStatus === 'subscribed' ? 'bg-primary-600 text-white border-primary-600' : 'btn-secondary'
+              }`}
+            >
+              {pushBusy
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : pushStatus === 'subscribed'
+                ? <BellRing className="w-4 h-4" />
+                : <BellOff className="w-4 h-4" />}
+            </button>
+          )}
           {/* Voice button */}
           <button
             onClick={() => { setVoiceMode(v => !v); setShowForm(false) }}
@@ -352,6 +399,12 @@ export default function Reminders({ pet }) {
         <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2 text-sm text-green-800">
           <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
           AI filled in the details from your voice — review and save below.
+        </div>
+      )}
+
+      {pushError && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" /> {pushError}
         </div>
       )}
 

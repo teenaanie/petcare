@@ -1,5 +1,5 @@
 // Pippy Service Worker — offline caching
-const CACHE = 'pippy-v1'
+const CACHE = 'pippy-v2'
 
 // Assets to pre-cache (shell only — API calls are network-first)
 const SHELL = [
@@ -18,6 +18,33 @@ self.addEventListener('activate', e => {
     caches.keys().then(keys =>
       Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
     ).then(() => self.clients.claim())
+  )
+})
+
+self.addEventListener('push', e => {
+  let data = { title: 'Pippy', body: 'You have a reminder due.' }
+  try { if (e.data) data = { ...data, ...e.data.json() } } catch {}
+
+  e.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      data: { url: data.url || '/' },
+    })
+  )
+})
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close()
+  const url = e.notification.data?.url || '/'
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+      for (const client of clients) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) return client.focus()
+      }
+      return self.clients.openWindow(url)
+    })
   )
 })
 

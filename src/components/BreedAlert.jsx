@@ -38,6 +38,14 @@ const BREED_HEALTH = {
   'indian pariah':        ['Generally hardy — minimal breed-specific issues', 'Mange', 'Tick fever'],
   'mutt':                 ['Hybrid vigour — generally fewer breed-specific issues', 'Routine dental care important'],
   'mixed breed':          ['Hybrid vigour — generally fewer breed-specific issues', 'Routine dental care important'],
+  'rajapalayam':          ['Sensitive to anesthesia (sighthound)', 'Skin allergies', 'Deafness (linked to white coat pigmentation)', 'Cold sensitivity — thin coat'],
+  'kombai':               ['Hip dysplasia', 'Joint strain from high energy activity', 'Skin issues in humid climates', 'Generally hardy but needs regular vet checks'],
+  'mudhol hound':         ['Sensitive to anesthesia (sighthound)', 'Thin skin — prone to cuts and injuries', 'Low body fat — cold and drug-dose sensitivity', 'Hip dysplasia (less common than Western breeds)'],
+  'caravan hound':        ['Sensitive to anesthesia (sighthound)', 'Thin skin — prone to cuts and injuries', 'Low body fat — cold and drug-dose sensitivity', 'Hip dysplasia (less common than Western breeds)'],
+  'chippiparai':          ['Sensitive to anesthesia (sighthound)', 'Corneal and eye issues', 'Lean build — prone to fractures', 'Low body fat — cold sensitivity'],
+  'kanni':                ['Sensitive to anesthesia (sighthound)', 'Cold sensitivity — thin coat', 'Skin issues', 'Low body fat — affects drug dosing'],
+  'bakharwal':            ['Hip & elbow dysplasia', 'Bloat (GDV) — deep-chested breed', 'Entropion (eyelid issue)', 'Heat sensitivity from heavy double coat'],
+  'bakharwal dog':        ['Hip & elbow dysplasia', 'Bloat (GDV) — deep-chested breed', 'Entropion (eyelid issue)', 'Heat sensitivity from heavy double coat'],
 
   // Cats
   'persian':              ['Brachycephalic syndrome', 'Polycystic kidney disease (PKD)', 'Dental disease', 'Skin fold dermatitis'],

@@ -3,6 +3,7 @@
 // Checks all reminders due today, sends email + SMS to each user
 
 const { createClient } = require('@supabase/supabase-js')
+const webPush = require('web-push')
 
 const SUPABASE_URL   = process.env.SUPABASE_URL
 const SERVICE_KEY    = process.env.SUPABASE_SERVICE_KEY
@@ -11,6 +12,13 @@ const TWILIO_TOKEN   = process.env.TWILIO_AUTH_TOKEN
 const TWILIO_FROM    = process.env.TWILIO_PHONE_NUMBER
 const RESEND_API_KEY = process.env.RESEND_API_KEY        // free at resend.com
 const FROM_EMAIL     = process.env.FROM_EMAIL || 'reminders@teenaspetcare.com'
+const VAPID_PUBLIC_KEY  = process.env.VAPID_PUBLIC_KEY
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY
+const VAPID_SUBJECT     = process.env.VAPID_SUBJECT || 'mailto:teena.anie9@gmail.com'
+
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+  webPush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
+}
 
 // ── Email via Resend ──────────────────────────────────────────────────────────
 
@@ -77,6 +85,42 @@ function reminderEmailHtml(petName, reminders) {
         <p style="color:#B8A080;font-size:12px;margin-top:16px">Open Pippy to mark these as done or view more details.</p>
       </div>
     </div>`
+}
+
+// ── Web Push ──────────────────────────────────────────────────────────────────
+
+async function sendPush(supabase, userId, petName, reminders) {
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+    console.log('[PUSH SKIPPED] VAPID keys not configured.')
+    return
+  }
+  const { data: subs, error } = await supabase
+    .from('push_subscriptions')
+    .select('id, endpoint, p256dh, auth')
+    .eq('user_id', userId)
+  if (error || !subs || subs.length === 0) return
+
+  const payload = JSON.stringify({
+    title: `🐾 ${petName} has ${reminders.length} reminder${reminders.length > 1 ? 's' : ''} today`,
+    body: reminders.map(r => r.type).join(', '),
+    url: '/',
+  })
+
+  for (const sub of subs) {
+    try {
+      await webPush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+        payload
+      )
+    } catch (e) {
+      // 404/410 means the subscription is no longer valid — clean it up
+      if (e.statusCode === 404 || e.statusCode === 410) {
+        await supabase.from('push_subscriptions').delete().eq('id', sub.id)
+      } else {
+        console.error('Push send failed:', e.message)
+      }
+    }
+  }
 }
 
 // ── SMS text ──────────────────────────────────────────────────────────────────
@@ -188,6 +232,13 @@ export default async function handler(req) {
 
     if (!userEmail && !userPhone) {
       console.log(`No contact info for ${petName} — skipping`)
+    }
+
+    // Push
+    try {
+      await sendPush(supabase, pet.user_id, petName, rems)
+    } catch (e) {
+      console.error(`Push failed for ${petName}:`, e.message)
     }
   }
 
