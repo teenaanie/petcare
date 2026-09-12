@@ -88,7 +88,11 @@ export default function App() {
 
   function selectPet(pet) {
     setSelectedPet(pet)
-    if (pet) setActiveTab('timeline')
+    if (pet) {
+      setActiveTab('timeline')
+      setAdminView(false)
+      setServicesView(false)
+    }
     setSidebarOpen(false)
   }
 
