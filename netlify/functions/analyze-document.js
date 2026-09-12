@@ -2,7 +2,7 @@
 // Proxies OpenAI vision calls server-side so the API key is never exposed to the browser.
 // Also enforces per-user rate limiting and logs usage for cost tracking.
 
-const { createClient } = require('@supabase/supabase-js')
+import { createClient } from '@supabase/supabase-js'
 
 const OPENAI_KEY    = process.env.OPENAI_API_KEY          // never VITE_ — server only
 const SUPABASE_URL  = process.env.SUPABASE_URL

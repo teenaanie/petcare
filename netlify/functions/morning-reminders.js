@@ -2,8 +2,8 @@
 // Scheduled function — runs daily at 7:00 AM IST (1:30 AM UTC)
 // Checks all reminders due today, sends email + SMS to each user
 
-const { createClient } = require('@supabase/supabase-js')
-const webPush = require('web-push')
+import { createClient } from '@supabase/supabase-js'
+import webPush from 'web-push'
 
 const SUPABASE_URL   = process.env.SUPABASE_URL
 const SERVICE_KEY    = process.env.SUPABASE_SERVICE_KEY
