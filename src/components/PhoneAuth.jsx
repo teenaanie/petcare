@@ -14,6 +14,22 @@ const COUNTRY_CODES = [
 
 const SESSION_KEY = 'pippy_otp_state'
 
+// Browsers word a dropped request differently — Safari says "Load failed",
+// Chrome "Failed to fetch" — and none of it means anything to a user.
+function isNetworkError(err) {
+  if (err?.name === 'AuthRetryableFetchError' || err?.name === 'TypeError') return true
+  const m = (err?.message || '').toLowerCase()
+  return m.includes('load failed') || m.includes('failed to fetch') ||
+         m.includes('networkerror') || m.includes('network request failed')
+}
+
+function friendlyAuthError(err) {
+  if (isNetworkError(err)) {
+    return "Couldn't reach the server. Check your connection and try again — if you're on patchy mobile data, switching to Wi-Fi usually helps."
+  }
+  return err?.message || 'Could not send code. Please try again.'
+}
+
 export default function PhoneAuth() {
   const [method, setMethod]           = useState('email')
   const [step, setStep]               = useState('entry')
@@ -54,30 +70,45 @@ export default function PhoneAuth() {
 
   // ── Step 1: Send OTP ────────────────────────────────────────────────────────
 
+  async function sendOtp() {
+    if (method === 'phone') {
+      const { error } = await supabase.auth.signInWithOtp({ phone: formattedPhone })
+      if (error) throw error
+      return formattedPhone
+    }
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: window.location.origin,
+      },
+    })
+    if (error) throw error
+    return email
+  }
+
   async function handleSend(e) {
     e.preventDefault()
     setLoading(true); setError(null)
     try {
-      if (method === 'phone') {
-        const { error } = await supabase.auth.signInWithOtp({ phone: formattedPhone })
-        if (error) throw error
-        setSentTo(formattedPhone)
-        saveOtpState(method, formattedPhone)
-      } else {
-        const { error } = await supabase.auth.signInWithOtp({
-          email,
-          options: {
-            shouldCreateUser: true,
-            emailRedirectTo: window.location.origin,
-          },
-        })
-        if (error) throw error
-        setSentTo(email)
-        // No sessionStorage for magic link — no code to restore
+      let target
+      try {
+        target = await sendOtp()
+      } catch (err) {
+        // Sending the email goes through an SMTP round trip, which is slow
+        // enough that a phone on a weak connection can drop the request. That
+        // surfaces as an opaque "Load failed"/"Failed to fetch", so retry once
+        // before giving up on what is usually a transient blip.
+        if (!isNetworkError(err)) throw err
+        await new Promise(r => setTimeout(r, 1500))
+        target = await sendOtp()
       }
+
+      setSentTo(target)
+      if (method === 'phone') saveOtpState(method, target)
       setStep('otp')
     } catch (err) {
-      setError(err.message || 'Could not send code. Please try again.')
+      setError(friendlyAuthError(err))
     } finally {
       setLoading(false)
     }
@@ -97,7 +128,7 @@ export default function PhoneAuth() {
       if (error) throw error
       clearOtpState()  // clean up on success
     } catch (err) {
-      setError(err.message || 'Invalid code. Please try again.')
+      setError(isNetworkError(err) ? friendlyAuthError(err) : (err.message || 'Invalid code. Please try again.'))
     } finally {
       setLoading(false)
     }
@@ -114,7 +145,7 @@ export default function PhoneAuth() {
         if (error) throw error
       }
     } catch (err) {
-      setError(err.message)
+      setError(friendlyAuthError(err))
     } finally {
       setLoading(false)
     }
@@ -295,7 +326,7 @@ export default function PhoneAuth() {
                   Click the link in the email to sign in. You can close this tab.
                 </p>
                 <p className="text-xs mt-3 px-3 py-2 rounded-xl" style={{ backgroundColor: '#FFF5AA', color: '#6B4C1E' }}>
-                  💡 The email will arrive from <strong>Supabase Auth</strong> — that's our login system. Just click "Sign in" inside it.
+                  💡 Can't find it? Check your spam folder — then tap "Sign in to Pippy" inside the email.
                 </p>
               </div>
 

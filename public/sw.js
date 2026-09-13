@@ -1,5 +1,5 @@
 // Pippy Service Worker — offline caching
-const CACHE = 'pippy-v2'
+const CACHE = 'pippy-v3'
 
 // Assets to pre-cache (shell only — API calls are network-first)
 const SHELL = [
@@ -59,7 +59,11 @@ self.addEventListener('fetch', e => {
   // Navigation requests: network first, fall back to cached index.html (SPA)
   if (request.mode === 'navigate') {
     e.respondWith(
-      fetch(request).catch(() => caches.match('/index.html'))
+      fetch(request)
+        .catch(() => caches.match('/index.html'))
+        // caches.match resolves undefined on a miss, and returning undefined
+        // from respondWith fails the navigation outright.
+        .then(res => res || new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } }))
     )
     return
   }
@@ -68,13 +72,17 @@ self.addEventListener('fetch', e => {
   e.respondWith(
     caches.match(request).then(cached => {
       if (cached) return cached
-      return fetch(request).then(response => {
-        if (response.ok) {
-          const clone = response.clone()
-          caches.open(CACHE).then(c => c.put(request, clone))
-        }
-        return response
-      })
+      return fetch(request)
+        .then(response => {
+          if (response.ok) {
+            const clone = response.clone()
+            caches.open(CACHE).then(c => c.put(request, clone))
+          }
+          return response
+        })
+        // Without this, a rejected fetch rejects respondWith and the browser
+        // reports an opaque "Load failed" instead of a real status.
+        .catch(() => new Response('', { status: 504, statusText: 'Network error' }))
     })
   )
 })
