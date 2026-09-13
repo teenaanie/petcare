@@ -44,14 +44,21 @@ function mapType(record) {
 // ── Neighborhood → area ──────────────────────────────────────────────────────
 // Raw values look like "Kausar Baugh, Kondhwa" or "Paud Road, Right Bhusari
 // Colony, Kothrud" — the last segment is the recognisable locality.
+// A trailing fragment like "at" in "Autadwadi Handewadi, Laxmi Nagar, at" is
+// noise, so walk backwards to the last segment that reads like a real locality.
+const JUNK_SEGMENT = /^(at|no|near|opp|opposite|behind|next to|beside|above)$/i
+
 function normalizeArea(record) {
   const raw = (record.neighborhood || '').trim()
   if (!raw) return null
-  const last = raw.split(',').map(s => s.trim()).filter(Boolean).pop()
-  if (!last) return null
-  const cleaned = last.replace(/\b(rd|road|gaon)$/i, '').trim()
-  if (!cleaned) return null
-  return cleaned.replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1))
+  const segments = raw.split(',').map(s => s.trim()).filter(Boolean)
+
+  for (let i = segments.length - 1; i >= 0; i--) {
+    const cleaned = segments[i].replace(/\b(rd|road|gaon)$/i, '').trim()
+    if (!cleaned || cleaned.length < 3 || JUNK_SEGMENT.test(cleaned)) continue
+    return cleaned.replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1))
+  }
+  return null
 }
 
 function formatHours(record) {
@@ -157,16 +164,41 @@ const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 })
 
+// place_id is covered by a *partial* unique index (WHERE place_id IS NOT NULL),
+// which ON CONFLICT can't target — so split into inserts and updates by hand.
+const existing = new Set()
+for (let from = 0; ; from += 1000) {
+  const { data, error } = await supabase
+    .from('providers').select('place_id').not('place_id', 'is', null).range(from, from + 999)
+  if (error) { console.error('Failed to read existing providers:', error.message); process.exit(1) }
+  data.forEach(r => existing.add(r.place_id))
+  if (data.length < 1000) break
+}
+console.log(`\n${existing.size} providers already imported`)
+
+const fresh   = toInsert.filter(r => !existing.has(r.place_id))
+const updates = toInsert.filter(r => existing.has(r.place_id))
+
 const BATCH = 100
 let done = 0
-for (let i = 0; i < toInsert.length; i += BATCH) {
-  const batch = toInsert.slice(i, i + BATCH)
-  const { error } = await supabase.from('providers').upsert(batch, { onConflict: 'place_id' })
+for (let i = 0; i < fresh.length; i += BATCH) {
+  const batch = fresh.slice(i, i + BATCH)
+  const { error } = await supabase.from('providers').insert(batch)
   if (error) {
-    console.error(`\nBatch ${i / BATCH + 1} failed:`, error.message)
+    console.error(`\nInsert batch ${i / BATCH + 1} failed:`, error.message)
     process.exit(1)
   }
   done += batch.length
-  process.stdout.write(`\rUpserted ${done}/${toInsert.length}`)
+  process.stdout.write(`\rInserted ${done}/${fresh.length}`)
 }
-console.log(`\nDone — ${done} providers imported.`)
+
+let updated = 0
+for (const row of updates) {
+  const { place_id, ...fields } = row
+  const { error } = await supabase.from('providers').update(fields).eq('place_id', place_id)
+  if (error) { console.error(`\nUpdate failed for ${place_id}:`, error.message); process.exit(1) }
+  updated++
+  process.stdout.write(`\rUpdated ${updated}/${updates.length}`)
+}
+
+console.log(`\nDone — ${done} inserted, ${updated} updated.`)

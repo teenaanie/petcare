@@ -21,3 +21,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS providers_place_id_unique
 -- Directory groups and filters by area, so index it.
 CREATE INDEX IF NOT EXISTS providers_area_idx ON providers(area);
 CREATE INDEX IF NOT EXISTS providers_type_idx ON providers(type);
+
+-- The original CHECK constraint only allowed the first four types, so the two
+-- categories added later were silently unsaveable in production — both from the
+-- admin form and the public registration form. Widen it to all six.
+ALTER TABLE providers DROP CONSTRAINT IF EXISTS providers_type_check;
+ALTER TABLE providers ADD CONSTRAINT providers_type_check CHECK (
+  type IN ('Vet', 'Groomer', 'Store', 'Boarder', 'Special Services', 'Pet Loss & Memorial Services')
+);
