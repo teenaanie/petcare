@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Search, MapPin, Phone, Clock, ExternalLink, MessageCircle, Stethoscope, Scissors, ShoppingBag, Home, Camera, Flower2, Star, Loader2, AlertCircle } from 'lucide-react'
 // MapPin used in ProviderCard address row
-import { getProviders } from '../lib/storage.js'
+import { getProviders, getProviderFacets } from '../lib/storage.js'
 
 const TYPE_CONFIG = {
   Vet:      { icon: Stethoscope, color: '#2563EB', bg: '#EFF6FF', label: 'Vet Clinic' },
@@ -20,7 +20,7 @@ const TABS = [
 ]
 
 const OTHER_KEY = '__other__'
-const PREVIEW_PER_AREA = 6
+const PAGE_SIZE = 60
 
 function toTitleCase(s) {
   return s.replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase())
@@ -128,93 +128,90 @@ function ProviderCard({ p }) {
 
 export default function ProviderDirectory() {
   const [providers, setProviders] = useState([])
+  const [total, setTotal]         = useState(0)
+  const [facets, setFacets]       = useState({ total: 0, types: {}, areas: [] })
   const [loading, setLoading]     = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError]         = useState(null)
   const [search, setSearch]       = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [activeTab, setActiveTab] = useState('All')
   const [activeArea, setActiveArea] = useState('All')
-  const [expanded, setExpanded]   = useState({})   // area key -> show all cards
 
+  // Don't fire a query on every keystroke
   useEffect(() => {
-    getProviders(true)
-      .then(setProviders)
+    const t = setTimeout(() => setDebouncedSearch(search), 300)
+    return () => clearTimeout(t)
+  }, [search])
+
+  const query = useMemo(() => ({
+    type:   activeTab === 'All' ? null : activeTab,
+    area:   activeArea === 'All' ? null : activeArea,
+    search: debouncedSearch,
+  }), [activeTab, activeArea, debouncedSearch])
+
+  // Tab counts and the area dropdown need totals across the whole table, so
+  // they come from a dedicated facets query rather than the current page.
+  useEffect(() => {
+    getProviderFacets({ area: query.area })
+      .then(setFacets)
       .catch(e => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [])
+  }, [query.area])
 
-  const q = search.toLowerCase().trim()
+  // First page — refetched whenever a filter changes
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    getProviders({ ...query, offset: 0, limit: PAGE_SIZE })
+      .then(({ rows, count }) => {
+        if (cancelled) return
+        setProviders(rows)
+        setTotal(count)
+      })
+      .catch(e => { if (!cancelled) setError(e.message) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [query])
 
+  async function loadMore() {
+    setLoadingMore(true)
+    try {
+      const { rows } = await getProviders({ ...query, offset: providers.length, limit: PAGE_SIZE })
+      setProviders(prev => [...prev, ...rows])
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
+  const q = debouncedSearch.trim()
   const areaOf = p => (p.area || p.city || '').trim()
 
-  // Every area that has at least one provider, most-populated first
-  const areaOptions = useMemo(() => {
-    const counts = new Map()
-    for (const p of providers) {
-      const a = areaOf(p)
-      if (a) counts.set(a, (counts.get(a) || 0) + 1)
-    }
-    return [...counts.entries()]
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .map(([area, count]) => ({ area, count }))
-  }, [providers])
+  const areaOptions = facets.areas || []
 
-  // Providers in the active tab + area (before search)
-  const tabFiltered = useMemo(() => {
-    let list = activeTab === 'All' ? providers : providers.filter(p => p.type === activeTab)
-    if (activeArea !== 'All') list = list.filter(p => areaOf(p) === activeArea)
-    return list
-  }, [providers, activeTab, activeArea])
-
-  // Counts per tab, independent of search — used for chip labels
   const tabCounts = useMemo(() => {
-    const counts = { All: providers.length }
-    for (const cat of CATEGORIES) counts[cat] = providers.filter(p => p.type === cat).length
+    const counts = { All: facets.total || 0 }
+    for (const cat of CATEGORIES) counts[cat] = facets.types?.[cat] ?? 0
     return counts
-  }, [providers])
+  }, [facets])
 
-  // Search filters within the active tab (not a flat cross-category override)
-  const searchedList = useMemo(() => {
-    if (!q) return tabFiltered
-    return tabFiltered.filter(p =>
-      p.name?.toLowerCase().includes(q) ||
-      p.area?.toLowerCase().includes(q) ||
-      p.city?.toLowerCase().includes(q) ||
-      p.type?.toLowerCase().includes(q) ||
-      p.address?.toLowerCase().includes(q) ||
-      p.description?.toLowerCase().includes(q) ||
-      p.categories?.some(c => c.toLowerCase().includes(q)))
-  }, [tabFiltered, q])
-
-  // Group by area (locality), "Other / Unspecified" always last. Within a
-  // group the best-rated providers come first, unrated ones at the bottom.
+  // Rows arrive already ordered by area then rating, so grouping is just a
+  // matter of starting a new section each time the area changes.
   const groupedByArea = useMemo(() => {
-    const map = new Map()
-
-    for (const p of searchedList) {
+    const groups = []
+    for (const p of providers) {
       const raw = areaOf(p)
       const key = raw ? raw.toLowerCase() : OTHER_KEY
-      if (!map.has(key)) {
-        map.set(key, { key, label: raw ? toTitleCase(raw) : 'Other / Unspecified', items: [] })
-      }
-      map.get(key).items.push(p)
+      const last = groups[groups.length - 1]
+      if (last && last.key === key) last.items.push(p)
+      else groups.push({ key, label: raw ? toTitleCase(raw) : 'Other / Unspecified', items: [p] })
     }
-
-    const groups = Array.from(map.values())
-
-    groups.sort((a, b) => {
-      if (a.key === OTHER_KEY) return 1
-      if (b.key === OTHER_KEY) return -1
-      return b.items.length - a.items.length || a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })
-    })
-
-    for (const g of groups) {
-      g.items.sort((a, b) => (b.rating ?? -1) - (a.rating ?? -1) || (a.name || '').localeCompare(b.name || ''))
-    }
-
     return groups
-  }, [searchedList])
+  }, [providers])
 
   const activeTabLabel = TABS.find(t => t.id === activeTab)?.label || activeTab
+  const hasMore = providers.length < total
 
   return (
     <div className="min-h-full" style={{ backgroundColor: '#FFFEF8' }}>
@@ -291,37 +288,39 @@ export default function ProviderDirectory() {
               )}
             </div>
           ) : (
-            <div className="space-y-8">
-              {groupedByArea.map(g => {
-                // Keep the "all areas" view scannable — show a handful per area
-                // until the reader asks for the rest.
-                const collapsible = !expanded[g.key] && activeArea === 'All' && !q && g.items.length > PREVIEW_PER_AREA
-                const visible = collapsible ? g.items.slice(0, PREVIEW_PER_AREA) : g.items
-                return (
-                <div key={g.key}>
-                  <div className="flex items-center gap-2.5 mb-3">
-                    <h2 className="font-black text-base" style={{ color: '#4A2C0A' }}>{g.label}</h2>
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full"
-                      style={{ backgroundColor: '#F0E6C8', color: '#4A2C0A' }}>
-                      {g.items.length}
-                    </span>
-                    <div className="flex-1 h-px" style={{ backgroundColor: '#F0E6C8' }} />
+            <>
+              <p className="text-xs font-bold mb-4" style={{ color: '#B8A080' }}>
+                {total.toLocaleString('en-IN')} {total === 1 ? 'provider' : 'providers'}
+                {q ? ` matching "${search.trim()}"` : ''}
+              </p>
+
+              <div className="space-y-8">
+                {groupedByArea.map((g, i) => (
+                  <div key={`${g.key}-${i}`}>
+                    <div className="flex items-center gap-2.5 mb-3">
+                      <h2 className="font-black text-base" style={{ color: '#4A2C0A' }}>{g.label}</h2>
+                      <div className="flex-1 h-px" style={{ backgroundColor: '#F0E6C8' }} />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {g.items.map(p => <ProviderCard key={p.id} p={p} />)}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {visible.map(p => <ProviderCard key={p.id} p={p} />)}
-                  </div>
-                  {collapsible && (
-                    <button
-                      onClick={() => setExpanded(e => ({ ...e, [g.key]: true }))}
-                      className="w-full mt-3 py-2.5 rounded-xl text-sm font-bold transition-all"
-                      style={{ backgroundColor: '#FFF5AA', color: '#4A2C0A' }}
-                    >
-                      Show all {g.items.length} in {g.label}
-                    </button>
-                  )}
-                </div>
-              )})}
-            </div>
+                ))}
+              </div>
+
+              {hasMore && (
+                <button
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="w-full mt-6 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
+                  style={{ backgroundColor: '#FFF5AA', color: '#4A2C0A', opacity: loadingMore ? 0.6 : 1 }}
+                >
+                  {loadingMore
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Loading…</>
+                    : `Show more (${(total - providers.length).toLocaleString('en-IN')} left)`}
+                </button>
+              )}
+            </>
           )
         )}
       </div>

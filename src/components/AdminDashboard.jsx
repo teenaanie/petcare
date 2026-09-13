@@ -476,21 +476,40 @@ function ProviderForm({ initial, onSave, onCancel, saving }) {
   )
 }
 
+const ADMIN_PAGE_SIZE = 50
+
 function ProvidersPanel() {
   const [providers, setProviders] = useState([])
+  const [total, setTotal]         = useState(0)
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState(null)
   const [adding, setAdding]       = useState(false)
   const [editing, setEditing]     = useState(null)  // provider id
   const [saving, setSaving]       = useState(false)
+  const [search, setSearch]       = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300)
+    return () => clearTimeout(t)
+  }, [search])
 
   function load() {
-    getProviders(false)
-      .then(setProviders)
+    setLoading(true)
+    getProviders({ approvedOnly: false, search: debouncedSearch, limit: ADMIN_PAGE_SIZE, offset: 0 })
+      .then(({ rows, count }) => { setProviders(rows); setTotal(count) })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }
-  useEffect(load, [])
+  useEffect(load, [debouncedSearch])
+
+  async function loadMore() {
+    const { rows } = await getProviders({
+      approvedOnly: false, search: debouncedSearch,
+      limit: ADMIN_PAGE_SIZE, offset: providers.length,
+    })
+    setProviders(prev => [...prev, ...rows])
+  }
 
   async function handleSave(form) {
     setSaving(true)
@@ -515,12 +534,19 @@ function ProvidersPanel() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <p className="text-xs font-black uppercase tracking-wider" style={{ color: '#B8A080' }}>
-          {providers.length} providers
+          {total} providers
         </p>
         <button onClick={() => { setAdding(true); setEditing(null) }}
           className="btn-primary text-sm gap-1.5">
           <Plus className="w-4 h-4" /> Add Provider
         </button>
+      </div>
+
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#B8A080' }} />
+        <input type="text" className="input w-full pl-9 text-sm"
+          placeholder="Search providers by name, area or type…"
+          value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
       {adding && (
@@ -577,6 +603,14 @@ function ProvidersPanel() {
           )
         })}
       </div>
+
+      {providers.length < total && (
+        <button onClick={loadMore}
+          className="w-full mt-4 py-2.5 rounded-xl text-sm font-bold transition-all"
+          style={{ backgroundColor: '#FFF5AA', color: '#4A2C0A' }}>
+          Show more ({total - providers.length} left)
+        </button>
+      )}
 
       {!loading && providers.length === 0 && !adding && (
         <div className="text-center py-10">

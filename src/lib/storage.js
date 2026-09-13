@@ -493,13 +493,43 @@ export async function getFeedback() {
 
 // ── Providers ────────────────────────────────────────────────────────────────
 
-export async function getProviders(approvedOnly = true) {
-  if (!isConfigured) return []
-  let q = supabase.from('providers').select('*').order('name')
-  if (approvedOnly) q = q.eq('is_approved', true)
-  const { data, error } = await q
+// Filtering, counting and paging all happen in Postgres — PostgREST caps
+// responses at 1000 rows, so fetching everything and filtering in the browser
+// silently drops providers once the table grows past that.
+export async function getProviders({
+  approvedOnly = true,
+  type = null,
+  area = null,
+  search = '',
+  limit = 60,
+  offset = 0,
+} = {}) {
+  if (!isConfigured) return { rows: [], count: 0 }
+
+  const { data, error } = await supabase.rpc('search_providers', {
+    approved_only: approvedOnly,
+    filter_type:   type,
+    filter_area:   area,
+    search_term:   search.trim() || null,
+    page_limit:    limit,
+    page_offset:   offset,
+  })
   if (error) throw error
-  return data || []
+
+  const rows = (data || []).map(r => r.provider)
+  // total_count comes from a window function, so it's identical on every row
+  // and absent entirely when nothing matched.
+  return { rows, count: data?.[0]?.total_count ?? 0 }
+}
+
+export async function getProviderFacets({ approvedOnly = true, area = null } = {}) {
+  if (!isConfigured) return { total: 0, types: {}, areas: [] }
+  const { data, error } = await supabase.rpc('provider_facets', {
+    approved_only: approvedOnly,
+    filter_area: area,
+  })
+  if (error) throw error
+  return data || { total: 0, types: {}, areas: [] }
 }
 
 export async function saveProvider(provider) {
