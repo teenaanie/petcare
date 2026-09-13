@@ -4,3 +4,7 @@ dist/
 
 # Local Netlify folder
 .netlify
+
+# Raw scraped provider data — contains business contact details and is large.
+# Kept local only; import via scripts/import-providers.mjs.
+data/

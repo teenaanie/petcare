@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { Search, MapPin, Phone, Clock, ExternalLink, MessageCircle, Stethoscope, Scissors, ShoppingBag, Home, Camera, Flower2, Loader2, AlertCircle } from 'lucide-react'
+import { Search, MapPin, Phone, Clock, ExternalLink, MessageCircle, Stethoscope, Scissors, ShoppingBag, Home, Camera, Flower2, Star, Loader2, AlertCircle } from 'lucide-react'
 // MapPin used in ProviderCard address row
 import { getProviders } from '../lib/storage.js'
 
@@ -20,6 +20,7 @@ const TABS = [
 ]
 
 const OTHER_KEY = '__other__'
+const PREVIEW_PER_AREA = 6
 
 function toTitleCase(s) {
   return s.replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase())
@@ -46,7 +47,7 @@ function ProviderCard({ p }) {
 
       {/* Photo */}
       {p.photo_url && (
-        <img src={p.photo_url} alt={p.name}
+        <img src={p.photo_url} alt={p.name} loading="lazy"
           className="w-full h-36 object-cover"
           onError={e => { e.currentTarget.style.display = 'none' }} />
       )}
@@ -56,10 +57,23 @@ function ProviderCard({ p }) {
         <div className="flex items-start justify-between gap-2">
           <div>
             <h3 className="font-black text-base leading-tight" style={{ color: '#4A2C0A' }}>{p.name}</h3>
-            {p.city && <p className="text-xs mt-0.5" style={{ color: '#B8A080' }}>{p.city}</p>}
+            {(p.area || p.city) && (
+              <p className="text-xs mt-0.5" style={{ color: '#B8A080' }}>{p.area || p.city}</p>
+            )}
           </div>
           <TypeBadge type={p.type} />
         </div>
+
+        {/* Google rating */}
+        {p.rating != null && (
+          <div className="flex items-center gap-1.5">
+            <Star className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#F59E0B', fill: '#F59E0B' }} />
+            <span className="text-sm font-black" style={{ color: '#4A2C0A' }}>{Number(p.rating).toFixed(1)}</span>
+            {p.reviews_count != null && (
+              <span className="text-xs" style={{ color: '#B8A080' }}>({p.reviews_count.toLocaleString('en-IN')})</span>
+            )}
+          </div>
+        )}
 
         {/* Description */}
         {p.description && (
@@ -118,6 +132,8 @@ export default function ProviderDirectory() {
   const [error, setError]         = useState(null)
   const [search, setSearch]       = useState('')
   const [activeTab, setActiveTab] = useState('All')
+  const [activeArea, setActiveArea] = useState('All')
+  const [expanded, setExpanded]   = useState({})   // area key -> show all cards
 
   useEffect(() => {
     getProviders(true)
@@ -128,11 +144,26 @@ export default function ProviderDirectory() {
 
   const q = search.toLowerCase().trim()
 
-  // Providers in the active tab (before search)
-  const tabFiltered = useMemo(
-    () => activeTab === 'All' ? providers : providers.filter(p => p.type === activeTab),
-    [providers, activeTab]
-  )
+  const areaOf = p => (p.area || p.city || '').trim()
+
+  // Every area that has at least one provider, most-populated first
+  const areaOptions = useMemo(() => {
+    const counts = new Map()
+    for (const p of providers) {
+      const a = areaOf(p)
+      if (a) counts.set(a, (counts.get(a) || 0) + 1)
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([area, count]) => ({ area, count }))
+  }, [providers])
+
+  // Providers in the active tab + area (before search)
+  const tabFiltered = useMemo(() => {
+    let list = activeTab === 'All' ? providers : providers.filter(p => p.type === activeTab)
+    if (activeArea !== 'All') list = list.filter(p => areaOf(p) === activeArea)
+    return list
+  }, [providers, activeTab, activeArea])
 
   // Counts per tab, independent of search — used for chip labels
   const tabCounts = useMemo(() => {
@@ -146,17 +177,21 @@ export default function ProviderDirectory() {
     if (!q) return tabFiltered
     return tabFiltered.filter(p =>
       p.name?.toLowerCase().includes(q) ||
+      p.area?.toLowerCase().includes(q) ||
       p.city?.toLowerCase().includes(q) ||
       p.type?.toLowerCase().includes(q) ||
-      p.description?.toLowerCase().includes(q))
+      p.address?.toLowerCase().includes(q) ||
+      p.description?.toLowerCase().includes(q) ||
+      p.categories?.some(c => c.toLowerCase().includes(q)))
   }, [tabFiltered, q])
 
-  // Group by city ("area"), case-insensitive, "Other / Unspecified" always last
-  const groupedByCity = useMemo(() => {
+  // Group by area (locality), "Other / Unspecified" always last. Within a
+  // group the best-rated providers come first, unrated ones at the bottom.
+  const groupedByArea = useMemo(() => {
     const map = new Map()
 
     for (const p of searchedList) {
-      const raw = (p.city || '').trim()
+      const raw = areaOf(p)
       const key = raw ? raw.toLowerCase() : OTHER_KEY
       if (!map.has(key)) {
         map.set(key, { key, label: raw ? toTitleCase(raw) : 'Other / Unspecified', items: [] })
@@ -169,10 +204,12 @@ export default function ProviderDirectory() {
     groups.sort((a, b) => {
       if (a.key === OTHER_KEY) return 1
       if (b.key === OTHER_KEY) return -1
-      return a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })
+      return b.items.length - a.items.length || a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })
     })
 
-    for (const g of groups) g.items.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    for (const g of groups) {
+      g.items.sort((a, b) => (b.rating ?? -1) - (a.rating ?? -1) || (a.name || '').localeCompare(b.name || ''))
+    }
 
     return groups
   }, [searchedList])
@@ -205,12 +242,23 @@ export default function ProviderDirectory() {
           ))}
         </div>
 
-        {/* Search */}
-        <div className="relative mb-6">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#B8A080' }} />
-          <input type="text" className="input w-full pl-9"
-            placeholder="Search by name, city or type…"
-            value={search} onChange={e => setSearch(e.target.value)} />
+        {/* Search + area filter */}
+        <div className="flex gap-2 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#B8A080' }} />
+            <input type="text" className="input w-full pl-9"
+              placeholder="Search by name, area or service…"
+              value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+          {areaOptions.length > 1 && (
+            <select className="input w-36 flex-shrink-0 text-sm"
+              value={activeArea} onChange={e => setActiveArea(e.target.value)}>
+              <option value="All">All areas</option>
+              {areaOptions.map(({ area, count }) => (
+                <option key={area} value={area}>{area} ({count})</option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* Loading / error */}
@@ -226,25 +274,30 @@ export default function ProviderDirectory() {
           </div>
         )}
 
-        {/* ── Grouped by city ──────────────────────────────────────────────── */}
+        {/* ── Grouped by area ──────────────────────────────────────────────── */}
         {!loading && !error && (
-          groupedByCity.length === 0 ? (
+          groupedByArea.length === 0 ? (
             <div className="text-center py-16">
               {q ? (
                 <>
                   <Search className="w-10 h-10 mx-auto mb-3 opacity-20" style={{ color: '#4A2C0A' }} />
                   <p className="font-bold" style={{ color: '#4A2C0A' }}>No results for "{search}"</p>
-                  <p className="text-sm mt-1" style={{ color: '#B8A080' }}>Try a different name or city.</p>
+                  <p className="text-sm mt-1" style={{ color: '#B8A080' }}>Try a different name or area.</p>
                 </>
               ) : (
                 <p className="text-sm" style={{ color: '#B8A080' }}>
-                  No {activeTabLabel.toLowerCase()}{activeTab !== 'All' ? 's' : ' providers'} listed yet
+                  No {activeTabLabel.toLowerCase()}{activeTab !== 'All' ? 's' : ' providers'} listed here yet
                 </p>
               )}
             </div>
           ) : (
             <div className="space-y-8">
-              {groupedByCity.map(g => (
+              {groupedByArea.map(g => {
+                // Keep the "all areas" view scannable — show a handful per area
+                // until the reader asks for the rest.
+                const collapsible = !expanded[g.key] && activeArea === 'All' && !q && g.items.length > PREVIEW_PER_AREA
+                const visible = collapsible ? g.items.slice(0, PREVIEW_PER_AREA) : g.items
+                return (
                 <div key={g.key}>
                   <div className="flex items-center gap-2.5 mb-3">
                     <h2 className="font-black text-base" style={{ color: '#4A2C0A' }}>{g.label}</h2>
@@ -255,10 +308,19 @@ export default function ProviderDirectory() {
                     <div className="flex-1 h-px" style={{ backgroundColor: '#F0E6C8' }} />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {g.items.map(p => <ProviderCard key={p.id} p={p} />)}
+                    {visible.map(p => <ProviderCard key={p.id} p={p} />)}
                   </div>
+                  {collapsible && (
+                    <button
+                      onClick={() => setExpanded(e => ({ ...e, [g.key]: true }))}
+                      className="w-full mt-3 py-2.5 rounded-xl text-sm font-bold transition-all"
+                      style={{ backgroundColor: '#FFF5AA', color: '#4A2C0A' }}
+                    >
+                      Show all {g.items.length} in {g.label}
+                    </button>
+                  )}
                 </div>
-              ))}
+              )})}
             </div>
           )
         )}

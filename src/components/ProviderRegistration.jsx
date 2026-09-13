@@ -4,7 +4,7 @@ import { PawPrint, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 const PROVIDER_TYPES = ['Vet', 'Groomer', 'Store', 'Boarder', 'Special Services', 'Pet Loss & Memorial Services']
 
 const EMPTY_FORM = {
-  name: '', type: 'Vet', city: '', address: '', phone: '', whatsapp: '',
+  name: '', type: 'Vet', area: '', city: '', address: '', phone: '', whatsapp: '',
   hours: '', maps_url: '', photo_url: '', description: '',
   url: '', // honeypot — real users never fill this in
 }
@@ -92,8 +92,12 @@ export default function ProviderRegistration() {
                 </select>
               </div>
               <div>
+                <label className="label">Area / Locality</label>
+                <input name="area" value={form.area} onChange={set} className="input w-full" placeholder="Kothrud" disabled={status === 'submitting'} />
+              </div>
+              <div>
                 <label className="label">City</label>
-                <input name="city" value={form.city} onChange={set} className="input w-full" placeholder="Mumbai" disabled={status === 'submitting'} />
+                <input name="city" value={form.city} onChange={set} className="input w-full" placeholder="Pune" disabled={status === 'submitting'} />
               </div>
               <div className="sm:col-span-2">
                 <label className="label">Address</label>

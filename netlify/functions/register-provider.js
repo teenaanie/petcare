@@ -61,6 +61,7 @@ function notificationHtml(p) {
         <table style="width:100%;border-collapse:collapse;background:white;border-radius:10px;overflow:hidden;border:1px solid #F0E6C8">
           ${row('Name', p.name)}
           ${row('Type', p.type)}
+          ${row('Area', p.area)}
           ${row('City', p.city)}
           ${row('Address', p.address)}
           ${row('Phone', p.phone)}
@@ -104,6 +105,7 @@ export default async function handler(req) {
   const phone = cleanString(body.phone, 30)
   if (!phone) return json(400, { error: 'Please enter a phone number' })
 
+  const area        = cleanString(body.area, 120)
   const city        = cleanString(body.city, 200)
   const address     = cleanString(body.address, 200)
   const whatsapp    = cleanString(body.whatsapp, 30)
@@ -123,8 +125,8 @@ export default async function handler(req) {
   }
 
   const provider = {
-    name, type: body.type, city, address, phone, whatsapp, hours,
-    maps_url, photo_url, description, is_approved: false,
+    name, type: body.type, area, city, address, phone, whatsapp, hours,
+    maps_url, photo_url, description, is_approved: false, source: 'self_registered',
   }
 
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {

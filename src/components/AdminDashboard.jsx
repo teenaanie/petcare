@@ -405,7 +405,7 @@ function FeedbackPanel() {
 // ── Providers Panel ──────────────────────────────────────────────────────────
 
 const PROVIDER_TYPES = ['Vet', 'Groomer', 'Store', 'Boarder', 'Special Services', 'Pet Loss & Memorial Services']
-const EMPTY_PROVIDER = { name: '', type: 'Vet', description: '', address: '', city: '', phone: '', whatsapp: '', email: '', website: '', hours: '', photo_url: '', maps_url: '', is_approved: false }
+const EMPTY_PROVIDER = { name: '', type: 'Vet', description: '', address: '', area: '', city: '', phone: '', whatsapp: '', email: '', website: '', hours: '', photo_url: '', maps_url: '', is_approved: false }
 
 const TYPE_ICONS = { Vet: Stethoscope, Groomer: Scissors, Store: ShoppingBag, Boarder: Home, 'Special Services': Camera, 'Pet Loss & Memorial Services': Flower2 }
 const TYPE_COLORS = { Vet: '#2563EB', Groomer: '#7C3AED', Store: '#059669', Boarder: '#D97706', 'Special Services': '#DB2777', 'Pet Loss & Memorial Services': '#475569' }
@@ -428,8 +428,12 @@ function ProviderForm({ initial, onSave, onCancel, saving }) {
           </select>
         </div>
         <div>
+          <label className="label text-xs">Area / Locality</label>
+          <input name="area" value={form.area || ''} onChange={set} className="input w-full" placeholder="Kothrud" />
+        </div>
+        <div>
           <label className="label text-xs">City</label>
-          <input name="city" value={form.city} onChange={set} className="input w-full" placeholder="Mumbai" />
+          <input name="city" value={form.city} onChange={set} className="input w-full" placeholder="Pune" />
         </div>
         <div className="col-span-2">
           <label className="label text-xs">Address</label>
@@ -550,7 +554,7 @@ function ProvidersPanel() {
                       {p.is_approved ? '✓ Approved' : '⏳ Pending'}
                     </span>
                   </div>
-                  {p.city && <p className="text-xs mt-0.5" style={{ color: '#B8A080' }}>{p.city}{p.address ? ` · ${p.address}` : ''}</p>}
+                  {(p.area || p.city) && <p className="text-xs mt-0.5" style={{ color: '#B8A080' }}>{[p.area, p.city].filter(Boolean).join(' · ')}{p.address ? ` · ${p.address}` : ''}</p>}
                   {p.phone && <p className="text-xs" style={{ color: '#B8A080' }}>{p.phone}</p>}
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
