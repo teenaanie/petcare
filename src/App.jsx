@@ -7,7 +7,7 @@ import PetList from './components/PetList.jsx'
 import PetDetail from './components/PetDetail.jsx'
 import AddPetModal from './components/AddPetModal.jsx'
 import MobileHeader from './components/MobileHeader.jsx'
-import MobileBottomNav from './components/MobileBottomNav.jsx'
+import MobileAppNav from './components/MobileAppNav.jsx'
 import AdminDashboard from './components/AdminDashboard.jsx'
 import FeedbackButton from './components/FeedbackButton.jsx'
 import ProviderDirectory from './components/ProviderDirectory.jsx'
@@ -158,13 +158,21 @@ export default function App() {
               refresh={refresh}
               onSelectPet={selectPet}
               onAddPet={() => setShowAddPet(true)}
+              onFindServices={() => { setAdminView(false); setServicesView(true); setSelectedPet(null) }}
             />
           )}
         </main>
 
-        {selectedPet && (
-          <MobileBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
-        )}
+        <MobileAppNav
+          view={adminView ? 'admin' : servicesView ? 'services' : 'pets'}
+          isAdmin={isAdmin}
+          onNavigate={(id) => {
+            setSidebarOpen(false)
+            if (id === 'pets')     { setAdminView(false); setServicesView(false); setSelectedPet(null) }
+            if (id === 'services') { setAdminView(false); setServicesView(true);  setSelectedPet(null) }
+            if (id === 'admin')    { setServicesView(false); setAdminView(true);  setSelectedPet(null) }
+          }}
+        />
       </div>
 
       {showAddPet && (

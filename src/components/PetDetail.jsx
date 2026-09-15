@@ -22,7 +22,20 @@ const STAGES = {
              { label: 'Geriatric',emoji: '🐾', max: 18 }],
 }
 
-const STAGE_COLORS = ['#FFD54F','#FFF176','#AED581','#81D4FA','#CE93D8','#F48FB1']
+const STAGE_COLORS = ['#ffde59','#f2b83d','#beb950','#bfe5ef','#ff9999','#878c6b']
+
+// Mirrors the sidebar's tab list — rendered as a chip row on mobile.
+const PET_TABS = [
+  { id: 'timeline',     label: 'Timeline' },
+  { id: 'reminders',    label: 'Reminders' },
+  { id: 'scanner',      label: 'Scan' },
+  { id: 'medical',      label: 'Medical' },
+  { id: 'vaccinations', label: 'Vaccines' },
+  { id: 'medicines',    label: 'Medicines' },
+  { id: 'weight',       label: 'Weight' },
+  { id: 'allergies',    label: 'Allergies' },
+  { id: 'bills',        label: 'Bills' },
+]
 
 function LifeStageBar({ pet, ageYears }) {
   if (ageYears === null) return null
@@ -216,6 +229,26 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* Section tabs — on mobile these live here, next to the content they
+          filter, so the bottom bar is free for app-level destinations. */}
+      <div className="md:hidden -mx-4 px-4 mb-4 overflow-x-auto scrollbar-hide">
+        <div className="flex gap-2 w-max">
+          {PET_TABS.map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => onTabChange(id)}
+              aria-current={activeTab === id ? 'page' : undefined}
+              className="px-3 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition-all"
+              style={activeTab === id
+                ? { backgroundColor: '#ffde59', color: '#7a4900' }
+                : { backgroundColor: '#f5f0e0', color: '#73775b' }}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 

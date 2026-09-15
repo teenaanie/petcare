@@ -109,6 +109,21 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
             </div>
           </div>
 
+          {/* Find Services — a primary destination, so it sits above the pet
+              list instead of sinking below it as pets are added. */}
+          <div className="px-3 pt-3 flex-shrink-0">
+            <button
+              onClick={onToggleServices}
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold transition-all"
+              style={servicesView
+                ? { backgroundColor: '#ffde59', color: '#7a4900' }
+                : { backgroundColor: '#fff3c0', color: '#7a4900' }}
+            >
+              <Store className="w-4 h-4 flex-shrink-0" />
+              Find Services
+            </button>
+          </div>
+
           {/* Pets list */}
           <div className="flex-1 overflow-y-auto">
             <div className="px-3 pt-4 pb-1">
@@ -146,20 +161,6 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
                 </button>
               ))}
             </div>
-          </div>
-
-          {/* Find Services */}
-          <div className="px-3 pt-3 flex-shrink-0" style={{ borderTop: '1px solid #ebe3d3' }}>
-            <button
-              onClick={onToggleServices}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all"
-              style={servicesView
-                ? { backgroundColor: '#f2b83d', color: '#7a4900' }
-                : { backgroundColor: '#fff3c0', color: '#7a4900' }}
-            >
-              <Store className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#5f7a3a' }} />
-              Find Services
-            </button>
           </div>
 
           {/* Admin Panel toggle */}

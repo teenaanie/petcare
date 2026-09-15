@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { PawPrint, Plus, Calendar, Weight } from 'lucide-react'
+import { PawPrint, Plus, Calendar, Weight, Store, ChevronRight } from 'lucide-react'
 import { getPets } from '../lib/storage.js'
 import { format } from 'date-fns'
 import PetAvatar from './PetAvatar.jsx'
 
-export default function PetList({ refresh, onSelectPet, onAddPet }) {
+export default function PetList({ refresh, onSelectPet, onAddPet, onFindServices }) {
   const [pets, setPets] = useState([])
 
   useEffect(() => {
@@ -25,6 +25,15 @@ export default function PetList({ refresh, onSelectPet, onAddPet }) {
         <button onClick={onAddPet} className="btn-primary gap-2">
           <Plus className="w-4 h-4" /> Add my first pet
         </button>
+
+        {/* Someone with no pets yet can still browse the directory */}
+        {onFindServices && (
+          <button onClick={onFindServices}
+            className="flex items-center gap-2 text-sm font-bold underline-offset-4 hover:underline"
+            style={{ color: '#73775b' }}>
+            <Store className="w-4 h-4" /> Or find vets and services near you
+          </button>
+        )}
       </div>
     )
   }
@@ -37,6 +46,24 @@ export default function PetList({ refresh, onSelectPet, onAddPet }) {
           <Plus className="w-4 h-4" /> Add Pet
         </button>
       </div>
+
+      {onFindServices && (
+        <button onClick={onFindServices}
+          className="w-full flex items-center gap-3 mb-5 p-4 rounded-2xl text-left transition-all"
+          style={{ backgroundColor: '#ffde59', border: '1.5px solid #f2b83d' }}>
+          <span className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ backgroundColor: '#7a4900' }}>
+            <Store className="w-5 h-5" style={{ color: '#ffde59' }} />
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block font-black text-sm" style={{ color: '#7a4900' }}>Find Services near you</span>
+            <span className="block text-xs" style={{ color: '#7a4900', opacity: .75 }}>
+              Vets, groomers, boarding and stores
+            </span>
+          </span>
+          <ChevronRight className="w-5 h-5 flex-shrink-0" style={{ color: '#7a4900' }} />
+        </button>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {pets.map(pet => (

@@ -44,22 +44,45 @@
   --success:       #5f7a3a;
   --success-surface: #eef3e2;
   --info-surface:  var(--brand-azure);
+
+  /* Type — the hierarchy from the brand guidelines. Display carries titles and
+     headings; body carries everything else. Swap the two families here when
+     the licensed Choret Fudyng / Bubblebody Neue files are available. */
+  --font-display: 'Baloo 2', 'Nunito', ui-sans-serif, system-ui, sans-serif;
+  --font-body:    'Nunito', ui-sans-serif, system-ui, sans-serif;
+
+  --size-title:   56px;   /* scaled down from the deck's 90pt for screen   */
+  --size-heading: 32px;
+  --size-section: 22px;
+  --size-subhead: 18px;
+  --size-body:    15px;
+  --size-small:   12px;   /* subtitle, quote, caption                      */
 }
 
 @layer base {
   body {
     background-color: var(--surface);
     color: var(--text-body);
-    font-family: 'Nunito', ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-body);
+    font-size: var(--size-body);
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-weight: 800;
     color: var(--text-strong);
-    /* Display face for titles and headings. Swap this one line when the
-       licensed Choret Fudyng files are available. */
-    font-family: 'Baloo 2', 'Nunito', ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-display);
+    letter-spacing: -0.005em;
   }
+}
+
+@layer components {
+  /* Named steps from the brand hierarchy, for use where a Tailwind size
+     would otherwise be guessed at. */
+  .type-title   { font-family: var(--font-display); font-size: var(--size-title);   font-weight: 800; line-height: 1.05; }
+  .type-heading { font-family: var(--font-display); font-size: var(--size-heading); font-weight: 700; line-height: 1.15; }
+  .type-section { font-size: var(--size-section); font-weight: 800; }
+  .type-subhead { font-size: var(--size-subhead); font-weight: 700; }
+  .type-caption { font-size: var(--size-small);  color: var(--text-muted); }
 }
 
 @layer components {
