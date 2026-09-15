@@ -1,7 +1,8 @@
 import { useEffect, useState, useMemo } from 'react'
-import { Search, MapPin, Phone, Clock, ExternalLink, MessageCircle, Stethoscope, Scissors, ShoppingBag, Home, Camera, Flower2, Star, Loader2, AlertCircle } from 'lucide-react'
+import { Search, MapPin, Phone, Clock, ExternalLink, MessageCircle, Stethoscope, Scissors, ShoppingBag, Home, Camera, Flower2, Star, Loader2, AlertCircle, ClipboardCheck, ChevronDown, ChevronRight } from 'lucide-react'
 // MapPin used in ProviderCard address row
 import { getProviders, getProviderFacets } from '../lib/storage.js'
+import { resolvePolicy } from '../lib/boarding.js'
 
 // Category colours are drawn from the brand's secondary palette — azure,
 // yellow-green, orange-yellow and coral — rather than generic UI colours.
@@ -41,9 +42,59 @@ function TypeBadge({ type }) {
   )
 }
 
-function ProviderCard({ p }) {
+function BoardingRequirements({ provider }) {
+  const [open, setOpen] = useState(false)
+  const policy = resolvePolicy(provider)
+  const labels = {
+    vaccination_records: 'Vaccinations up to date, originals carried',
+    kennel_cough: 'Kennel Cough (KC) nasal vaccine',
+    tick_protection: 'Tick protection — spot-on / Bravecto / NexGard / Simparica (not collars or sprays)',
+    deworming: 'Deworming, confirmed in writing by your vet',
+    vet_confirmation: "Vet's written confirmation",
+    trial_visit: 'Trial / orientation visit, by appointment',
+    diet_brief: 'Food preferences shared in advance',
+    bedding: 'A rug, bedsheet or dari',
+    original_records: 'Original vaccination record book',
+    govt_id: 'Two govt photo IDs with address',
+    declaration: 'Declaration & T&C signed at drop-off',
+  }
+  const windows = (policy.slot_windows || []).map(w => `${w.from}–${w.to}`).join(' · ')
+
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ backgroundColor: '#fff9e0' }}>
+      <button onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-xs font-bold"
+        style={{ color: '#7a4900' }}>
+        <span className="flex items-center gap-1.5">
+          <ClipboardCheck className="w-3.5 h-3.5" /> What they need before a stay
+        </span>
+        {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+      </button>
+      {open && (
+        <div className="px-3 pb-3 space-y-1.5">
+          {(policy.required || []).map(id => (
+            <p key={id} className="text-xs flex gap-1.5" style={{ color: '#73775b' }}>
+              <span aria-hidden>·</span><span>{labels[id] || id}</span>
+            </p>
+          ))}
+          {windows && (
+            <p className="text-xs pt-1.5" style={{ color: '#c0563d', borderTop: '1px solid #ebe3d3' }}>
+              Drop-off and pick-up only {windows} — outside these hours is billed as an extra day.
+            </p>
+          )}
+          {policy.arrival_notes && (
+            <p className="text-xs" style={{ color: '#73775b' }}>{policy.arrival_notes}</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ProviderCard({ p, onPrepForStay }) {
   const waNumber = p.whatsapp?.replace(/\D/g, '') || p.phone?.replace(/\D/g, '')
   const waLink   = waNumber ? `https://wa.me/${waNumber}` : null
+  const hasPolicy = p.type === 'Boarder' && !!p.boarding_policy
 
   return (
     <div className="rounded-2xl overflow-hidden"
@@ -106,6 +157,17 @@ function ProviderCard({ p }) {
           )}
         </div>
 
+        {hasPolicy && <BoardingRequirements provider={p} />}
+
+        {hasPolicy && onPrepForStay && (
+          <button onClick={() => onPrepForStay(p)}
+            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-105"
+            style={{ backgroundColor: '#ffde59', color: '#7a4900' }}>
+            <ClipboardCheck className="w-4 h-4" />
+            Prep for a stay here
+          </button>
+        )}
+
         {/* Action buttons */}
         <div className="flex gap-2 pt-1">
           {waLink && (
@@ -130,7 +192,7 @@ function ProviderCard({ p }) {
   )
 }
 
-export default function ProviderDirectory() {
+export default function ProviderDirectory({ onPrepForStay }) {
   const [providers, setProviders] = useState([])
   const [total, setTotal]         = useState(0)
   const [facets, setFacets]       = useState({ total: 0, types: {}, areas: [] })
@@ -306,7 +368,7 @@ export default function ProviderDirectory() {
                       <div className="flex-1 h-px" style={{ backgroundColor: '#ebe3d3' }} />
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {g.items.map(p => <ProviderCard key={p.id} p={p} />)}
+                      {g.items.map(p => <ProviderCard key={p.id} p={p} onPrepForStay={onPrepForStay} />)}
                     </div>
                   </div>
                 ))}

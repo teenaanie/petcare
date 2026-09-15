@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { PawPrint, Plus, Stethoscope, Syringe, AlertTriangle, FileText, Bell, ChevronLeft, GitBranch, Upload, TrendingUp, ChevronRight, Pill, Receipt, LogOut, ShieldCheck, Store } from 'lucide-react'
+import { PawPrint, Plus, Stethoscope, Syringe, AlertTriangle, FileText, Bell, ChevronLeft, GitBranch, Upload, TrendingUp, ChevronRight, Pill, Receipt, LogOut, ShieldCheck, Store, Home } from 'lucide-react'
 import { getPets } from '../lib/storage.js'
 import MigrateData from './MigrateData.jsx'
 import PetAvatar from './PetAvatar.jsx'
@@ -15,6 +15,7 @@ const tabs = [
   { id: 'weight',        label: 'Weight Trend',      icon: TrendingUp },
   { id: 'allergies',     label: 'Allergies',         icon: AlertTriangle },
   { id: 'bills',         label: 'Bills',             icon: Receipt },
+  { id: 'boarding',      label: 'Boarding Prep',     icon: Home },
 ]
 
 export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab, onTabChange, refresh, onRefresh, isOpen, onClose, user, isAdmin, onSignOut, adminView, onToggleAdmin, servicesView, onToggleServices }) {
