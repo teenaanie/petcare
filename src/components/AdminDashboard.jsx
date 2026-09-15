@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ShieldCheck, Users, PawPrint, ChevronRight, ChevronLeft, Search, Phone, Mail, Loader2, AlertCircle, Stethoscope, Syringe, Pill, Receipt, Bell, ChevronDown, ChevronUp, Star, MessageSquarePlus, MapPin, Clock, Scissors, ShoppingBag, Home, Camera, Flower2, Plus, Check, X, Trash2, ToggleLeft, ToggleRight } from 'lucide-react'
 import { getAdminUsers, getPets, getMedicalHistory, getVaccinations, getMedicines, getBills, getReminders, getFeedback, getProviders, saveProvider, deleteProvider } from '../lib/storage.js'
 import PetAvatar from './PetAvatar.jsx'
+import BoardingRulesPanel from './BoardingRulesPanel.jsx'
 
 // ── User Card ────────────────────────────────────────────────────────────────
 
@@ -630,7 +631,7 @@ export default function AdminDashboard() {
   const [error, setError]         = useState(null)
   const [search, setSearch]       = useState('')
   const [selectedUser, setSelectedUser] = useState(null)
-  const [tab, setTab]             = useState('users')   // 'users' | 'feedback' | 'providers'
+  const [tab, setTab]             = useState('users')   // users | feedback | providers | boarding
 
   useEffect(() => {
     setLoading(true)
@@ -665,29 +666,37 @@ export default function AdminDashboard() {
 
         {/* Tab switcher */}
         {!selectedUser && (
-          <div className="flex rounded-xl p-1 mb-5" style={{ backgroundColor: '#ebe3d3' }}>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 rounded-xl p-1 mb-5" style={{ backgroundColor: '#ebe3d3' }}>
             <button
               onClick={() => setTab('users')}
-              className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
+              className="flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
               style={tab === 'users' ? { backgroundColor: '#f2b83d', color: '#7a4900' } : { color: '#73775b' }}>
               <Users className="w-4 h-4" /> Users
             </button>
             <button
               onClick={() => setTab('feedback')}
-              className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
+              className="flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
               style={tab === 'feedback' ? { backgroundColor: '#f2b83d', color: '#7a4900' } : { color: '#73775b' }}>
               <MessageSquarePlus className="w-4 h-4" /> Feedback
             </button>
             <button
               onClick={() => setTab('providers')}
-              className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
+              className="flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
               style={tab === 'providers' ? { backgroundColor: '#f2b83d', color: '#7a4900' } : { color: '#73775b' }}>
               <MapPin className="w-4 h-4" /> Providers
+            </button>
+            <button
+              onClick={() => setTab('boarding')}
+              className="flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
+              style={tab === 'boarding' ? { backgroundColor: '#f2b83d', color: '#7a4900' } : { color: '#73775b' }}>
+              <Home className="w-4 h-4" /> Boarding
             </button>
           </div>
         )}
 
-        {tab === 'providers' && !selectedUser ? (
+        {tab === 'boarding' && !selectedUser ? (
+          <BoardingRulesPanel />
+        ) : tab === 'providers' && !selectedUser ? (
           <ProvidersPanel />
         ) : tab === 'feedback' && !selectedUser ? (
           <FeedbackPanel />

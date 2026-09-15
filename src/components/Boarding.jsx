@@ -6,13 +6,14 @@ import {
 import { format } from 'date-fns'
 import {
   getVaccinations, getMedicines, getAllergies, savePet, saveReminder, deleteReminder,
-  getBoardingTrips, saveBoardingTrip, deleteBoardingTrip, getBoardersWithPolicy,
+  getBoardingTrips, saveBoardingTrip, deleteBoardingTrip, getBoarders,
 } from '../lib/storage.js'
 import {
-  DEFAULT_POLICY, resolvePolicy, evaluateReadiness, readinessScore, prepTasks,
-  estimateCost, validateSlot, slotOptions, activeAdvisories, buildBoardingPack,
-  d, iso, today, OTHER_SLOT,
+  GENERIC_POLICY, resolvePolicy, evaluateReadiness, readinessScore, prepTasks,
+  estimateCost, validateSlot, slotOptions, hasSlotWindows, coerceSlot, activeAdvisories,
+  buildBoardingPack, d, iso, today, OTHER_SLOT,
 } from '../lib/boarding.js'
+import BoarderSearch from './BoarderSearch.jsx'
 
 const SETUP_SQL = 'Run supabase/boarding.sql in your Supabase SQL Editor to enable boarding prep.'
 
@@ -141,7 +142,17 @@ function ProfileEditor({ pet, policy, onSaved }) {
   return (
     <div className="space-y-5">
       <div>
-        <label className="label">Food — pick from {policy.name || 'the boarder'}'s menu</label>
+        <label className="label">
+          {menu.length
+            ? `Food — pick from ${policy.name || 'the boarder'}'s menu`
+            : 'Food'}
+        </label>
+        {!menu.length && (
+          <p className="text-xs mb-2" style={{ color: '#878c6b' }}>
+            We don't have this boarder's menu on file. Describe what {pet.name} eats in the
+            notes below, and check what they can actually provide.
+          </p>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
           {menu.map(m => {
             const on = form.foodPreferences.includes(m.id)
@@ -377,8 +388,8 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
       .catch(e => { if (!cancelled && isMissingSchema(e)) setTableMissing(true); else console.error(e) })
       .finally(() => { if (!cancelled) setLoading(false) })
 
-    getBoardersWithPolicy()
-      .then(rows => { if (!cancelled) setBoarders(rows.filter(r => r.boarding_policy)) })
+    getBoarders()
+      .then(rows => { if (!cancelled) setBoarders(rows) })
       .catch(() => {})
 
     return () => { cancelled = true }
@@ -537,15 +548,30 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="sm:col-span-2">
             <label className="label">Boarder</label>
-            <select className="input"
-              value={trip.providerId || ''}
-              onChange={e => {
-                const b = boarders.find(x => x.id === e.target.value)
-                persist({ providerId: e.target.value || '', providerName: b?.name || '' })
-              }}>
-              <option value="">Not listed — use general requirements</option>
-              {boarders.map(b => <option key={b.id} value={b.id}>{b.name}{b.area ? ` · ${b.area}` : ''}</option>)}
-            </select>
+            <BoarderSearch
+              boarders={boarders}
+              value={trip.providerId}
+              valueName={trip.providerName}
+              onSelect={b => {
+                const next = resolvePolicy(b)
+                persist({
+                  providerId: b.id, providerName: b.name,
+                  startSlot: coerceSlot(next, trip.startSlot),
+                  endSlot:   coerceSlot(next, trip.endSlot),
+                })
+              }}
+              onClear={() => persist({
+                providerId: '', providerName: '',
+                startSlot: coerceSlot(GENERIC_POLICY, trip.startSlot),
+                endSlot:   coerceSlot(GENERIC_POLICY, trip.endSlot),
+              })} />
+            {policy.isGeneric && (
+              <p className="text-xs mt-1.5" style={{ color: '#878c6b' }}>
+                {trip.providerName
+                  ? `We don't have ${trip.providerName}'s own requirements yet, so this is the general list — check it against what they ask for.`
+                  : 'Showing the general list most boarders ask for. Pick a boarder above to see their own requirements.'}
+              </p>
+            )}
           </div>
 
           <div>
@@ -554,7 +580,7 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
               onChange={e => persist({ startDate: e.target.value })} />
           </div>
           <div>
-            <label className="label">Drop-off time</label>
+            <label className="label">Drop-off time{hasSlotWindows(policy) ? '' : ' (roughly)'}</label>
             <select className="input" value={trip.startSlot || ''} onChange={e => persist({ startSlot: e.target.value })}>
               {slots.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
@@ -565,7 +591,7 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
               onChange={e => persist({ endDate: e.target.value })} />
           </div>
           <div>
-            <label className="label">Pick-up time</label>
+            <label className="label">Pick-up time{hasSlotWindows(policy) ? '' : ' (roughly)'}</label>
             <select className="input" value={trip.endSlot || ''} onChange={e => persist({ endSlot: e.target.value })}>
               {slots.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
@@ -677,10 +703,10 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
       )}
 
       {/* ── Cost ─────────────────────────────────────────────────────── */}
-      {trip.startDate && cost.lines.length > 0 && (
+      {trip.startDate && (cost.lines.length > 0 || cost.discussionFlags.length > 0) && (
         <div className="card">
           <h2 className="type-subhead mb-3 flex items-center gap-2" style={{ color: '#7a4900' }}>
-            <IndianRupee className="w-4 h-4" /> Rough cost
+            <IndianRupee className="w-4 h-4" /> {cost.hasPricing ? 'Rough cost' : 'What it might cost'}
           </h2>
           {cost.lines.map((l, i) => (
             <div key={i} className="flex items-baseline justify-between gap-3 py-1.5 text-sm"
@@ -689,10 +715,12 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
               <span className="font-bold whitespace-nowrap">₹{l.amount.toLocaleString('en-IN')}</span>
             </div>
           ))}
-          <div className="flex items-baseline justify-between gap-3 pt-2 mt-1" style={{ borderTop: '1.5px solid #e0d3b4' }}>
-            <span className="font-black" style={{ color: '#7a4900' }}>Estimate</span>
-            <span className="font-black text-lg" style={{ color: '#7a4900' }}>₹{cost.total.toLocaleString('en-IN')}</span>
-          </div>
+          {cost.hasPricing && (
+            <div className="flex items-baseline justify-between gap-3 pt-2 mt-1" style={{ borderTop: '1.5px solid #e0d3b4' }}>
+              <span className="font-black" style={{ color: '#7a4900' }}>Estimate</span>
+              <span className="font-black text-lg" style={{ color: '#7a4900' }}>₹{cost.total.toLocaleString('en-IN')}</span>
+            </div>
+          )}
           <p className="text-xs mt-2" style={{ color: '#c0563d' }}>{cost.note}</p>
           {cost.discussionFlags.length > 0 && (
             <div className="mt-3 rounded-xl p-3" style={{ backgroundColor: '#dceff5' }}>

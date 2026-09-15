@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { Search, MapPin, Phone, Clock, ExternalLink, MessageCircle, Stethoscope, Scissors, ShoppingBag, Home, Camera, Flower2, Star, Loader2, AlertCircle, ClipboardCheck, ChevronDown, ChevronRight } from 'lucide-react'
 // MapPin used in ProviderCard address row
 import { getProviders, getProviderFacets } from '../lib/storage.js'
-import { resolvePolicy } from '../lib/boarding.js'
+import { resolvePolicy, hasCustomPolicy, REQUIREMENT_CATALOG } from '../lib/boarding.js'
 
 // Category colours are drawn from the brand's secondary palette — azure,
 // yellow-green, orange-yellow and coral — rather than generic UI colours.
@@ -45,41 +45,57 @@ function TypeBadge({ type }) {
 function BoardingRequirements({ provider }) {
   const [open, setOpen] = useState(false)
   const policy = resolvePolicy(provider)
-  const labels = {
-    vaccination_records: 'Vaccinations up to date, originals carried',
-    kennel_cough: 'Kennel Cough (KC) nasal vaccine',
-    tick_protection: 'Tick protection — spot-on / Bravecto / NexGard / Simparica (not collars or sprays)',
-    deworming: 'Deworming, confirmed in writing by your vet',
-    vet_confirmation: "Vet's written confirmation",
-    trial_visit: 'Trial / orientation visit, by appointment',
-    diet_brief: 'Food preferences shared in advance',
-    bedding: 'A rug, bedsheet or dari',
-    original_records: 'Original vaccination record book',
-    govt_id: 'Two govt photo IDs with address',
-    declaration: 'Declaration & T&C signed at drop-off',
-  }
+  const custom = hasCustomPolicy(provider)
+
+  // The catalogue already carries a label and a one-line explanation for every
+  // requirement, so the directory doesn't keep a second copy of that wording.
+  const label = id => REQUIREMENT_CATALOG.find(r => r.id === id)?.label || id
+  const help  = id => REQUIREMENT_CATALOG.find(r => r.id === id)?.help  || ''
   const windows = (policy.slot_windows || []).map(w => `${w.from}–${w.to}`).join(' · ')
 
   return (
-    <div className="rounded-xl overflow-hidden" style={{ backgroundColor: '#fff9e0' }}>
+    <div className="rounded-xl overflow-hidden"
+      style={{ backgroundColor: custom ? '#fff9e0' : '#f5f0e0' }}>
       <button onClick={() => setOpen(o => !o)}
         className="w-full flex items-center justify-between gap-2 px-3 py-2 text-xs font-bold"
         style={{ color: '#7a4900' }}>
-        <span className="flex items-center gap-1.5">
-          <ClipboardCheck className="w-3.5 h-3.5" /> What they need before a stay
+        <span className="flex items-center gap-1.5 text-left">
+          <ClipboardCheck className="w-3.5 h-3.5 flex-shrink-0" />
+          {custom ? 'What they need before a stay' : 'What boarders usually need'}
         </span>
-        {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+        {open ? <ChevronDown className="w-4 h-4 flex-shrink-0" /> : <ChevronRight className="w-4 h-4 flex-shrink-0" />}
       </button>
+
       {open && (
         <div className="px-3 pb-3 space-y-1.5">
+          {!custom && (
+            <p className="text-xs pb-1" style={{ color: '#c0563d' }}>
+              We don’t have this boarder’s own list yet — this is the general one. Confirm it with them.
+            </p>
+          )}
+
           {(policy.required || []).map(id => (
             <p key={id} className="text-xs flex gap-1.5" style={{ color: '#73775b' }}>
-              <span aria-hidden>·</span><span>{labels[id] || id}</span>
+              <span aria-hidden>·</span>
+              <span><span className="font-semibold" style={{ color: '#7a4900' }}>{label(id)}</span>
+                {help(id) ? ` — ${help(id)}` : ''}</span>
             </p>
           ))}
+
+          {policy.trial_required && (
+            <p className="text-xs flex gap-1.5" style={{ color: '#73775b' }}>
+              <span aria-hidden>·</span><span>A trial visit is required before the first stay.</span>
+            </p>
+          )}
+
           {windows && (
             <p className="text-xs pt-1.5" style={{ color: '#c0563d', borderTop: '1px solid #ebe3d3' }}>
               Drop-off and pick-up only {windows} — outside these hours is billed as an extra day.
+            </p>
+          )}
+          {policy.pricing?.full_day && (
+            <p className="text-xs" style={{ color: '#73775b' }}>
+              From ₹{policy.pricing.full_day.toLocaleString('en-IN')} a day. {policy.pricing.note || ''}
             </p>
           )}
           {policy.arrival_notes && (
@@ -94,7 +110,7 @@ function BoardingRequirements({ provider }) {
 function ProviderCard({ p, onPrepForStay }) {
   const waNumber = p.whatsapp?.replace(/\D/g, '') || p.phone?.replace(/\D/g, '')
   const waLink   = waNumber ? `https://wa.me/${waNumber}` : null
-  const hasPolicy = p.type === 'Boarder' && !!p.boarding_policy
+  const isBoarder = p.type === 'Boarder'
 
   return (
     <div className="rounded-2xl overflow-hidden"
@@ -157,9 +173,9 @@ function ProviderCard({ p, onPrepForStay }) {
           )}
         </div>
 
-        {hasPolicy && <BoardingRequirements provider={p} />}
+        {isBoarder && <BoardingRequirements provider={p} />}
 
-        {hasPolicy && onPrepForStay && (
+        {isBoarder && onPrepForStay && (
           <button onClick={() => onPrepForStay(p)}
             className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-105"
             style={{ backgroundColor: '#ffde59', color: '#7a4900' }}>

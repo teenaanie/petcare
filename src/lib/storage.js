@@ -620,10 +620,12 @@ export async function deleteBoardingTrip(id) {
   lsSet(KEYS.boardingTrips, lsGet(KEYS.boardingTrips).filter(r => r.id !== id))
 }
 
-// Boarders whose requirements we know about, for the trip planner's picker.
-export async function getBoardersWithPolicy() {
+// Every boarder, for the trip planner's search box. Fetched whole and ranked
+// in the browser: Postgres ILIKE can't find "unleesh", and the phonetic
+// matching that can is cheap over a few hundred rows held in memory.
+export async function getBoarders() {
   if (!isConfigured) return []
-  const { rows } = await getProviders({ type: 'Boarder', limit: 200 })
+  const { rows } = await getProviders({ type: 'Boarder', limit: 500 })
   return rows
 }
 

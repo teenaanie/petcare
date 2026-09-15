@@ -109,18 +109,18 @@ export const REQUIREMENT_CATALOG = [
 
 export function requirement(id) { return REQUIREMENT_CATALOG.find(r => r.id === id) }
 
-// ── The default policy: Unleash – The Dog Town, Pune ─────────────────────────
-// Every boarder's rules are data, not code. This constant is the fallback used
-// when a trip has no provider attached, and the seed for the provider row.
+// ── Policies ─────────────────────────────────────────────────────────────────
+//
+// Every boarder's rules are data, not code. Two constants, deliberately not one:
+//
+//   GENERIC_POLICY  the fallback for a boarder nobody has configured yet. It
+//                   carries only what is true of boarders in general, and says
+//                   nothing about menus, hours or rates — because inventing
+//                   those on a facility's behalf is worse than staying quiet.
+//   UNLEASH_POLICY  one real facility's published rules, and the seed for its
+//                   provider row. Its shape is what an admin fills in.
 
-export const DEFAULT_POLICY = {
-  name: 'Unleash – The Dog Town',
-  required: [
-    'vaccination_records', 'kennel_cough', 'tick_protection', 'deworming',
-    'vet_confirmation', 'trial_visit', 'diet_brief', 'bedding',
-    'original_records', 'govt_id', 'declaration',
-  ],
-  trial_required: true,
+const STRUCTURAL = {
   kc_lead_days: 7,
   kc_valid_days: 365,
   deworm_valid_days: DEWORMER_DURATION_DAYS,
@@ -135,6 +135,34 @@ export const DEFAULT_POLICY = {
       { pattern: 'powder', reason: 'Tick powders are not accepted — they do not work reliably.' },
     ],
   },
+}
+
+export const GENERIC_POLICY = {
+  ...STRUCTURAL,
+  isGeneric: true,
+  name: '',
+  // The requirements essentially every boarder asks for. Trial visits and a
+  // vet's written confirmation are common but far from universal, so they are
+  // left to the facility to declare rather than asserted here.
+  required: [
+    'vaccination_records', 'kennel_cough', 'tick_protection', 'deworming',
+    'diet_brief', 'bedding', 'original_records', 'govt_id', 'declaration',
+  ],
+  trial_required: false,
+  // No slot_windows, pricing, food_menu, bring, advisories or arrival notes:
+  // those belong to a particular facility, and the UI shows "ask the boarder"
+  // wherever they are missing.
+}
+
+export const UNLEASH_POLICY = {
+  ...STRUCTURAL,
+  name: 'Unleash – The Dog Town',
+  required: [
+    'vaccination_records', 'kennel_cough', 'tick_protection', 'deworming',
+    'vet_confirmation', 'trial_visit', 'diet_brief', 'bedding',
+    'original_records', 'govt_id', 'declaration',
+  ],
+  trial_required: true,
   slot_windows: [
     { id: 'morning', label: 'Morning', from: '08:00', to: '11:00' },
     { id: 'evening', label: 'Evening', from: '17:00', to: '20:00' },
@@ -174,31 +202,33 @@ export const DEFAULT_POLICY = {
   extras_note: 'Pick-up and drop is available at extra cost, through a third-party vendor.',
 }
 
-// Content that describes one particular facility — its menu, its house rules,
-// its seasonal warnings. A boarder that doesn't publish these must show nothing
-// rather than inherit another facility's, which would be worse than silence.
-const FACILITY_SPECIFIC = [
-  'name', 'food_menu', 'food_note', 'bring', 'do_not_bring',
-  'advisories', 'arrival_notes', 'extras_note',
+// Everything the generic fallback deliberately omits. Kept as one list so the
+// admin editor and resolvePolicy agree on what counts as facility-specific.
+export const FACILITY_FIELDS = [
+  'name', 'slot_windows', 'pricing', 'food_menu', 'food_note',
+  'bring', 'do_not_bring', 'advisories', 'arrival_notes', 'extras_note',
 ]
 
+// What an admin fills in. A field left out stays out — it is not backfilled
+// from Unleash's.
 export function resolvePolicy(provider) {
   const p = provider?.boarding_policy
-  if (!p || typeof p !== 'object') return DEFAULT_POLICY
-
-  // Structural defaults (lead times, product durations, rejected products,
-  // the rate card's shape) are sensible everywhere, so a provider row only has
-  // to carry what it differs on.
-  const base = { ...DEFAULT_POLICY }
-  for (const k of FACILITY_SPECIFIC) delete base[k]
+  if (!p || typeof p !== 'object' || !Object.keys(p).length) return GENERIC_POLICY
 
   return {
-    ...base,
-    ...Object.fromEntries(FACILITY_SPECIFIC.map(k => [k, p[k]])),
+    ...GENERIC_POLICY,
     ...p,
-    tick:    { ...DEFAULT_POLICY.tick,    ...(p.tick || {}) },
-    pricing: { ...DEFAULT_POLICY.pricing, ...(p.pricing || {}) },
+    isGeneric: false,
+    tick:    { ...STRUCTURAL.tick, ...(p.tick || {}) },
+    // Only merge the rate card's shape once the facility has declared one at
+    // all; a boarder with no prices must show none, not Unleash's.
+    pricing: p.pricing ? { currency: 'INR', ...p.pricing } : undefined,
   }
+}
+
+export function hasCustomPolicy(provider) {
+  const p = provider?.boarding_policy
+  return !!(p && typeof p === 'object' && Object.keys(p).length)
 }
 
 // ── Matching helpers ─────────────────────────────────────────────────────────
@@ -251,9 +281,9 @@ function coverUntil(record, startKey, fallbackDays) {
 // A manual `done` override always wins: a vet's written confirmation is a fact
 // the app has no way to see.
 
-export function evaluateReadiness(pet, { vaccinations = [], medicines = [] } = {}, policy = DEFAULT_POLICY, tripStartDate = null, overrides = {}) {
+export function evaluateReadiness(pet, { vaccinations = [], medicines = [] } = {}, policy = GENERIC_POLICY, tripStartDate = null, overrides = {}) {
   const start = d(tripStartDate) || today()
-  const ids = policy.required || DEFAULT_POLICY.required
+  const ids = policy.required || GENERIC_POLICY.required
 
   return ids.map(id => {
     const req = requirement(id)
@@ -398,7 +428,7 @@ function clamp(dateStr) {
   return { dueDate: iso(x), overdue: false }
 }
 
-export function prepTasks(policy = DEFAULT_POLICY, tripStartDate = null, evaluation = []) {
+export function prepTasks(policy = GENERIC_POLICY, tripStartDate = null, evaluation = []) {
   const start = d(tripStartDate)
   if (!start) return []
   const by = (id) => evaluation.find(e => e.id === id)
@@ -460,15 +490,39 @@ export function prepTasks(policy = DEFAULT_POLICY, tripStartDate = null, evaluat
 
 export const OTHER_SLOT = 'other'
 
-export function slotOptions(policy = DEFAULT_POLICY) {
+export function hasSlotWindows(policy = GENERIC_POLICY) {
+  return !!(policy.slot_windows || []).length
+}
+
+// Without published hours there is nothing to pick from, so the caller falls
+// back to a plain morning/evening choice that carries no claim about billing.
+export function slotOptions(policy = GENERIC_POLICY) {
+  const windows = policy.slot_windows || []
+  if (!windows.length) {
+    return [
+      { id: 'morning', label: 'Morning' },
+      { id: 'evening', label: 'Evening' },
+    ]
+  }
   return [
-    ...(policy.slot_windows || []).map(w => ({ ...w, label: `${w.label} (${w.from}–${w.to})` })),
+    ...windows.map(w => ({ ...w, label: `${w.label} (${w.from}–${w.to})` })),
     { id: OTHER_SLOT, label: 'Outside these hours' },
   ]
 }
 
-export function validateSlot(policy = DEFAULT_POLICY, slotId) {
+// Boarders don't share slot ids, so a slot chosen under one policy may not
+// exist under the next. Left alone it would silently read as "outside hours"
+// and add a phantom extra day to the estimate, so it is remapped instead.
+export function coerceSlot(policy = GENERIC_POLICY, slotId) {
+  const opts = slotOptions(policy)
+  return opts.some(o => o.id === slotId) ? slotId : (opts[0]?.id || '')
+}
+
+export function validateSlot(policy = GENERIC_POLICY, slotId) {
   const windows = policy.slot_windows || []
+  // Nothing published means nothing to warn about. Asserting an extra-day
+  // charge on a facility that never said so would be inventing its terms.
+  if (!windows.length) return { ok: true, window: null, message: '' }
   const win = windows.find(w => w.id === slotId)
   if (win) return { ok: true, window: win, message: '' }
   const list = windows.map(w => `${w.from}–${w.to}`).join(' or ')
@@ -480,7 +534,7 @@ export function validateSlot(policy = DEFAULT_POLICY, slotId) {
 // Shown only when they overlap the stay; a year-round wall of warnings is a
 // wall nobody reads.
 
-export function activeAdvisories(policy = DEFAULT_POLICY, startDate, endDate) {
+export function activeAdvisories(policy = GENERIC_POLICY, startDate, endDate) {
   const s = d(startDate), e = d(endDate) || s
   if (!s) return []
   const months = new Set()
@@ -495,13 +549,13 @@ export function activeAdvisories(policy = DEFAULT_POLICY, startDate, endDate) {
 // charges are phrased as things the boarder *may ask about* — the app is in no
 // position to assert that a particular dog attracts a surcharge.
 
-export function estimateCost(policy = DEFAULT_POLICY, trip = {}, pet = {}) {
-  const pricing = policy.pricing || DEFAULT_POLICY.pricing
+export function estimateCost(policy = GENERIC_POLICY, trip = {}, pet = {}) {
+  const pricing = policy.pricing
   const start = d(trip.startDate), end = d(trip.endDate)
   const lines = []
   let total = 0
 
-  if (start) {
+  if (start && pricing) {
     const nights = end ? Math.max(0, differenceInCalendarDays(end, start)) : 0
     if (nights === 0) {
       const dayOnly = trip.startSlot === 'morning' && trip.endSlot === 'evening'
@@ -519,7 +573,7 @@ export function estimateCost(policy = DEFAULT_POLICY, trip = {}, pet = {}) {
   }
 
   for (const [which, slot] of [['Drop-off', trip.startSlot], ['Pick-up', trip.endSlot]]) {
-    if (slot && !validateSlot(policy, slot).ok) {
+    if (pricing && slot && !validateSlot(policy, slot).ok) {
       lines.push({ label: `${which} outside visiting hours — billed as an extra day`, amount: pricing.full_day })
       total += pricing.full_day
     }
@@ -534,7 +588,7 @@ export function estimateCost(policy = DEFAULT_POLICY, trip = {}, pet = {}) {
 
   if (start) {
     const daysOut = differenceInCalendarDays(start, today())
-    if (daysOut >= 0 && daysOut < (pricing.last_minute_days ?? 3)) {
+    if (daysOut >= 0 && daysOut < (pricing?.last_minute_days ?? 3)) {
       flags.push('Booked at short notice — last-minute bookings cost more.')
     }
   }
@@ -546,10 +600,14 @@ export function estimateCost(policy = DEFAULT_POLICY, trip = {}, pet = {}) {
   if ((pet.triggers || []).length) flags.push('You have noted triggers — share these at the trial visit.')
 
   return {
-    currency: pricing.currency || 'INR',
+    currency: pricing?.currency || 'INR',
     lines, total,
     isEstimate: true,
-    note: pricing.note || 'Rates change — confirm current pricing before the stay.',
+    // No rate card on file — say so rather than quoting someone else's.
+    hasPricing: !!pricing,
+    note: pricing
+      ? (pricing.note || 'Rates change — confirm current pricing before the stay.')
+      : 'No rates on file for this boarder — ask them what a stay costs, and whether age, medical needs or a special diet change it.',
     discussionFlags: flags,
   }
 }
@@ -558,7 +616,7 @@ export function estimateCost(policy = DEFAULT_POLICY, trip = {}, pet = {}) {
 // The artefact that actually reaches the boarder, so it carries the things they
 // will otherwise have to ask for at the gate.
 
-export function buildBoardingPack({ pet, policy = DEFAULT_POLICY, trip = {}, evaluation = [], allergies = [], medicines = [] }) {
+export function buildBoardingPack({ pet, policy = GENERIC_POLICY, trip = {}, evaluation = [], allergies = [], medicines = [] }) {
   const menu = policy.food_menu || []
   const prefs = (pet.foodPreferences || [])
     .map(id => menu.find(m => m.id === id)?.label || id)

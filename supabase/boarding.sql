@@ -80,8 +80,11 @@ CREATE POLICY "boarding_trips_delete" ON boarding_trips
   FOR DELETE USING (is_pet_editor(pet_id));
 
 -- ── 4. Seed: Unleash – The Dog Town ──────────────────────────────────────────
--- Mirrors DEFAULT_POLICY in src/lib/boarding.js. If the two drift, the app
--- prefers whatever the provider row says, falling back to the constant.
+-- Mirrors UNLEASH_POLICY in src/lib/boarding.js. This is a seed, not a
+-- migration you have to keep in step: from here on the rules are edited in
+-- Admin → Boarding, which writes this same column. A boarder with no policy
+-- shows GENERIC_POLICY — the criteria most boarders ask for, and no invented
+-- hours, rates or menu.
 
 UPDATE providers SET boarding_policy = '{
   "name": "Unleash – The Dog Town",
