@@ -82,9 +82,22 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
             ))}
           </div>
 
+          {/* Find Services stays reachable from inside a pet too. Pinned
+              outside the scrolling tab list, so it can't sink out of view. */}
+          <div className="px-3 pt-3 pb-1 flex-shrink-0" style={{ borderTop: '1px solid #ebe3d3' }}>
+            <button
+              onClick={onToggleServices}
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold transition-all"
+              style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}
+            >
+              <Store className="w-4 h-4 flex-shrink-0" />
+              Find Services
+            </button>
+          </div>
+
           {/* Migrate banner */}
           {hasLocalData && (
-            <div className="px-3 py-3 flex-shrink-0" style={{ borderTop: '1px solid #ebe3d3' }}>
+            <div className="px-3 py-3 flex-shrink-0">
               <button
                 onClick={() => setShowMigrate(true)}
                 className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold"
@@ -95,6 +108,7 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
               </button>
             </div>
           )}
+          {!hasLocalData && <div className="pb-3 flex-shrink-0" />}
         </>
       ) : (
         /* ── No pet selected: full pets list ──────────────────────────── */
