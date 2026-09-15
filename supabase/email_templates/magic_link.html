@@ -1,49 +1,54 @@
 <!-- Supabase → Authentication → Email Templates → Magic Link
-     Subject line to set alongside this body: Sign in to Pippy -->
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FFFEF8;padding:32px 16px;">
+     Subject line to set alongside this body: Your Pippy sign-in code
+
+     The 6-digit code leads, and the link is secondary. Tapping a link from a
+     phone's mail app opens a browser, not the installed Pippy app — and on
+     iOS an installed web app has its own storage, so signing in via the
+     browser leaves the app itself signed out. Typing the code into the app
+     is the only route that actually signs the app in. -->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#fffef8;padding:32px 16px;">
   <tr>
     <td align="center">
-      <table role="presentation" width="100%" style="max-width:420px;background-color:#FFFFFF;border:1px solid #F0E6C8;border-radius:20px;overflow:hidden;font-family:Nunito,-apple-system,Segoe UI,Roboto,sans-serif;">
+      <table role="presentation" width="100%" style="max-width:420px;background-color:#FFFFFF;border:1px solid #ebe3d3;border-radius:20px;overflow:hidden;font-family:Nunito,-apple-system,Segoe UI,Roboto,sans-serif;">
 
         <!-- Header -->
         <tr>
-          <td style="background-color:#F9D548;padding:24px 28px;text-align:center;">
-            <span style="font-size:24px;font-weight:900;color:#4A2C0A;">pip<span style="color:#FFFFFF;">py</span></span>
+          <td style="background-color:#f2b83d;padding:24px 28px;text-align:center;">
+            <span style="font-size:24px;font-weight:900;color:#7a4900;">pip<span style="color:#FFFFFF;">py</span></span>
           </td>
         </tr>
 
         <!-- Body -->
         <tr>
           <td style="padding:32px 28px;">
-            <h1 style="margin:0 0 12px;font-size:19px;font-weight:800;color:#4A2C0A;">Sign in to Pippy</h1>
-            <p style="margin:0 0 24px;font-size:14px;line-height:1.6;color:#6B4C1E;">
-              Tap the button below to sign in as <strong>{{ .Email }}</strong>. This link expires in 1 hour and can only be used once.
+            <h1 style="margin:0 0 12px;font-size:19px;font-weight:800;color:#7a4900;">Sign in to Pippy</h1>
+            <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#7a4900;">
+              Enter this code in Pippy to sign in as <strong>{{ .Email }}</strong>.
+              It expires in 1 hour and can only be used once.
             </p>
 
-            <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 20px;">
               <tr>
-                <td style="border-radius:12px;background-color:#F9D548;">
-                  <a href="{{ .ConfirmationURL }}"
-                     style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:800;color:#4A2C0A;text-decoration:none;">
-                    Sign in to Pippy
-                  </a>
+                <td style="border-radius:14px;background-color:#fff3c0;padding:18px 34px;text-align:center;">
+                  <div style="font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#73775b;margin-bottom:6px;">Your code</div>
+                  <div style="font-size:34px;font-weight:800;letter-spacing:.2em;color:#7a4900;font-family:ui-monospace,Menlo,Consolas,monospace;">{{ .Token }}</div>
                 </td>
               </tr>
             </table>
 
-            <p style="margin:0 0 4px;font-size:12px;color:#B8A080;">Button not working? Paste this link into your browser:</p>
-            <p style="margin:0 0 24px;font-size:12px;word-break:break-all;color:#6B4C1E;">
-              <a href="{{ .ConfirmationURL }}" style="color:#6B4C1E;">{{ .ConfirmationURL }}</a>
+            <p style="margin:0 0 20px;font-size:12px;line-height:1.6;color:#73775b;text-align:center;">
+              On a computer instead?
+              <a href="{{ .ConfirmationURL }}" style="color:#7a4900;font-weight:700;">Sign in with one tap</a>.
             </p>
 
-            <p style="margin:0;font-size:12px;line-height:1.6;color:#B8A080;border-top:1px solid #F0E6C8;padding-top:16px;">
+            <p style="margin:0;font-size:12px;line-height:1.6;color:#73775b;border-top:1px solid #ebe3d3;padding-top:16px;">
               Didn't request this? You can safely ignore this email — no changes will be made to your account.
             </p>
           </td>
         </tr>
       </table>
 
-      <p style="margin:20px 0 0;font-size:11px;color:#B8A080;font-family:Nunito,-apple-system,Segoe UI,Roboto,sans-serif;">
+      <p style="margin:20px 0 0;font-size:11px;color:#73775b;font-family:Nunito,-apple-system,Segoe UI,Roboto,sans-serif;">
         Pippy — Pet Care
       </p>
     </td>

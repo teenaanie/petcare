@@ -106,7 +106,7 @@ export default function PhoneAuth() {
       }
 
       setSentTo(target)
-      if (method === 'phone') saveOtpState(method, target)
+      saveOtpState(method, target)
       setStep('otp')
     } catch (err) {
       setError(friendlyAuthError(err))
@@ -237,7 +237,7 @@ export default function PhoneAuth() {
                       value={email} onChange={e => setEmail(e.target.value)}
                       autoFocus required />
                     <p className="text-xs mt-1.5" style={{ color: '#73775b' }}>
-                      We'll send a sign-in link to this email
+                      We'll send a 6-digit code to this email
                     </p>
                   </div>
                 )}
@@ -317,31 +317,54 @@ export default function PhoneAuth() {
                 </div>
                 <h1 className="text-xl font-black mb-2" style={{ color: '#7a4900' }}>Check your email</h1>
                 <p className="text-sm mb-1" style={{ color: '#73775b' }}>
-                  We sent a sign-in link to
+                  We sent a 6-digit code to
                 </p>
-                <p className="text-sm font-bold mb-4" style={{ color: '#7a4900' }}>{sentTo}</p>
-                <p className="text-xs" style={{ color: '#73775b' }}>
-                  Click the link in the email to sign in. You can close this tab.
-                </p>
-                <p className="text-xs mt-3 px-3 py-2 rounded-xl" style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
-                  💡 Can't find it? Check your spam folder — then tap "Sign in to Pippy" inside the email.
-                </p>
+                <p className="text-sm font-bold" style={{ color: '#7a4900' }}>{sentTo}</p>
               </div>
 
-              {error && <ErrorBox message={error} />}
+              {/* Code entry rather than link-only. A link opened from Mail lands
+                  in the browser, which on iOS is separate storage from the
+                  installed app — so the app itself would stay signed out. */}
+              <form onSubmit={handleVerify} className="space-y-4">
+                <div>
+                  <label className="label text-xs">Enter your 6-digit code</label>
+                  <input
+                    type="text" inputMode="numeric" pattern="[0-9]*"
+                    maxLength={6} autoComplete="one-time-code"
+                    className="input text-center text-2xl font-black tracking-[0.3em]"
+                    placeholder="• • • • • •"
+                    value={otp}
+                    onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    autoFocus required />
+                </div>
 
-              <div className="flex items-center justify-between text-xs mt-4" style={{ color: '#73775b' }}>
-                <button type="button"
-                  onClick={() => { setStep('entry'); setError(null); clearOtpState() }}
-                  className="flex items-center gap-1 hover:underline">
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  Change email
+                {error && <ErrorBox message={error} />}
+
+                <button type="submit" disabled={loading || otp.length < 4}
+                  className="btn-primary w-full justify-center gap-2">
+                  {loading
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Verifying…</>
+                    : <><CheckCircle className="w-4 h-4" /> Verify &amp; Sign In</>}
                 </button>
-                <button type="button" onClick={handleResend} disabled={loading}
-                  className="hover:underline">
-                  {loading ? 'Sending…' : 'Resend link'}
-                </button>
-              </div>
+
+                <p className="text-xs text-center px-3 py-2 rounded-xl" style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
+                  Using the Pippy app? Type the code here — tapping the email link
+                  opens your browser instead, which signs you in there, not in the app.
+                </p>
+
+                <div className="flex items-center justify-between text-xs" style={{ color: '#73775b' }}>
+                  <button type="button"
+                    onClick={() => { setStep('entry'); setError(null); setOtp(''); clearOtpState() }}
+                    className="flex items-center gap-1 hover:underline">
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    Change email
+                  </button>
+                  <button type="button" onClick={handleResend} disabled={loading}
+                    className="hover:underline">
+                    {loading ? 'Sending…' : 'Resend code'}
+                  </button>
+                </div>
+              </form>
             </>
           )}
         </div>
