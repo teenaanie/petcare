@@ -66,12 +66,12 @@ const RECOMMENDATIONS = {
 }
 
 const TYPE_COLORS = {
-  'Vaccination':  '#2563EB',
-  'Deworming':    '#7C3AED',
-  'Flea & Tick':  '#DC2626',
-  'Dental':       '#0891B2',
-  'Health Check': '#059669',
-  'Grooming':     '#D97706',
+  'Vaccination':  '#2f7286',
+  'Deworming':    '#b2566f',
+  'Flea & Tick':  '#c0392b',
+  'Dental':       '#2f7286',
+  'Health Check': '#5f7a3a',
+  'Grooming':     '#c9891f',
 }
 
 // ── Main modal ────────────────────────────────────────────────────────────────
@@ -160,17 +160,17 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
-        style={{ backgroundColor: '#FFFEF8', border: '1px solid #F0E6C8' }}>
+        style={{ backgroundColor: '#FFFEF8', border: '1px solid #ebe3d3' }}>
 
         {/* ── Step 1: Pet form ─────────────────────────────────────────── */}
         {step === 'form' && (
           <>
-            <div className="flex items-center justify-between p-6" style={{ borderBottom: '1px solid #F0E6C8' }}>
-              <h2 className="text-lg font-black" style={{ color: '#4A2C0A' }}>
+            <div className="flex items-center justify-between p-6" style={{ borderBottom: '1px solid #ebe3d3' }}>
+              <h2 className="text-lg font-black" style={{ color: '#7a4900' }}>
                 {existing ? 'Edit Pet' : 'Add New Pet 🐾'}
               </h2>
               <button onClick={onClose} className="p-1 rounded-lg hover:bg-amber-50 transition-colors"
-                style={{ color: '#B8A080' }}>
+                style={{ color: '#73775b' }}>
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -182,7 +182,7 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
                 <div className="flex-1">
                   <label className="label">Pet Name *</label>
                   <input name="name" value={form.name} onChange={handleChange} className="input" required placeholder="e.g. Buddy" />
-                  <p className="text-xs mt-1" style={{ color: '#B8A080' }}>Tap the photo to upload or take a picture</p>
+                  <p className="text-xs mt-1" style={{ color: '#73775b' }}>Tap the photo to upload or take a picture</p>
                 </div>
               </div>
 
@@ -228,7 +228,7 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
 
               {/* Vet info */}
               <div>
-                <h3 className="text-sm font-black mb-3" style={{ color: '#6B4C1E' }}>Veterinarian</h3>
+                <h3 className="text-sm font-black mb-3" style={{ color: '#7a4900' }}>Veterinarian</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <label className="label">Vet Name</label>
@@ -264,56 +264,56 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
         {/* ── Step 2: Recommended reminders ───────────────────────────── */}
         {step === 'reminders' && (
           <>
-            <div className="flex items-center justify-between p-6" style={{ borderBottom: '1px solid #F0E6C8' }}>
+            <div className="flex items-center justify-between p-6" style={{ borderBottom: '1px solid #ebe3d3' }}>
               <div>
-                <h2 className="text-lg font-black" style={{ color: '#4A2C0A' }}>
+                <h2 className="text-lg font-black" style={{ color: '#7a4900' }}>
                   Recommended Reminders 🔔
                 </h2>
-                <p className="text-xs mt-0.5" style={{ color: '#B8A080' }}>
+                <p className="text-xs mt-0.5" style={{ color: '#73775b' }}>
                   Suggested for {form.name} · {form.species}
                   {form.breed ? ` · ${form.breed}` : ''}
                 </p>
               </div>
-              <button onClick={onClose} className="p-1 rounded-lg hover:bg-amber-50" style={{ color: '#B8A080' }}>
+              <button onClick={onClose} className="p-1 rounded-lg hover:bg-amber-50" style={{ color: '#73775b' }}>
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="p-6 space-y-3">
-              <p className="text-sm" style={{ color: '#6B4C1E' }}>
+              <p className="text-sm" style={{ color: '#7a4900' }}>
                 We've pre-selected common care reminders for a {form.species.toLowerCase()}. Tap to toggle any you don't need.
               </p>
 
               <div className="space-y-2 mt-1">
                 {suggestions.map((r, i) => {
                   const isOn = selected.has(i)
-                  const color = TYPE_COLORS[r.type] || '#6B7280'
+                  const color = TYPE_COLORS[r.type] || '#73775b'
                   return (
                     <button key={i} type="button" onClick={() => toggleReminder(i)}
                       className="w-full text-left flex items-start gap-3 p-4 rounded-2xl transition-all"
                       style={{
-                        backgroundColor: isOn ? '#FFFEF8' : '#F7F7F7',
-                        border: `1.5px solid ${isOn ? '#F9D548' : '#E5E5E5'}`,
+                        backgroundColor: isOn ? '#FFFEF8' : '#fffef8',
+                        border: `1.5px solid ${isOn ? '#f2b83d' : '#ebe3d3'}`,
                         opacity: isOn ? 1 : 0.55,
                       }}>
                       <div className="flex-shrink-0 mt-0.5">
                         {isOn
-                          ? <CheckCircle className="w-5 h-5" style={{ color: '#D4A800' }} />
-                          : <Circle className="w-5 h-5" style={{ color: '#D1C4A8' }} />}
+                          ? <CheckCircle className="w-5 h-5" style={{ color: '#c99a2e' }} />
+                          : <Circle className="w-5 h-5" style={{ color: '#e0d3b4' }} />}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-black" style={{ color: '#4A2C0A' }}>{r.label}</span>
+                          <span className="text-sm font-black" style={{ color: '#7a4900' }}>{r.label}</span>
                           <span className="text-xs px-2 py-0.5 rounded-full font-bold"
                             style={{ backgroundColor: color + '15', color }}>
                             {r.type}
                           </span>
                         </div>
-                        <p className="text-xs mt-0.5" style={{ color: '#B8A080' }}>
+                        <p className="text-xs mt-0.5" style={{ color: '#73775b' }}>
                           {r.frequency} · Due: {new Date(r.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </p>
                         {r.notes && (
-                          <p className="text-xs mt-0.5 italic" style={{ color: '#9CA3AF' }}>{r.notes}</p>
+                          <p className="text-xs mt-0.5 italic" style={{ color: '#73775b' }}>{r.notes}</p>
                         )}
                       </div>
                     </button>

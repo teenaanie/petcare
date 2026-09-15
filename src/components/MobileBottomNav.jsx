@@ -15,18 +15,18 @@ const tabs = [
 export default function MobileBottomNav({ activeTab, onTabChange }) {
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-20 scrollbar-hide"
-      style={{ backgroundColor: '#FFFEF8', borderTop: '1px solid #F0E6C8' }}>
+      style={{ backgroundColor: '#FFFEF8', borderTop: '1px solid #ebe3d3' }}>
       <div className="flex overflow-x-auto scrollbar-hide">
         {tabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => onTabChange(id)}
             className="flex-shrink-0 flex flex-col items-center gap-0.5 px-3 py-2 min-w-[64px] transition-all"
-            style={{ color: activeTab === id ? '#4A2C0A' : '#B8A080' }}
+            style={{ color: activeTab === id ? '#7a4900' : '#73775b' }}
           >
             <div className="relative">
               {activeTab === id && (
-                <div className="absolute inset-0 rounded-lg -m-1" style={{ backgroundColor: '#F9D548' }} />
+                <div className="absolute inset-0 rounded-lg -m-1" style={{ backgroundColor: '#f2b83d' }} />
               )}
               <Icon className="w-5 h-5 relative z-10" />
             </div>

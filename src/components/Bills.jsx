@@ -48,8 +48,8 @@ function SpendChart({ bills, currency }) {
   return (
     <div className="card mb-4">
       <div className="flex items-center gap-2 mb-4">
-        <TrendingUp className="w-4 h-4" style={{ color: '#4A2C0A' }} />
-        <span className="font-black text-sm" style={{ color: '#4A2C0A' }}>Monthly Spend</span>
+        <TrendingUp className="w-4 h-4" style={{ color: '#7a4900' }} />
+        <span className="font-black text-sm" style={{ color: '#7a4900' }}>Monthly Spend</span>
       </div>
 
       {/* Bars */}
@@ -59,13 +59,13 @@ function SpendChart({ bills, currency }) {
           const pct = maxVal > 0 ? (val / maxVal) * 100 : 0
           return (
             <div key={m} className="flex-1 flex flex-col items-center gap-1">
-              <span className="text-[9px] font-bold leading-none" style={{ color: '#B8A080' }}>
+              <span className="text-[9px] font-bold leading-none" style={{ color: '#73775b' }}>
                 {currencySymbol(currency)}{val >= 1000 ? `${(val / 1000).toFixed(1)}k` : Math.round(val)}
               </span>
               <div className="w-full rounded-t-lg transition-all"
                 style={{
                   height: `${Math.max(pct, 4)}%`,
-                  backgroundColor: '#F9D548',
+                  backgroundColor: '#f2b83d',
                   minHeight: 4,
                 }} />
             </div>
@@ -77,7 +77,7 @@ function SpendChart({ bills, currency }) {
       <div className="flex gap-2 mt-1">
         {recent.map(m => (
           <div key={m} className="flex-1 text-center">
-            <span className="text-[9px]" style={{ color: '#B8A080' }}>{monthLabel(m)}</span>
+            <span className="text-[9px]" style={{ color: '#73775b' }}>{monthLabel(m)}</span>
           </div>
         ))}
       </div>
@@ -119,12 +119,12 @@ function AddBillForm({ onSave, onCancel }) {
   }
 
   return (
-    <div className="card" style={{ backgroundColor: '#FFFEF0', borderColor: '#F9D548' }}>
+    <div className="card" style={{ backgroundColor: '#fff9e0', borderColor: '#f2b83d' }}>
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="flex items-center justify-between">
-          <span className="font-black text-sm" style={{ color: '#4A2C0A' }}>Add Bill / Invoice</span>
+          <span className="font-black text-sm" style={{ color: '#7a4900' }}>Add Bill / Invoice</span>
           <button type="button" onClick={onCancel}>
-            <X className="w-4 h-4" style={{ color: '#B8A080' }} />
+            <X className="w-4 h-4" style={{ color: '#73775b' }} />
           </button>
         </div>
 
@@ -169,7 +169,7 @@ function AddBillForm({ onSave, onCancel }) {
           </div>
           <button type="button" onClick={addRow}
             className="mt-2 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
-            style={{ backgroundColor: '#FFF5AA', color: '#4A2C0A' }}>
+            style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
             + Add line
           </button>
         </div>
@@ -177,7 +177,7 @@ function AddBillForm({ onSave, onCancel }) {
         {/* Auto total */}
         {total > 0 && (
           <div className="flex justify-end">
-            <span className="font-black text-lg" style={{ color: '#4A2C0A' }}>
+            <span className="font-black text-lg" style={{ color: '#7a4900' }}>
               Total: {fmt(total, form.currency)}
             </span>
           </div>
@@ -208,25 +208,25 @@ function BillCard({ bill, onDelete }) {
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-start gap-3 flex-1 min-w-0">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ backgroundColor: '#FFF5AA' }}>
-            <Receipt className="w-4 h-4" style={{ color: '#4A2C0A' }} />
+            style={{ backgroundColor: '#fff3c0' }}>
+            <Receipt className="w-4 h-4" style={{ color: '#7a4900' }} />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-black text-sm" style={{ color: '#4A2C0A' }}>
+            <p className="font-black text-sm" style={{ color: '#7a4900' }}>
               {bill.clinic || 'Vet Clinic'}
             </p>
             <div className="flex items-center gap-2 mt-0.5">
               {d && (
-                <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#FFF5AA', color: '#6B4C1E' }}>
+                <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
                   {format(d, 'MMM d, yyyy')}
                 </span>
               )}
               {bill.invoiceNumber && (
-                <span className="text-xs" style={{ color: '#B8A080' }}>#{bill.invoiceNumber}</span>
+                <span className="text-xs" style={{ color: '#73775b' }}>#{bill.invoiceNumber}</span>
               )}
             </div>
             {bill.totalAmount && (
-              <p className="font-black text-base mt-1" style={{ color: '#4A2C0A' }}>
+              <p className="font-black text-base mt-1" style={{ color: '#7a4900' }}>
                 {fmt(bill.totalAmount, bill.currency)}
               </p>
             )}
@@ -236,7 +236,7 @@ function BillCard({ bill, onDelete }) {
           {bill.lineItems?.length > 0 && (
             <button onClick={() => setExpanded(v => !v)}
               className="p-1.5 rounded-lg transition-colors"
-              style={{ backgroundColor: '#FFF5AA', color: '#4A2C0A' }}>
+              style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
               {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
           )}
@@ -249,12 +249,12 @@ function BillCard({ bill, onDelete }) {
 
       {/* Line items */}
       {expanded && bill.lineItems?.length > 0 && (
-        <div className="mt-3 pt-3" style={{ borderTop: '1px solid #F0E6C8' }}>
+        <div className="mt-3 pt-3" style={{ borderTop: '1px solid #ebe3d3' }}>
           <div className="space-y-1.5">
             {bill.lineItems.map((item, i) => (
               <div key={i} className="flex justify-between text-sm">
-                <span style={{ color: '#6B4C1E' }}>{item.description}</span>
-                <span className="font-semibold" style={{ color: '#4A2C0A' }}>
+                <span style={{ color: '#7a4900' }}>{item.description}</span>
+                <span className="font-semibold" style={{ color: '#7a4900' }}>
                   {fmt(item.amount, bill.currency)}
                 </span>
               </div>
@@ -262,7 +262,7 @@ function BillCard({ bill, onDelete }) {
           </div>
           {bill.totalAmount && (
             <div className="flex justify-between mt-2 pt-2 font-black text-sm"
-              style={{ borderTop: '1px solid #F0E6C8', color: '#4A2C0A' }}>
+              style={{ borderTop: '1px solid #ebe3d3', color: '#7a4900' }}>
               <span>Total</span>
               <span>{fmt(bill.totalAmount, bill.currency)}</span>
             </div>
@@ -271,7 +271,7 @@ function BillCard({ bill, onDelete }) {
       )}
 
       {bill.notes && (
-        <p className="text-xs mt-2 italic" style={{ color: '#B8A080' }}>{bill.notes}</p>
+        <p className="text-xs mt-2 italic" style={{ color: '#73775b' }}>{bill.notes}</p>
       )}
     </div>
   )
@@ -307,10 +307,10 @@ export default function Bills({ pet }) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-black" style={{ color: '#4A2C0A' }}>Bills & Invoices</h2>
+          <h2 className="text-lg font-black" style={{ color: '#7a4900' }}>Bills & Invoices</h2>
           {bills.length > 0 && (
-            <p className="text-sm" style={{ color: '#B8A080' }}>
-              Total: <span className="font-bold" style={{ color: '#4A2C0A' }}>{fmt(totalSpent, mainCurrency)}</span>
+            <p className="text-sm" style={{ color: '#73775b' }}>
+              Total: <span className="font-bold" style={{ color: '#7a4900' }}>{fmt(totalSpent, mainCurrency)}</span>
               {' '}across {bills.length} bill{bills.length > 1 ? 's' : ''}
             </p>
           )}
@@ -332,11 +332,11 @@ export default function Bills({ pet }) {
       {bills.length === 0 && !showForm && (
         <div className="card flex flex-col items-center py-16 text-center">
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-3"
-            style={{ backgroundColor: '#FFF5AA' }}>
-            <Receipt className="w-8 h-8" style={{ color: '#4A2C0A' }} />
+            style={{ backgroundColor: '#fff3c0' }}>
+            <Receipt className="w-8 h-8" style={{ color: '#7a4900' }} />
           </div>
-          <p className="font-bold" style={{ color: '#4A2C0A' }}>No bills recorded</p>
-          <p className="text-sm mt-1" style={{ color: '#B8A080' }}>
+          <p className="font-bold" style={{ color: '#7a4900' }}>No bills recorded</p>
+          <p className="text-sm mt-1" style={{ color: '#73775b' }}>
             Add bills manually or scan a vet invoice to track expenses.
           </p>
         </div>

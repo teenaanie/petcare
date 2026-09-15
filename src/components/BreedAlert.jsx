@@ -87,41 +87,41 @@ export default function BreedAlert({ pet }) {
   if (!alerts || alerts.length === 0) return null
 
   return (
-    <div className="card mb-4" style={{ border: '1.5px solid #FDE68A', backgroundColor: '#FFFBEB' }}>
+    <div className="card mb-4" style={{ border: '1.5px solid #ffde59', backgroundColor: '#fff9e0' }}>
       <button
         className="w-full flex items-center justify-between gap-3 text-left"
         onClick={() => setExpanded(v => !v)}
       >
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ backgroundColor: '#FEF3C7' }}>
-            <AlertTriangle className="w-4 h-4" style={{ color: '#D97706' }} />
+            style={{ backgroundColor: '#fff3c0' }}>
+            <AlertTriangle className="w-4 h-4" style={{ color: '#c9891f' }} />
           </div>
           <div>
-            <p className="font-black text-sm" style={{ color: '#92400E' }}>
+            <p className="font-black text-sm" style={{ color: '#7a4900' }}>
               {pet.breed} Health Watch
             </p>
-            <p className="text-xs" style={{ color: '#B45309' }}>
+            <p className="text-xs" style={{ color: '#9a6a12' }}>
               {alerts.length} known breed-specific concern{alerts.length > 1 ? 's' : ''}
             </p>
           </div>
         </div>
         {expanded
-          ? <ChevronUp className="w-4 h-4 flex-shrink-0" style={{ color: '#D97706' }} />
-          : <ChevronDown className="w-4 h-4 flex-shrink-0" style={{ color: '#D97706' }} />}
+          ? <ChevronUp className="w-4 h-4 flex-shrink-0" style={{ color: '#c9891f' }} />
+          : <ChevronDown className="w-4 h-4 flex-shrink-0" style={{ color: '#c9891f' }} />}
       </button>
 
       {expanded && (
-        <div className="mt-3 pt-3" style={{ borderTop: '1px solid #FDE68A' }}>
+        <div className="mt-3 pt-3" style={{ borderTop: '1px solid #ffde59' }}>
           <ul className="space-y-1.5">
             {alerts.map((a, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm" style={{ color: '#78350F' }}>
+              <li key={i} className="flex items-start gap-2 text-sm" style={{ color: '#7a4900' }}>
                 <span className="mt-0.5 flex-shrink-0">⚠️</span>
                 <span>{a}</span>
               </li>
             ))}
           </ul>
-          <p className="text-xs mt-3 italic" style={{ color: '#B45309' }}>
+          <p className="text-xs mt-3 italic" style={{ color: '#9a6a12' }}>
             This is general breed information — not a diagnosis. Discuss with your vet at next check-up.
           </p>
         </div>

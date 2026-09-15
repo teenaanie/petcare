@@ -3,6 +3,7 @@ import { PawPrint, Plus, Stethoscope, Syringe, AlertTriangle, FileText, Bell, Ch
 import { getPets } from '../lib/storage.js'
 import MigrateData from './MigrateData.jsx'
 import PetAvatar from './PetAvatar.jsx'
+import PippyLogo from './PippyLogo.jsx'
 
 const tabs = [
   { id: 'timeline',      label: 'Timeline',          icon: GitBranch },
@@ -34,7 +35,7 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
       fixed md:relative z-40 inset-y-0 left-0
       transition-transform duration-300 ease-in-out
       ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-    `} style={{ backgroundColor: '#FFFEF8', borderRight: '1px solid #F0E6C8' }}>
+    `} style={{ backgroundColor: '#FFFEF8', borderRight: '1px solid #ebe3d3' }}>
 
       {/* ── Pet selected: focused view ──────────────────────────────────── */}
       {selectedPet ? (
@@ -43,8 +44,8 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
           <button
             onClick={() => { onSelectPet(null); onClose?.() }}
             className="flex items-center gap-1.5 px-4 py-3 text-sm font-bold transition-colors w-full text-left flex-shrink-0"
-            style={{ color: '#6B4C1E', borderBottom: '1px solid #F0E6C8' }}
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#FFF9D6'}
+            style={{ color: '#7a4900', borderBottom: '1px solid #ebe3d3' }}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#fff9e0'}
             onMouseLeave={e => e.currentTarget.style.backgroundColor = ''}
           >
             <ChevronLeft className="w-4 h-4" />
@@ -53,11 +54,11 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
 
           {/* Selected pet header */}
           <div className="px-4 py-4 flex items-center gap-3 flex-shrink-0"
-            style={{ borderBottom: '1px solid #F0E6C8' }}>
+            style={{ borderBottom: '1px solid #ebe3d3' }}>
             <PetAvatar pet={selectedPet} size="md" />
             <div className="min-w-0">
-              <div className="font-black text-base truncate" style={{ color: '#4A2C0A' }}>{selectedPet.name}</div>
-              <div className="text-xs truncate" style={{ color: '#B8A080' }}>{selectedPet.species} · {selectedPet.breed}</div>
+              <div className="font-black text-base truncate" style={{ color: '#7a4900' }}>{selectedPet.name}</div>
+              <div className="text-xs truncate" style={{ color: '#73775b' }}>{selectedPet.species} · {selectedPet.breed}</div>
             </div>
           </div>
 
@@ -69,10 +70,10 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
                 onClick={() => { onTabChange(id); onClose?.() }}
                 className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl mb-0.5 transition-all text-left text-sm font-semibold"
                 style={activeTab === id
-                  ? { backgroundColor: '#F9D548', color: '#4A2C0A' }
-                  : { color: '#6B4C1E' }
+                  ? { backgroundColor: '#f2b83d', color: '#7a4900' }
+                  : { color: '#7a4900' }
                 }
-                onMouseEnter={e => { if (activeTab !== id) e.currentTarget.style.backgroundColor = '#FFF9D6' }}
+                onMouseEnter={e => { if (activeTab !== id) e.currentTarget.style.backgroundColor = '#fff9e0' }}
                 onMouseLeave={e => { if (activeTab !== id) e.currentTarget.style.backgroundColor = '' }}
               >
                 <Icon className="w-4 h-4 flex-shrink-0" />
@@ -83,11 +84,11 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
 
           {/* Migrate banner */}
           {hasLocalData && (
-            <div className="px-3 py-3 flex-shrink-0" style={{ borderTop: '1px solid #F0E6C8' }}>
+            <div className="px-3 py-3 flex-shrink-0" style={{ borderTop: '1px solid #ebe3d3' }}>
               <button
                 onClick={() => setShowMigrate(true)}
                 className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold"
-                style={{ backgroundColor: '#C2DFF0', color: '#4A2C0A' }}
+                style={{ backgroundColor: '#bfe5ef', color: '#7a4900' }}
               >
                 <Upload className="w-3.5 h-3.5 flex-shrink-0" />
                 Move local data to cloud
@@ -99,13 +100,11 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
         /* ── No pet selected: full pets list ──────────────────────────── */
         <>
           {/* Logo */}
-          <div className="px-5 py-4 flex-shrink-0" style={{ borderBottom: '1px solid #F0E6C8' }}>
+          <div className="px-5 py-4 flex-shrink-0" style={{ borderBottom: '1px solid #ebe3d3' }}>
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#F9D548' }}>
-                <PawPrint className="w-5 h-5" style={{ color: '#4A2C0A' }} />
-              </div>
-              <span className="text-2xl font-black tracking-tight" style={{ color: '#4A2C0A', fontFamily: 'Nunito, sans-serif' }}>
-                pip<span style={{ color: '#F9D548' }}>py</span>
+              <PippyLogo size="md" />
+              <span className="text-2xl font-black tracking-tight" style={{ color: '#7a4900', fontFamily: 'Nunito, sans-serif' }}>
+                pip<span style={{ color: '#f2b83d' }}>py</span>
               </span>
             </div>
           </div>
@@ -114,19 +113,19 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
           <div className="flex-1 overflow-y-auto">
             <div className="px-3 pt-4 pb-1">
               <div className="flex items-center justify-between px-2 mb-2">
-                <span className="text-xs font-black uppercase tracking-wider" style={{ color: '#B8A080' }}>My Pets</span>
+                <span className="text-xs font-black uppercase tracking-wider" style={{ color: '#73775b' }}>My Pets</span>
                 <button
                   onClick={onAddPet}
                   className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
-                  style={{ backgroundColor: '#FFF5AA' }}
+                  style={{ backgroundColor: '#fff3c0' }}
                   title="Add pet"
                 >
-                  <Plus className="w-4 h-4" style={{ color: '#4A2C0A' }} />
+                  <Plus className="w-4 h-4" style={{ color: '#7a4900' }} />
                 </button>
               </div>
 
               {pets.length === 0 && (
-                <p className="text-xs px-2 py-2" style={{ color: '#B8A080' }}>No pets yet — add one! 🐾</p>
+                <p className="text-xs px-2 py-2" style={{ color: '#73775b' }}>No pets yet — add one! 🐾</p>
               )}
 
               {pets.map(pet => (
@@ -134,14 +133,14 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
                   key={pet.id}
                   onClick={() => onSelectPet(pet)}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1 transition-all text-left"
-                  style={{ color: '#6B4C1E' }}
-                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#FFF9D6' }}
+                  style={{ color: '#7a4900' }}
+                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#fff9e0' }}
                   onMouseLeave={e => { e.currentTarget.style.backgroundColor = '' }}
                 >
                   <PetAvatar pet={pet} size="sm" />
                   <div className="flex-1 min-w-0">
                     <div className="font-bold text-sm truncate">{pet.name}</div>
-                    <div className="text-xs truncate" style={{ color: '#B8A080' }}>{pet.species} · {pet.breed}</div>
+                    <div className="text-xs truncate" style={{ color: '#73775b' }}>{pet.species} · {pet.breed}</div>
                   </div>
                   <ChevronRight className="w-4 h-4 flex-shrink-0 opacity-40" />
                 </button>
@@ -150,15 +149,15 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
           </div>
 
           {/* Find Services */}
-          <div className="px-3 pt-3 flex-shrink-0" style={{ borderTop: '1px solid #F0E6C8' }}>
+          <div className="px-3 pt-3 flex-shrink-0" style={{ borderTop: '1px solid #ebe3d3' }}>
             <button
               onClick={onToggleServices}
               className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all"
               style={servicesView
-                ? { backgroundColor: '#F9D548', color: '#4A2C0A' }
-                : { backgroundColor: '#FFF5AA', color: '#4A2C0A' }}
+                ? { backgroundColor: '#f2b83d', color: '#7a4900' }
+                : { backgroundColor: '#fff3c0', color: '#7a4900' }}
             >
-              <Store className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#059669' }} />
+              <Store className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#5f7a3a' }} />
               Find Services
             </button>
           </div>
@@ -170,10 +169,10 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
                 onClick={onToggleAdmin}
                 className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all"
                 style={adminView
-                  ? { backgroundColor: '#F9D548', color: '#4A2C0A' }
-                  : { backgroundColor: '#FFF5AA', color: '#4A2C0A' }}
+                  ? { backgroundColor: '#f2b83d', color: '#7a4900' }
+                  : { backgroundColor: '#fff3c0', color: '#7a4900' }}
               >
-                <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#D97706' }} />
+                <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#c9891f' }} />
                 {adminView ? 'Exit Admin View' : 'Admin Panel'}
               </button>
             </div>
@@ -181,11 +180,11 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
 
           {/* Migrate banner */}
           {hasLocalData && (
-            <div className="px-3 pt-3 flex-shrink-0" style={{ borderTop: isAdmin ? 'none' : '1px solid #F0E6C8' }}>
+            <div className="px-3 pt-3 flex-shrink-0" style={{ borderTop: isAdmin ? 'none' : '1px solid #ebe3d3' }}>
               <button
                 onClick={() => setShowMigrate(true)}
                 className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold"
-                style={{ backgroundColor: '#C2DFF0', color: '#4A2C0A' }}
+                style={{ backgroundColor: '#bfe5ef', color: '#7a4900' }}
               >
                 <Upload className="w-3.5 h-3.5 flex-shrink-0" />
                 Move local data to cloud
@@ -195,23 +194,23 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
 
           {/* User + sign out */}
           {user && onSignOut && (
-            <div className="px-3 py-3 flex-shrink-0" style={{ borderTop: hasLocalData ? 'none' : '1px solid #F0E6C8' }}>
+            <div className="px-3 py-3 flex-shrink-0" style={{ borderTop: hasLocalData ? 'none' : '1px solid #ebe3d3' }}>
               <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-xl"
-                style={{ backgroundColor: '#FFF9D6' }}>
+                style={{ backgroundColor: '#fff9e0' }}>
                 <div className="min-w-0">
                   {isAdmin && (
                     <div className="flex items-center gap-1 mb-0.5">
-                      <ShieldCheck className="w-3 h-3" style={{ color: '#D97706' }} />
-                      <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#D97706' }}>Admin</span>
+                      <ShieldCheck className="w-3 h-3" style={{ color: '#c9891f' }} />
+                      <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#c9891f' }}>Admin</span>
                     </div>
                   )}
-                  <p className="text-xs font-bold truncate" style={{ color: '#4A2C0A' }}>
+                  <p className="text-xs font-bold truncate" style={{ color: '#7a4900' }}>
                     {user.phone || user.email || 'Logged in'}
                   </p>
                 </div>
                 <button onClick={onSignOut} title="Sign out"
                   className="p-1.5 rounded-lg flex-shrink-0 hover:bg-amber-100 transition-colors">
-                  <LogOut className="w-3.5 h-3.5" style={{ color: '#B8A080' }} />
+                  <LogOut className="w-3.5 h-3.5" style={{ color: '#73775b' }} />
                 </button>
               </div>
             </div>

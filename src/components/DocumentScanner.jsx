@@ -224,7 +224,7 @@ function isFutureDate(dateStr) {
 function SavedBadge() {
   return (
     <span className="flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full"
-      style={{ backgroundColor: '#D1FAE5', color: '#065F46' }}>
+      style={{ backgroundColor: '#eef3e2', color: '#44562a' }}>
       <CheckCircle className="w-3.5 h-3.5" /> Saved
     </span>
   )
@@ -442,16 +442,16 @@ export default function DocumentScanner({ pet, session }) {
 
   return (
     <div>
-      <h2 className="text-lg font-black mb-1" style={{ color: '#4A2C0A' }}>Scan Medical Documents</h2>
-      <p className="text-sm mb-1" style={{ color: '#4A2C0A', fontWeight: 700 }}>
+      <h2 className="text-lg font-black mb-1" style={{ color: '#7a4900' }}>Scan Medical Documents</h2>
+      <p className="text-sm mb-1" style={{ color: '#7a4900', fontWeight: 700 }}>
         Just snap or upload — we'll handle the rest. ✨
       </p>
-      <p className="text-sm mb-5" style={{ color: '#B8A080' }}>
+      <p className="text-sm mb-5" style={{ color: '#73775b' }}>
         Vet bills, prescriptions, vaccination cards, deworming schedules — our AI reads them and fills in every detail for you.
       </p>
 
       {!OPENAI_KEY && (
-        <div className="mb-4 p-3 rounded-xl text-sm" style={{ backgroundColor: '#FEF3C7', color: '#92400E' }}>
+        <div className="mb-4 p-3 rounded-xl text-sm" style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
           <strong>Setup required:</strong> Add your OpenAI API key to <code>.env</code> as <code>VITE_OPENAI_API_KEY</code>.
         </div>
       )}
@@ -460,18 +460,18 @@ export default function DocumentScanner({ pet, session }) {
       <div className="flex gap-3 mb-4">
         <button onClick={() => cameraRef.current?.click()}
           className="flex-1 flex flex-col items-center gap-2 py-5 rounded-xl border-2 border-dashed transition-all"
-          style={{ borderColor: '#F9D548', backgroundColor: '#FFFEF0' }}>
-          <Camera className="w-7 h-7" style={{ color: '#D4A800' }} />
-          <span className="text-sm font-bold" style={{ color: '#4A2C0A' }}>Scan with Camera</span>
+          style={{ borderColor: '#f2b83d', backgroundColor: '#fff9e0' }}>
+          <Camera className="w-7 h-7" style={{ color: '#c99a2e' }} />
+          <span className="text-sm font-bold" style={{ color: '#7a4900' }}>Scan with Camera</span>
         </button>
         <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => handleFile(e.target.files[0])} />
 
         <button onClick={() => uploadRef.current?.click()}
           className="flex-1 flex flex-col items-center gap-2 py-5 rounded-xl border-2 border-dashed transition-all"
-          style={{ borderColor: '#E8D9B0', backgroundColor: 'white' }}>
-          <Upload className="w-7 h-7" style={{ color: '#B8A080' }} />
-          <span className="text-sm font-bold" style={{ color: '#6B4C1E' }}>Upload File</span>
-          <span className="text-xs" style={{ color: '#B8A080' }}>JPG, PNG or PDF</span>
+          style={{ borderColor: '#e0d3b4', backgroundColor: 'white' }}>
+          <Upload className="w-7 h-7" style={{ color: '#73775b' }} />
+          <span className="text-sm font-bold" style={{ color: '#7a4900' }}>Upload File</span>
+          <span className="text-xs" style={{ color: '#73775b' }}>JPG, PNG or PDF</span>
         </button>
         <input ref={uploadRef} type="file" accept="image/*,.pdf" className="hidden" onChange={e => handleFile(e.target.files[0])} />
       </div>
@@ -479,13 +479,13 @@ export default function DocumentScanner({ pet, session }) {
       {/* Preview */}
       {file && (
         <div className="card border-dashed flex flex-col items-center py-4 mb-4 cursor-pointer"
-          style={{ borderStyle: 'dashed', borderColor: '#E8D9B0' }}
+          style={{ borderStyle: 'dashed', borderColor: '#e0d3b4' }}
           onClick={() => uploadRef.current?.click()}>
           {preview
             ? <img src={preview} alt="Preview" className="max-h-48 rounded-lg mb-2 object-contain" />
-            : <FileText className="w-10 h-10 mb-2" style={{ color: '#B8A080' }} />}
-          <p className="text-sm" style={{ color: '#6B4C1E' }}>{file.name}</p>
-          <p className="text-xs mt-0.5" style={{ color: '#B8A080' }}>Click to change</p>
+            : <FileText className="w-10 h-10 mb-2" style={{ color: '#73775b' }} />}
+          <p className="text-sm" style={{ color: '#7a4900' }}>{file.name}</p>
+          <p className="text-xs mt-0.5" style={{ color: '#73775b' }}>Click to change</p>
         </div>
       )}
 
@@ -496,25 +496,25 @@ export default function DocumentScanner({ pet, session }) {
           </button>
           <button onClick={() => { setFile(null); setPreview(null); setError(null) }}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-colors"
-            style={{ backgroundColor: '#F0E6C8', color: '#6B4C1E' }}>
+            style={{ backgroundColor: '#ebe3d3', color: '#7a4900' }}>
             <X className="w-4 h-4" /> Cancel
           </button>
         </div>
       )}
 
       {loading && (
-        <div className="flex items-center gap-3 mb-4 py-3 px-4 rounded-xl" style={{ backgroundColor: '#FFF5AA', color: '#4A2C0A' }}>
+        <div className="flex items-center gap-3 mb-4 py-3 px-4 rounded-xl" style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
           <Loader2 className="w-5 h-5 animate-spin flex-shrink-0" />
           <div>
             <p className="text-sm font-semibold">Analysing with AI…</p>
-            {loadingStep && <p className="text-xs mt-0.5" style={{ color: '#B8A080' }}>{loadingStep}</p>}
+            {loadingStep && <p className="text-xs mt-0.5" style={{ color: '#73775b' }}>{loadingStep}</p>}
           </div>
         </div>
       )}
 
       {error && (
         <div className="flex items-start gap-2 mb-4 p-3 rounded-xl text-sm"
-          style={{ backgroundColor: '#FEE2E2', color: '#DC2626' }}>
+          style={{ backgroundColor: '#fdeaea', color: '#c0392b' }}>
           <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
           <div>
             <p className="font-bold">Analysis failed</p>
@@ -529,14 +529,14 @@ export default function DocumentScanner({ pet, session }) {
       {parsed && (
         <div className="space-y-4">
           {/* Summary + cancel */}
-          <div className="rounded-xl p-3 text-sm" style={{ backgroundColor: '#FFF5AA', color: '#4A2C0A' }}>
+          <div className="rounded-xl p-3 text-sm" style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
             <div className="flex items-start justify-between gap-2">
               <p><span className="font-bold">Summary: </span>{parsed.summary}</p>
               <button
                 onClick={() => { setFile(null); setPreview(null); setParsed(null); setError(null) }}
                 title="Cancel and start over"
                 className="flex-shrink-0 p-1 rounded-lg hover:bg-amber-200 transition-colors"
-                style={{ color: '#6B4C1E' }}>
+                style={{ color: '#7a4900' }}>
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -544,11 +544,11 @@ export default function DocumentScanner({ pet, session }) {
 
           {/* ── Vaccinations ────────────────────────────────────────────────── */}
           {vaxItems.map((vax, i) => (
-            <div key={i} className="card" style={{ borderColor: savedVax.has(i) ? '#A7F3D0' : '#DDD6FE', backgroundColor: savedVax.has(i) ? '#F0FDF4' : 'white' }}>
+            <div key={i} className="card" style={{ borderColor: savedVax.has(i) ? '#d7e5bd' : '#f7dbe3', backgroundColor: savedVax.has(i) ? '#f4f8ea' : 'white' }}>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <Syringe className="w-4 h-4" style={{ color: '#7C3AED' }} />
-                  <span className="font-black text-sm" style={{ color: '#4A2C0A' }}>Vaccination {vaxItems.length > 1 ? i + 1 : ''}</span>
+                  <Syringe className="w-4 h-4" style={{ color: '#b2566f' }} />
+                  <span className="font-black text-sm" style={{ color: '#7a4900' }}>Vaccination {vaxItems.length > 1 ? i + 1 : ''}</span>
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   {savedVax.has(i) ? <SavedBadge /> : <SaveBtn onClick={() => handleSaveVax(i)} label="Save Vaccination" saving={savingSet.has(`vax_${i}`)} />}
@@ -565,10 +565,10 @@ export default function DocumentScanner({ pet, session }) {
                   <div className="col-span-2"><Field label="Notes" value={vax.notes} onChange={v => updateVax(i, 'notes', v)} rows={2} /></div>
                 </div>
               ) : (
-                <div className="text-sm space-y-0.5" style={{ color: '#4A2C0A' }}>
+                <div className="text-sm space-y-0.5" style={{ color: '#7a4900' }}>
                   <p className="font-bold">{vax.name}</p>
-                  {vax.dateGiven && <p style={{ color: '#B8A080' }}>Given: {vax.dateGiven}{vax.nextDue ? ` · Next: ${vax.nextDue}` : ''}</p>}
-                  {vax.vet && <p style={{ color: '#B8A080' }}>{vax.vet}</p>}
+                  {vax.dateGiven && <p style={{ color: '#73775b' }}>Given: {vax.dateGiven}{vax.nextDue ? ` · Next: ${vax.nextDue}` : ''}</p>}
+                  {vax.vet && <p style={{ color: '#73775b' }}>{vax.vet}</p>}
                 </div>
               )}
             </div>
@@ -576,11 +576,11 @@ export default function DocumentScanner({ pet, session }) {
 
           {/* ── Medicines ────────────────────────────────────────────────────── */}
           {medItems.map((med, i) => (
-            <div key={i} className="card" style={{ borderColor: savedMeds.has(i) ? '#A7F3D0' : '#BBF7D0', backgroundColor: savedMeds.has(i) ? '#F0FDF4' : 'white' }}>
+            <div key={i} className="card" style={{ borderColor: savedMeds.has(i) ? '#d7e5bd' : '#d7e5bd', backgroundColor: savedMeds.has(i) ? '#f4f8ea' : 'white' }}>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <Pill className="w-4 h-4" style={{ color: '#059669' }} />
-                  <span className="font-black text-sm" style={{ color: '#4A2C0A' }}>Medicine {medItems.length > 1 ? i + 1 : ''}</span>
+                  <Pill className="w-4 h-4" style={{ color: '#5f7a3a' }} />
+                  <span className="font-black text-sm" style={{ color: '#7a4900' }}>Medicine {medItems.length > 1 ? i + 1 : ''}</span>
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   {savedMeds.has(i) ? <SavedBadge /> : <SaveBtn onClick={() => handleSaveMed(i)} label="Save Medicine" saving={savingSet.has(`med_${i}`)} />}
@@ -601,10 +601,10 @@ export default function DocumentScanner({ pet, session }) {
                   <div className="col-span-2"><Field label="Notes" value={med.notes} onChange={v => updateMed(i, 'notes', v)} rows={2} /></div>
                 </div>
               ) : (
-                <div className="text-sm space-y-0.5" style={{ color: '#4A2C0A' }}>
+                <div className="text-sm space-y-0.5" style={{ color: '#7a4900' }}>
                   <p className="font-bold">{med.name} {med.dosage}</p>
-                  {med.frequency && <p style={{ color: '#B8A080' }}>{med.frequency}</p>}
-                  {med.nextDue && <p style={{ color: '#B8A080' }}>Next due: {med.nextDue}</p>}
+                  {med.frequency && <p style={{ color: '#73775b' }}>{med.frequency}</p>}
+                  {med.nextDue && <p style={{ color: '#73775b' }}>Next due: {med.nextDue}</p>}
                 </div>
               )}
             </div>
@@ -612,10 +612,10 @@ export default function DocumentScanner({ pet, session }) {
 
           {/* ── Weight readings ──────────────────────────────────────────────── */}
           {weightItems.length > 0 && (
-            <div className="card" style={{ borderColor: '#FDE68A' }}>
+            <div className="card" style={{ borderColor: '#ffde59' }}>
               <div className="flex items-center gap-2 mb-3">
-                <Weight className="w-4 h-4" style={{ color: '#D97706' }} />
-                <span className="font-black text-sm" style={{ color: '#4A2C0A' }}>Weight Readings Detected</span>
+                <Weight className="w-4 h-4" style={{ color: '#c9891f' }} />
+                <span className="font-black text-sm" style={{ color: '#7a4900' }}>Weight Readings Detected</span>
               </div>
               <div className="space-y-2">
                 {weightItems.map((w, i) => (
@@ -625,7 +625,7 @@ export default function DocumentScanner({ pet, session }) {
                     <div className="flex items-center gap-1">
                       <input type="number" step="0.1" min="0" className="input text-sm py-1 w-24" value={w.weight || ''}
                         onChange={e => updateWeight(i, 'weight', e.target.value)} />
-                      <span className="text-sm" style={{ color: '#B8A080' }}>kg</span>
+                      <span className="text-sm" style={{ color: '#73775b' }}>kg</span>
                     </div>
                     {savedWeights.has(i)
                       ? <SavedBadge />
@@ -639,11 +639,11 @@ export default function DocumentScanner({ pet, session }) {
 
           {/* ── Bill ─────────────────────────────────────────────────────────── */}
           {billItem && (
-            <div className="card" style={{ borderColor: billSaved ? '#A7F3D0' : '#FCD34D', backgroundColor: billSaved ? '#F0FDF4' : 'white' }}>
+            <div className="card" style={{ borderColor: billSaved ? '#d7e5bd' : '#ffde59', backgroundColor: billSaved ? '#f4f8ea' : 'white' }}>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <Receipt className="w-4 h-4" style={{ color: '#D97706' }} />
-                  <span className="font-black text-sm" style={{ color: '#4A2C0A' }}>Bill / Invoice</span>
+                  <Receipt className="w-4 h-4" style={{ color: '#c9891f' }} />
+                  <span className="font-black text-sm" style={{ color: '#7a4900' }}>Bill / Invoice</span>
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   {billSaved ? <SavedBadge /> : <SaveBtn onClick={handleSaveBill} label="Save Bill" saving={savingSet.has('bill')} />}
@@ -683,24 +683,24 @@ export default function DocumentScanner({ pet, session }) {
                   )}
                   <button onClick={() => setBillItem(b => ({ ...b, lineItems: [...(b.lineItems || []), { description: '', amount: '' }] }))}
                     className="text-xs font-bold px-3 py-1.5 rounded-lg"
-                    style={{ backgroundColor: '#FFF5AA', color: '#4A2C0A' }}>
+                    style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
                     + Add line
                   </button>
 
                   <div className="flex justify-between items-center pt-1">
-                    <span className="text-sm" style={{ color: '#B8A080' }}>Total</span>
+                    <span className="text-sm" style={{ color: '#73775b' }}>Total</span>
                     <div className="flex items-center gap-2">
                       <input type="number" className="input text-sm py-1 w-28 font-black"
                         value={billItem.totalAmount || ''}
                         onChange={e => setBillItem(b => ({ ...b, totalAmount: e.target.value }))} />
-                      <span className="text-sm" style={{ color: '#B8A080' }}>{billItem.currency || 'INR'}</span>
+                      <span className="text-sm" style={{ color: '#73775b' }}>{billItem.currency || 'INR'}</span>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="text-sm space-y-1" style={{ color: '#4A2C0A' }}>
+                <div className="text-sm space-y-1" style={{ color: '#7a4900' }}>
                   <p className="font-bold">{billItem.clinic}</p>
-                  {billItem.date && <p style={{ color: '#B8A080' }}>{billItem.date}</p>}
+                  {billItem.date && <p style={{ color: '#73775b' }}>{billItem.date}</p>}
                   {billItem.totalAmount && (
                     <p className="font-black text-base">
                       {billItem.currency || 'INR'} {parseFloat(billItem.totalAmount).toLocaleString()}
@@ -713,9 +713,9 @@ export default function DocumentScanner({ pet, session }) {
 
           {/* ── Medical record ───────────────────────────────────────────────── */}
           {recordItem && (
-            <div className="card" style={{ borderColor: recordSaved ? '#A7F3D0' : '#BFDBFE', backgroundColor: recordSaved ? '#F0FDF4' : 'white' }}>
+            <div className="card" style={{ borderColor: recordSaved ? '#d7e5bd' : '#bfe5ef', backgroundColor: recordSaved ? '#f4f8ea' : 'white' }}>
               <div className="flex items-center justify-between mb-3">
-                <span className="font-black text-sm" style={{ color: '#4A2C0A' }}>🏥 Medical Record</span>
+                <span className="font-black text-sm" style={{ color: '#7a4900' }}>🏥 Medical Record</span>
                 <div className="flex flex-col items-end gap-1">
                   {recordSaved ? <SavedBadge /> : <SaveBtn onClick={handleSaveRecord} label="Save Record" saving={savingSet.has('record')} />}
                   {saveErrors['record'] && <p className="text-xs text-red-500">{saveErrors['record']}</p>}
@@ -732,9 +732,9 @@ export default function DocumentScanner({ pet, session }) {
                   <div className="col-span-2"><Field label="Description" value={recordItem.description} onChange={v => setRecordItem(r => ({ ...r, description: v }))} rows={3} /></div>
                 </div>
               ) : (
-                <div className="text-sm" style={{ color: '#4A2C0A' }}>
+                <div className="text-sm" style={{ color: '#7a4900' }}>
                   <p className="font-bold">{recordItem.title}</p>
-                  {recordItem.date && <p style={{ color: '#B8A080' }}>{recordItem.date}</p>}
+                  {recordItem.date && <p style={{ color: '#73775b' }}>{recordItem.date}</p>}
                 </div>
               )}
             </div>
@@ -742,9 +742,9 @@ export default function DocumentScanner({ pet, session }) {
 
           {/* ── Allergy ──────────────────────────────────────────────────────── */}
           {allergyItem && (
-            <div className="card" style={{ borderColor: allergySaved ? '#A7F3D0' : '#FCA5A5', backgroundColor: allergySaved ? '#F0FDF4' : 'white' }}>
+            <div className="card" style={{ borderColor: allergySaved ? '#d7e5bd' : '#e79a94', backgroundColor: allergySaved ? '#f4f8ea' : 'white' }}>
               <div className="flex items-center justify-between mb-3">
-                <span className="font-black text-sm" style={{ color: '#4A2C0A' }}>⚠️ Allergy</span>
+                <span className="font-black text-sm" style={{ color: '#7a4900' }}>⚠️ Allergy</span>
                 <div className="flex flex-col items-end gap-1">
                   {allergySaved ? <SavedBadge /> : <SaveBtn onClick={handleSaveAllergy} label="Save Allergy" saving={savingSet.has('allergy')} />}
                   {saveErrors['allergy'] && <p className="text-xs text-red-500">{saveErrors['allergy']}</p>}
@@ -759,18 +759,18 @@ export default function DocumentScanner({ pet, session }) {
                     options={['Mild', 'Moderate', 'Severe']} />
                 </div>
               ) : (
-                <p className="text-sm font-bold" style={{ color: '#4A2C0A' }}>{allergyItem.allergen} — {allergyItem.severity}</p>
+                <p className="text-sm font-bold" style={{ color: '#7a4900' }}>{allergyItem.allergen} — {allergyItem.severity}</p>
               )}
             </div>
           )}
 
           {/* ── Abnormalities (read-only) ─────────────────────────────────────── */}
           {abnormalities.length > 0 && (
-            <div className="card" style={{ borderColor: '#FCA5A5', backgroundColor: '#FFF5F5' }}>
-              <p className="font-black text-sm mb-2" style={{ color: '#DC2626' }}>⚠️ {abnormalities.length} Abnormal Lab Value{abnormalities.length > 1 ? 's' : ''}</p>
+            <div className="card" style={{ borderColor: '#e79a94', backgroundColor: '#fdeaea' }}>
+              <p className="font-black text-sm mb-2" style={{ color: '#c0392b' }}>⚠️ {abnormalities.length} Abnormal Lab Value{abnormalities.length > 1 ? 's' : ''}</p>
               <div className="space-y-1.5">
                 {abnormalities.map((a, i) => {
-                  const clr = { Severe: ['#DC2626', '#FEE2E2'], Moderate: ['#D97706', '#FEF3C7'], Mild: ['#CA8A04', '#FEF9C3'] }[a.severity] || ['#DC2626', '#FEE2E2']
+                  const clr = { Severe: ['#c0392b', '#fdeaea'], Moderate: ['#c9891f', '#fff3c0'], Mild: ['#c9891f', '#fff3c0'] }[a.severity] || ['#c0392b', '#fdeaea']
                   return (
                     <div key={i} className="text-xs rounded-lg px-2 py-1.5" style={{ backgroundColor: clr[1], color: clr[0] }}>
                       <span className="font-bold">{a.parameter}</span> {a.value}{a.unit} —{' '}
@@ -785,17 +785,17 @@ export default function DocumentScanner({ pet, session }) {
 
           {/* ── Future timelines → reminders ─────────────────────────────────── */}
           {timelineItems.length > 0 && (
-            <div className="card" style={{ borderColor: '#E8D9B0' }}>
+            <div className="card" style={{ borderColor: '#e0d3b4' }}>
               <div className="flex items-center gap-2 mb-3">
-                <Calendar className="w-4 h-4" style={{ color: '#D4A800' }} />
-                <span className="font-black text-sm" style={{ color: '#4A2C0A' }}>Upcoming Dates</span>
+                <Calendar className="w-4 h-4" style={{ color: '#c99a2e' }} />
+                <span className="font-black text-sm" style={{ color: '#7a4900' }}>Upcoming Dates</span>
               </div>
               <div className="space-y-2">
                 {timelineItems.map((t, i) => (
                   <div key={i} className="flex items-center justify-between gap-2 flex-wrap">
                     <div>
-                      <p className="text-sm font-semibold" style={{ color: '#4A2C0A' }}>{t.label}</p>
-                      <p className="text-xs" style={{ color: '#B8A080' }}>
+                      <p className="text-sm font-semibold" style={{ color: '#7a4900' }}>{t.label}</p>
+                      <p className="text-xs" style={{ color: '#73775b' }}>
                         {format(parseISO(t.date), 'MMM d, yyyy')} · {t.type}
                       </p>
                     </div>
@@ -813,16 +813,16 @@ export default function DocumentScanner({ pet, session }) {
 
           {/* ── Vet questions ─────────────────────────────────────────────────── */}
           {(loadingQuestions || vetQuestions.length > 0) && (
-            <div className="card" style={{ borderColor: '#C2DFF0', backgroundColor: '#F0F8FF' }}>
+            <div className="card" style={{ borderColor: '#bfe5ef', backgroundColor: '#eef8fb' }}>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <MessageSquare className="w-5 h-5" style={{ color: '#2563EB' }} />
-                  <span className="font-bold" style={{ color: '#1E3A5F' }}>Questions to ask your Vet</span>
+                  <MessageSquare className="w-5 h-5" style={{ color: '#2f7286' }} />
+                  <span className="font-bold" style={{ color: '#1f4b57' }}>Questions to ask your Vet</span>
                 </div>
                 {vetQuestions.length > 0 && (
                   <button onClick={handleCopyQuestions}
                     className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-semibold"
-                    style={{ backgroundColor: copied ? '#D1FAE5' : '#DBEAFE', color: copied ? '#065F46' : '#1D4ED8' }}>
+                    style={{ backgroundColor: copied ? '#eef3e2' : '#dceff5', color: copied ? '#44562a' : '#255d6e' }}>
                     {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                     {copied ? 'Copied!' : 'Copy all'}
                   </button>
@@ -830,7 +830,7 @@ export default function DocumentScanner({ pet, session }) {
               </div>
 
               {loadingQuestions && (
-                <div className="flex items-center gap-2 text-sm py-1" style={{ color: '#2563EB' }}>
+                <div className="flex items-center gap-2 text-sm py-1" style={{ color: '#2f7286' }}>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Generating questions based on this report…
                 </div>
@@ -840,18 +840,18 @@ export default function DocumentScanner({ pet, session }) {
                 <ol className="space-y-2">
                   {vetQuestions.map((q, i) => (
                     <li key={i} className="flex gap-3 text-sm rounded-xl p-3"
-                      style={{ backgroundColor: 'white', border: '1px solid #BFDBFE' }}>
+                      style={{ backgroundColor: 'white', border: '1px solid #bfe5ef' }}>
                       <span className="font-black flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs"
-                        style={{ backgroundColor: '#F9D548', color: '#4A2C0A' }}>
+                        style={{ backgroundColor: '#f2b83d', color: '#7a4900' }}>
                         {i + 1}
                       </span>
-                      <span style={{ color: '#1E3A5F' }}>{q}</span>
+                      <span style={{ color: '#1f4b57' }}>{q}</span>
                     </li>
                   ))}
                 </ol>
               )}
 
-              <p className="text-xs mt-3" style={{ color: '#6B9FBF' }}>
+              <p className="text-xs mt-3" style={{ color: '#2f7286' }}>
                 💡 These questions are tailored to this specific report. Tap "Copy all" to share with your vet.
               </p>
             </div>

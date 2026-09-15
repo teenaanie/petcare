@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Pippy">
+  <defs>
+    <clipPath id="tile">
+      <rect width="512" height="512" rx="116"/>
+    </clipPath>
+  </defs>
+
+  <rect width="512" height="512" rx="116" fill="#f2b83d"/>
+
+  <g clip-path="url(#tile)">
+    <!-- Head and body: one soft mass, cropped by the tile at the bottom -->
+    <ellipse cx="256" cy="298" rx="170" ry="188" fill="#fffdf2"/>
+
+    <!-- Satchel strap across the chest, tucked under the ears -->
+    <path d="M150 330 C 198 388, 250 436, 296 478"
+          stroke="#878c6b" stroke-width="27" stroke-linecap="round" fill="none"/>
+
+    <!-- Ears drape over the head and extend past its silhouette -->
+    <path d="M166 158
+             C 116 172, 78 234, 80 298
+             C 82 350, 110 380, 140 372
+             C 172 362, 190 308, 192 250
+             C 194 198, 184 162, 166 158 Z"
+          fill="#878c6b"/>
+    <path d="M346 158
+             C 396 172, 434 234, 432 298
+             C 430 350, 402 380, 372 372
+             C 340 362, 322 308, 320 250
+             C 318 198, 328 162, 346 158 Z"
+          fill="#ffcf6a"/>
+
+    <!-- Face -->
+    <ellipse cx="218" cy="272" rx="16" ry="24" fill="#2b2b2b"/>
+    <ellipse cx="296" cy="272" rx="16" ry="24" fill="#2b2b2b"/>
+    <ellipse cx="257" cy="324" rx="24" ry="17" fill="#2b2b2b"/>
+    <path d="M228 354 C 244 376, 270 376, 286 354"
+          stroke="#2b2b2b" stroke-width="12" stroke-linecap="round" fill="none"/>
+
+    <!-- Heart badge -->
+    <path d="M300 408
+             c -14 -15, -39 -6, -39 15
+             c 0 17, 23 31, 39 44
+             c 16 -13, 39 -27, 39 -44
+             c 0 -21, -25 -30, -39 -15 Z"
+          fill="#ffde59"/>
+  </g>
+</svg>

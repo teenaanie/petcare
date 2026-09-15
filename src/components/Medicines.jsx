@@ -6,13 +6,13 @@ import { format, parseISO, isValid, isBefore, addDays } from 'date-fns'
 const CATEGORIES = ['Deworming', 'Flea/Tick', 'Antibiotic', 'Anti-inflammatory', 'Supplement', 'Vaccination', 'Other']
 
 const CAT_STYLE = {
-  'Deworming':         { bg: '#D1FAE5', color: '#065F46' },
-  'Flea/Tick':         { bg: '#EDE9FE', color: '#5B21B6' },
-  'Antibiotic':        { bg: '#DBEAFE', color: '#1E40AF' },
-  'Anti-inflammatory': { bg: '#FEF3C7', color: '#92400E' },
-  'Supplement':        { bg: '#CFFAFE', color: '#164E63' },
-  'Vaccination':       { bg: '#E0E7FF', color: '#3730A3' },
-  'Other':             { bg: '#F3F4F6', color: '#374151' },
+  'Deworming':         { bg: '#eef3e2', color: '#44562a' },
+  'Flea/Tick':         { bg: '#fdeef2', color: '#8e3f54' },
+  'Antibiotic':        { bg: '#dceff5', color: '#255d6e' },
+  'Anti-inflammatory': { bg: '#fff3c0', color: '#7a4900' },
+  'Supplement':        { bg: '#dceff5', color: '#1f4b57' },
+  'Vaccination':       { bg: '#dceff5', color: '#255d6e' },
+  'Other':             { bg: '#f5f0e0', color: '#5f624b' },
 }
 
 function parseDate(str) {
@@ -26,17 +26,17 @@ function DueStatus({ nextDue }) {
   const due = parseDate(nextDue)
   if (!due) return null
   if (isBefore(due, today)) return (
-    <span className="flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: '#FEE2E2', color: '#DC2626' }}>
+    <span className="flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: '#fdeaea', color: '#c0392b' }}>
       <AlertCircle className="w-3 h-3" /> Overdue — {format(due, 'MMM d')}
     </span>
   )
   if (isBefore(due, addDays(today, 30))) return (
-    <span className="flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: '#FEF3C7', color: '#D97706' }}>
+    <span className="flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: '#fff3c0', color: '#c9891f' }}>
       <Clock className="w-3 h-3" /> Due {format(due, 'MMM d')}
     </span>
   )
   return (
-    <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#D1FAE5', color: '#065F46' }}>
+    <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#eef3e2', color: '#44562a' }}>
       <CheckCircle className="w-3 h-3" /> Next: {format(due, 'MMM d, yyyy')}
     </span>
   )
@@ -61,12 +61,12 @@ function AddForm({ onSave, onCancel }) {
   }
 
   return (
-    <div className="card" style={{ backgroundColor: '#FFFEF0', borderColor: '#F9D548' }}>
+    <div className="card" style={{ backgroundColor: '#fff9e0', borderColor: '#f2b83d' }}>
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="flex items-center justify-between">
-          <span className="font-black text-sm" style={{ color: '#4A2C0A' }}>Add Medicine</span>
+          <span className="font-black text-sm" style={{ color: '#7a4900' }}>Add Medicine</span>
           <button type="button" onClick={onCancel} className="p-1 rounded-lg hover:bg-yellow-100">
-            <X className="w-4 h-4" style={{ color: '#B8A080' }} />
+            <X className="w-4 h-4" style={{ color: '#73775b' }} />
           </button>
         </div>
 
@@ -135,7 +135,7 @@ function MedicineCard({ med, onDone, onDelete }) {
 
   return (
     <div className={`card group transition-all ${med.isDone ? 'opacity-60' : ''}`}
-      style={{ borderColor: med.isDone ? '#E5E7EB' : '#F0E6C8' }}>
+      style={{ borderColor: med.isDone ? '#ebe3d3' : '#ebe3d3' }}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-start gap-3 flex-1 min-w-0">
           {/* Category colour dot */}
@@ -147,29 +147,29 @@ function MedicineCard({ med, onDone, onDelete }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className={`font-black text-sm ${med.isDone ? 'line-through' : ''}`}
-                style={{ color: '#4A2C0A' }}>{med.name}</span>
+                style={{ color: '#7a4900' }}>{med.name}</span>
               <span className="text-xs font-bold px-2 py-0.5 rounded-full"
                 style={{ backgroundColor: cat.bg, color: cat.color }}>{med.category}</span>
               {med.isDone && (
                 <span className="text-xs font-bold px-2 py-0.5 rounded-full"
-                  style={{ backgroundColor: '#D1FAE5', color: '#065F46' }}>✓ Done</span>
+                  style={{ backgroundColor: '#eef3e2', color: '#44562a' }}>✓ Done</span>
               )}
             </div>
 
             <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-              {med.dosage && <span className="text-xs" style={{ color: '#6B4C1E' }}>{med.dosage}</span>}
-              {med.frequency && <span className="text-xs" style={{ color: '#B8A080' }}>· {med.frequency}</span>}
+              {med.dosage && <span className="text-xs" style={{ color: '#7a4900' }}>{med.dosage}</span>}
+              {med.frequency && <span className="text-xs" style={{ color: '#73775b' }}>· {med.frequency}</span>}
             </div>
 
             {/* Dates */}
             <div className="flex flex-wrap gap-2 mt-1.5">
               {med.startDate && (
-                <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#FFF5AA', color: '#6B4C1E' }}>
+                <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
                   From {format(parseISO(med.startDate), 'MMM d, yyyy')}
                 </span>
               )}
               {med.endDate && (
-                <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#FFF5AA', color: '#6B4C1E' }}>
+                <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
                   Until {format(parseISO(med.endDate), 'MMM d, yyyy')}
                 </span>
               )}
@@ -177,15 +177,15 @@ function MedicineCard({ med, onDone, onDelete }) {
             </div>
 
             {med.reason && (
-              <p className="text-xs mt-1.5" style={{ color: '#6B4C1E' }}>
+              <p className="text-xs mt-1.5" style={{ color: '#7a4900' }}>
                 For: <span className="font-semibold">{med.reason}</span>
               </p>
             )}
             {med.prescribedBy && (
-              <p className="text-xs" style={{ color: '#B8A080' }}>By {med.prescribedBy}</p>
+              <p className="text-xs" style={{ color: '#73775b' }}>By {med.prescribedBy}</p>
             )}
             {med.notes && (
-              <p className="text-xs mt-1 italic" style={{ color: '#B8A080' }}>{med.notes}</p>
+              <p className="text-xs mt-1 italic" style={{ color: '#73775b' }}>{med.notes}</p>
             )}
           </div>
         </div>
@@ -194,7 +194,7 @@ function MedicineCard({ med, onDone, onDelete }) {
         <div className="flex gap-1 flex-shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
           <button onClick={handleDone} disabled={toggling}
             className="p-1.5 rounded-lg transition-colors"
-            style={{ backgroundColor: med.isDone ? '#D1FAE5' : '#FFF5AA', color: med.isDone ? '#065F46' : '#4A2C0A' }}
+            style={{ backgroundColor: med.isDone ? '#eef3e2' : '#fff3c0', color: med.isDone ? '#44562a' : '#7a4900' }}
             title={med.isDone ? 'Mark active' : 'Mark done'}>
             <Check className="w-3.5 h-3.5" />
           </button>
@@ -246,7 +246,7 @@ export default function Medicines({ pet }) {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-black" style={{ color: '#4A2C0A' }}>Medicines</h2>
+        <h2 className="text-lg font-black" style={{ color: '#7a4900' }}>Medicines</h2>
         <button onClick={() => setShowForm(v => !v)} className="btn-primary gap-1.5 text-sm">
           <Plus className="w-4 h-4" /> Add Medicine
         </button>
@@ -255,9 +255,9 @@ export default function Medicines({ pet }) {
       {/* Due soon alerts */}
       {alerts.length > 0 && (
         <div className="rounded-xl p-3 flex items-start gap-2"
-          style={{ backgroundColor: '#FEF3C7', border: '1px solid #FCD34D' }}>
-          <Clock className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#D97706' }} />
-          <div className="text-sm" style={{ color: '#92400E' }}>
+          style={{ backgroundColor: '#fff3c0', border: '1px solid #ffde59' }}>
+          <Clock className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#c9891f' }} />
+          <div className="text-sm" style={{ color: '#7a4900' }}>
             <span className="font-bold">{alerts.length} medicine{alerts.length > 1 ? 's' : ''} due soon or overdue:</span>{' '}
             {alerts.map(m => m.name).join(', ')}
           </div>
@@ -273,11 +273,11 @@ export default function Medicines({ pet }) {
       {meds.length === 0 && !showForm && (
         <div className="card flex flex-col items-center py-16 text-center">
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-3"
-            style={{ backgroundColor: '#FFF5AA' }}>
-            <Pill className="w-8 h-8" style={{ color: '#4A2C0A' }} />
+            style={{ backgroundColor: '#fff3c0' }}>
+            <Pill className="w-8 h-8" style={{ color: '#7a4900' }} />
           </div>
-          <p className="font-bold" style={{ color: '#4A2C0A' }}>No medicines recorded</p>
-          <p className="text-sm mt-1" style={{ color: '#B8A080' }}>
+          <p className="font-bold" style={{ color: '#7a4900' }}>No medicines recorded</p>
+          <p className="text-sm mt-1" style={{ color: '#73775b' }}>
             Add medicines manually or scan a prescription / deworming schedule.
           </p>
         </div>
@@ -286,7 +286,7 @@ export default function Medicines({ pet }) {
       {/* Active */}
       {active.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs font-black uppercase tracking-widest" style={{ color: '#B8A080' }}>
+          <p className="text-xs font-black uppercase tracking-widest" style={{ color: '#73775b' }}>
             Active ({active.length})
           </p>
           {active.map(m => (
@@ -298,7 +298,7 @@ export default function Medicines({ pet }) {
       {/* Completed */}
       {completed.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs font-black uppercase tracking-widest mt-2" style={{ color: '#B8A080' }}>
+          <p className="text-xs font-black uppercase tracking-widest mt-2" style={{ color: '#73775b' }}>
             Completed ({completed.length})
           </p>
           {completed.map(m => (

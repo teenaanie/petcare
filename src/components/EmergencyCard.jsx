@@ -68,9 +68,9 @@ export default function EmergencyCard({ pet, onClose }) {
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 flex-shrink-0"
-          style={{ backgroundColor: '#4A2C0A' }}>
+          style={{ backgroundColor: '#7a4900' }}>
           <div className="flex items-center gap-2">
-            <ShieldAlert className="w-5 h-5" style={{ color: '#F9D548' }} />
+            <ShieldAlert className="w-5 h-5" style={{ color: '#f2b83d' }} />
             <span className="font-black text-white">Emergency Card</span>
           </div>
           <button onClick={onClose} className="text-white/60 hover:text-white transition-colors">
@@ -82,23 +82,23 @@ export default function EmergencyCard({ pet, onClose }) {
         <div ref={cardRef} className="flex-1 overflow-y-auto p-5 space-y-4">
 
           {/* Pet identity */}
-          <div className="rounded-2xl p-4" style={{ backgroundColor: '#FFF5AA' }}>
+          <div className="rounded-2xl p-4" style={{ backgroundColor: '#fff3c0' }}>
             <div className="flex items-center gap-3">
               {pet.photo ? (
                 <img src={pet.photo} alt={pet.name}
                   className="w-16 h-16 rounded-2xl object-cover flex-shrink-0" />
               ) : (
                 <div className="w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 text-3xl"
-                  style={{ backgroundColor: '#F9D548' }}>
+                  style={{ backgroundColor: '#f2b83d' }}>
                   {pet.species === 'Dog' ? '🐶' : pet.species === 'Cat' ? '🐱' : '🐾'}
                 </div>
               )}
               <div>
-                <h2 className="text-2xl font-black" style={{ color: '#4A2C0A' }}>{pet.name}</h2>
-                <p className="text-sm" style={{ color: '#6B4C1E' }}>
+                <h2 className="text-2xl font-black" style={{ color: '#7a4900' }}>{pet.name}</h2>
+                <p className="text-sm" style={{ color: '#7a4900' }}>
                   {pet.species}{pet.breed ? ` · ${pet.breed}` : ''}
                 </p>
-                <div className="flex flex-wrap gap-3 mt-1 text-xs font-bold" style={{ color: '#B8A080' }}>
+                <div className="flex flex-wrap gap-3 mt-1 text-xs font-bold" style={{ color: '#73775b' }}>
                   {age !== null && <span>Age: {age} yr</span>}
                   {pet.weight && <span>Weight: {pet.weight} kg</span>}
                 </div>
@@ -109,11 +109,11 @@ export default function EmergencyCard({ pet, onClose }) {
           {/* Vet contact */}
           {pet.vetPhone && (
             <div className="rounded-2xl p-3 flex items-center gap-3"
-              style={{ backgroundColor: '#EFF6FF', border: '1.5px solid #BFDBFE' }}>
+              style={{ backgroundColor: '#eef8fb', border: '1.5px solid #bfe5ef' }}>
               <span className="text-xl">🏥</span>
               <div>
-                <p className="text-xs font-black uppercase tracking-wider" style={{ color: '#1E40AF' }}>Vet Contact</p>
-                <a href={`tel:${pet.vetPhone}`} className="font-black text-base" style={{ color: '#1D4ED8' }}>
+                <p className="text-xs font-black uppercase tracking-wider" style={{ color: '#255d6e' }}>Vet Contact</p>
+                <a href={`tel:${pet.vetPhone}`} className="font-black text-base" style={{ color: '#255d6e' }}>
                   {pet.vetPhone}
                 </a>
               </div>
@@ -124,17 +124,17 @@ export default function EmergencyCard({ pet, onClose }) {
           {!loading && (
             <div className="rounded-2xl p-3"
               style={allergies.length
-                ? { backgroundColor: '#FEF2F2', border: '1.5px solid #FECACA' }
-                : { backgroundColor: '#F0FDF4', border: '1.5px solid #BBF7D0' }}>
+                ? { backgroundColor: '#fdeaea', border: '1.5px solid #f6cfcb' }
+                : { backgroundColor: '#f4f8ea', border: '1.5px solid #d7e5bd' }}>
               <p className="text-xs font-black uppercase tracking-wider mb-2"
-                style={{ color: allergies.length ? '#DC2626' : '#16A34A' }}>
+                style={{ color: allergies.length ? '#c0392b' : '#5f7a3a' }}>
                 {allergies.length ? '⚠️ Allergies' : '✅ No known allergies'}
               </p>
               {allergies.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {allergies.map(a => (
                     <span key={a.id} className="px-2.5 py-1 rounded-full text-xs font-bold"
-                      style={{ backgroundColor: '#DC2626', color: 'white' }}>
+                      style={{ backgroundColor: '#c0392b', color: 'white' }}>
                       {a.allergen}
                     </span>
                   ))}
@@ -146,15 +146,15 @@ export default function EmergencyCard({ pet, onClose }) {
           {/* Upcoming vaccinations */}
           {!loading && vacc.length > 0 && (
             <div>
-              <p className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: '#B8A080' }}>
+              <p className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: '#73775b' }}>
                 💉 Upcoming Vaccinations
               </p>
               <div className="space-y-1.5">
                 {vacc.map(v => (
                   <div key={v.id} className="flex justify-between text-sm rounded-xl px-3 py-2"
-                    style={{ backgroundColor: '#F5F3FF' }}>
-                    <span className="font-semibold" style={{ color: '#4A2C0A' }}>{v.name}</span>
-                    <span style={{ color: '#7C3AED' }}>{fmt(v.nextDue) || v.nextDue}</span>
+                    style={{ backgroundColor: '#fdeef2' }}>
+                    <span className="font-semibold" style={{ color: '#7a4900' }}>{v.name}</span>
+                    <span style={{ color: '#b2566f' }}>{fmt(v.nextDue) || v.nextDue}</span>
                   </div>
                 ))}
               </div>
@@ -164,19 +164,19 @@ export default function EmergencyCard({ pet, onClose }) {
           {/* Recent medical */}
           {!loading && medical.length > 0 && (
             <div>
-              <p className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: '#B8A080' }}>
+              <p className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: '#73775b' }}>
                 🏥 Recent Medical History
               </p>
               <div className="space-y-1.5">
                 {medical.map(m => (
                   <div key={m.id} className="rounded-xl px-3 py-2"
-                    style={{ backgroundColor: '#FFFEF8', border: '1px solid #F0E6C8' }}>
+                    style={{ backgroundColor: '#FFFEF8', border: '1px solid #ebe3d3' }}>
                     <div className="flex items-start justify-between gap-2">
-                      <span className="text-sm font-semibold" style={{ color: '#4A2C0A' }}>
+                      <span className="text-sm font-semibold" style={{ color: '#7a4900' }}>
                         {m.diagnosis || m.description || 'Visit'}
                       </span>
                       {m.date && (
-                        <span className="text-xs flex-shrink-0" style={{ color: '#B8A080' }}>
+                        <span className="text-xs flex-shrink-0" style={{ color: '#73775b' }}>
                           {fmt(m.date)}
                         </span>
                       )}
@@ -188,16 +188,16 @@ export default function EmergencyCard({ pet, onClose }) {
           )}
 
           {loading && (
-            <p className="text-center text-sm py-4" style={{ color: '#B8A080' }}>Loading records…</p>
+            <p className="text-center text-sm py-4" style={{ color: '#73775b' }}>Loading records…</p>
           )}
         </div>
 
         {/* Actions */}
         <div className="px-5 py-4 flex gap-2 flex-shrink-0"
-          style={{ borderTop: '1px solid #F0E6C8' }}>
+          style={{ borderTop: '1px solid #ebe3d3' }}>
           <button onClick={handleShare}
             className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-sm transition-all"
-            style={{ backgroundColor: '#F9D548', color: '#4A2C0A' }}>
+            style={{ backgroundColor: '#f2b83d', color: '#7a4900' }}>
             <Share2 className="w-4 h-4" />
             Share Card
           </button>

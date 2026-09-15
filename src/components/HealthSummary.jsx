@@ -126,10 +126,10 @@ Rules:
 
 function StatusBadge({ status }) {
   const cfg = {
-    'Good':             { bg: '#D1FAE5', text: '#065F46', icon: '✅' },
-    'Monitor':          { bg: '#FEF3C7', text: '#92400E', icon: '👀' },
-    'Attention Needed': { bg: '#FEE2E2', text: '#991B1B', icon: '⚠️' },
-  }[status] || { bg: '#F3F4F6', text: '#374151', icon: 'ℹ️' }
+    'Good':             { bg: '#eef3e2', text: '#44562a', icon: '✅' },
+    'Monitor':          { bg: '#fff3c0', text: '#7a4900', icon: '👀' },
+    'Attention Needed': { bg: '#fdeaea', text: '#8a2b20', icon: '⚠️' },
+  }[status] || { bg: '#f5f0e0', text: '#5f624b', icon: 'ℹ️' }
 
   return (
     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-black text-sm"
@@ -143,10 +143,10 @@ function StatusBadge({ status }) {
 
 function ObsRow({ obs }) {
   const cfg = {
-    positive: { icon: '✓', color: '#059669', bg: '#F0FDF4' },
-    warning:  { icon: '!', color: '#D97706', bg: '#FFFBEB' },
-    info:     { icon: '·', color: '#2563EB', bg: '#EFF6FF' },
-  }[obs.type] || { icon: '·', color: '#6B7280', bg: '#F9FAFB' }
+    positive: { icon: '✓', color: '#5f7a3a', bg: '#f4f8ea' },
+    warning:  { icon: '!', color: '#c9891f', bg: '#fff9e0' },
+    info:     { icon: '·', color: '#2f7286', bg: '#eef8fb' },
+  }[obs.type] || { icon: '·', color: '#73775b', bg: '#fffef8' }
 
   return (
     <div className="flex gap-2.5 items-start rounded-xl px-3 py-2" style={{ backgroundColor: cfg.bg }}>
@@ -154,7 +154,7 @@ function ObsRow({ obs }) {
         style={{ backgroundColor: cfg.color, color: 'white' }}>
         {cfg.icon}
       </span>
-      <span className="text-sm" style={{ color: '#374151' }}>{obs.text}</span>
+      <span className="text-sm" style={{ color: '#5f624b' }}>{obs.text}</span>
     </div>
   )
 }
@@ -221,7 +221,7 @@ export default function HealthSummary({ pet, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(74,44,10,0.4)', backdropFilter: 'blur(4px)' }}
+      style={{ backgroundColor: 'rgba(122,73,0,0.4)', backdropFilter: 'blur(4px)' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
 
       <div className="w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col"
@@ -229,26 +229,26 @@ export default function HealthSummary({ pet, onClose }) {
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 flex-shrink-0"
-          style={{ borderBottom: '1px solid #F0E6C8' }}>
+          style={{ borderBottom: '1px solid #ebe3d3' }}>
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-              style={{ backgroundColor: '#F9D548' }}>
-              <Sparkles className="w-5 h-5" style={{ color: '#4A2C0A' }} />
+              style={{ backgroundColor: '#f2b83d' }}>
+              <Sparkles className="w-5 h-5" style={{ color: '#7a4900' }} />
             </div>
             <div>
-              <h2 className="font-black" style={{ color: '#4A2C0A' }}>AI Health Brief</h2>
-              <p className="text-xs" style={{ color: '#B8A080' }}>{pet.name} · Temporary summary</p>
+              <h2 className="font-black" style={{ color: '#7a4900' }}>AI Health Brief</h2>
+              <p className="text-xs" style={{ color: '#73775b' }}>{pet.name} · Temporary summary</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-xl hover:bg-amber-50">
-            <X className="w-5 h-5" style={{ color: '#B8A080' }} />
+            <X className="w-5 h-5" style={{ color: '#73775b' }} />
           </button>
         </div>
 
         {/* Period selector + generate */}
         {!summary && !loading && (
           <div className="px-5 py-6 flex flex-col items-center gap-5">
-            <p className="text-sm text-center" style={{ color: '#6B4C1E' }}>
+            <p className="text-sm text-center" style={{ color: '#7a4900' }}>
               Choose a time window and Claude will analyse {pet.name}'s recent records — medical visits, medicines, weight, vaccinations — and give you a plain-English health summary.
             </p>
 
@@ -257,8 +257,8 @@ export default function HealthSummary({ pet, onClose }) {
                 <button key={i} onClick={() => setPeriodIdx(i)}
                   className="px-4 py-2 rounded-xl text-sm font-bold transition-all"
                   style={i === periodIdx
-                    ? { backgroundColor: '#F9D548', color: '#4A2C0A' }
-                    : { backgroundColor: '#F0E6C8', color: '#6B4C1E' }}>
+                    ? { backgroundColor: '#f2b83d', color: '#7a4900' }
+                    : { backgroundColor: '#ebe3d3', color: '#7a4900' }}>
                   Last {p.label}
                 </button>
               ))}
@@ -266,7 +266,7 @@ export default function HealthSummary({ pet, onClose }) {
 
             {!OPENAI_KEY && (
               <div className="text-xs rounded-xl px-3 py-2 text-center"
-                style={{ backgroundColor: '#FEF3C7', color: '#92400E' }}>
+                style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
                 Add <code>VITE_OPENAI_API_KEY</code> to your .env file to enable AI features.
               </div>
             )}
@@ -282,9 +282,9 @@ export default function HealthSummary({ pet, onClose }) {
         {/* Loading */}
         {loading && (
           <div className="flex flex-col items-center gap-3 px-5 py-12">
-            <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#F9D548' }} />
-            <p className="font-bold" style={{ color: '#4A2C0A' }}>Analysing {pet.name}'s health data…</p>
-            <p className="text-sm text-center" style={{ color: '#B8A080' }}>
+            <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#f2b83d' }} />
+            <p className="font-bold" style={{ color: '#7a4900' }}>Analysing {pet.name}'s health data…</p>
+            <p className="text-sm text-center" style={{ color: '#73775b' }}>
               Reviewing records, medicines, weight trends, and upcoming dates
             </p>
           </div>
@@ -294,7 +294,7 @@ export default function HealthSummary({ pet, onClose }) {
         {error && !loading && (
           <div className="px-5 py-6 space-y-4">
             <div className="flex items-start gap-2 p-3 rounded-xl text-sm"
-              style={{ backgroundColor: '#FEE2E2', color: '#DC2626' }}>
+              style={{ backgroundColor: '#fdeaea', color: '#c0392b' }}>
               <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="font-bold">Something went wrong</p>
@@ -315,21 +315,21 @@ export default function HealthSummary({ pet, onClose }) {
             {/* Status */}
             <div className="flex items-center justify-between flex-wrap gap-2">
               <StatusBadge status={summary.overallStatus} />
-              <span className="text-xs" style={{ color: '#B8A080' }}>Last {PERIODS[periodIdx].label}</span>
+              <span className="text-xs" style={{ color: '#73775b' }}>Last {PERIODS[periodIdx].label}</span>
             </div>
             {summary.statusReason && (
-              <p className="text-sm" style={{ color: '#4A2C0A' }}>{summary.statusReason}</p>
+              <p className="text-sm" style={{ color: '#7a4900' }}>{summary.statusReason}</p>
             )}
 
             {/* Vet visit alert */}
             {summary.vetVisitRecommended && (
               <div className="flex items-start gap-2.5 rounded-xl p-3"
-                style={{ backgroundColor: '#FEF3C7', border: '1px solid #FDE68A' }}>
-                <Calendar className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#D97706' }} />
+                style={{ backgroundColor: '#fff3c0', border: '1px solid #ffde59' }}>
+                <Calendar className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#c9891f' }} />
                 <div>
-                  <p className="font-bold text-sm" style={{ color: '#92400E' }}>Vet visit recommended</p>
+                  <p className="font-bold text-sm" style={{ color: '#7a4900' }}>Vet visit recommended</p>
                   {summary.vetVisitReason && (
-                    <p className="text-xs mt-0.5" style={{ color: '#B45309' }}>{summary.vetVisitReason}</p>
+                    <p className="text-xs mt-0.5" style={{ color: '#9a6a12' }}>{summary.vetVisitReason}</p>
                   )}
                 </div>
               </div>
@@ -338,7 +338,7 @@ export default function HealthSummary({ pet, onClose }) {
             {/* Observations */}
             {summary.observations?.length > 0 && (
               <div>
-                <p className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: '#B8A080' }}>Observations</p>
+                <p className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: '#73775b' }}>Observations</p>
                 <div className="space-y-1.5">
                   {summary.observations.map((obs, i) => <ObsRow key={i} obs={obs} />)}
                 </div>
@@ -348,26 +348,26 @@ export default function HealthSummary({ pet, onClose }) {
             {/* Weight trend */}
             {summary.weightTrend && (
               <div className="flex items-start gap-2 rounded-xl px-3 py-2.5"
-                style={{ backgroundColor: '#F0F8FF', border: '1px solid #BFDBFE' }}>
-                <TrendingUp className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#2563EB' }} />
-                <p className="text-sm" style={{ color: '#1E3A5F' }}>{summary.weightTrend}</p>
+                style={{ backgroundColor: '#eef8fb', border: '1px solid #bfe5ef' }}>
+                <TrendingUp className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#2f7286' }} />
+                <p className="text-sm" style={{ color: '#1f4b57' }}>{summary.weightTrend}</p>
               </div>
             )}
 
             {/* Upcoming actions */}
             {summary.upcomingActions?.length > 0 && (
               <div>
-                <p className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: '#B8A080' }}>Coming Up</p>
+                <p className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: '#73775b' }}>Coming Up</p>
                 <div className="space-y-1.5">
                   {summary.upcomingActions.map((a, i) => {
-                    const priorityColor = { high: '#DC2626', medium: '#D97706', low: '#059669' }[a.priority] || '#6B7280'
+                    const priorityColor = { high: '#c0392b', medium: '#c9891f', low: '#5f7a3a' }[a.priority] || '#73775b'
                     return (
                       <div key={i} className="flex items-center gap-2.5 rounded-xl px-3 py-2"
-                        style={{ backgroundColor: '#FFFEF0', border: '1px solid #F0E6C8' }}>
+                        style={{ backgroundColor: '#fff9e0', border: '1px solid #ebe3d3' }}>
                         <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: priorityColor }} />
-                        <span className="text-sm flex-1" style={{ color: '#4A2C0A' }}>{a.action}</span>
+                        <span className="text-sm flex-1" style={{ color: '#7a4900' }}>{a.action}</span>
                         {a.dueDate && (
-                          <span className="text-xs font-semibold flex-shrink-0" style={{ color: '#B8A080' }}>{a.dueDate}</span>
+                          <span className="text-xs font-semibold flex-shrink-0" style={{ color: '#73775b' }}>{a.dueDate}</span>
                         )}
                       </div>
                     )
@@ -378,24 +378,24 @@ export default function HealthSummary({ pet, onClose }) {
 
             {/* AI Findings — what's good vs what needs attention */}
             {summary.findings && (summary.findings.good?.length > 0 || summary.findings.concerns?.length > 0) && (
-              <div className="rounded-2xl overflow-hidden" style={{ border: '1.5px solid #F0E6C8' }}>
+              <div className="rounded-2xl overflow-hidden" style={{ border: '1.5px solid #ebe3d3' }}>
                 <div className="px-4 py-3 flex items-center gap-2"
-                  style={{ backgroundColor: '#FFF9D6' }}>
-                  <Sparkles className="w-4 h-4" style={{ color: '#4A2C0A' }} />
-                  <span className="font-black text-sm" style={{ color: '#4A2C0A' }}>AI Findings</span>
+                  style={{ backgroundColor: '#fff9e0' }}>
+                  <Sparkles className="w-4 h-4" style={{ color: '#7a4900' }} />
+                  <span className="font-black text-sm" style={{ color: '#7a4900' }}>AI Findings</span>
                 </div>
 
-                <div className="divide-y" style={{ divideColor: '#F0E6C8' }}>
+                <div className="divide-y" style={{ divideColor: '#ebe3d3' }}>
                   {/* What's good */}
                   {summary.findings.good?.length > 0 && (
-                    <div className="px-4 py-3" style={{ backgroundColor: '#F0FDF4' }}>
-                      <p className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: '#059669' }}>
+                    <div className="px-4 py-3" style={{ backgroundColor: '#f4f8ea' }}>
+                      <p className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: '#5f7a3a' }}>
                         ✅ Looking Good
                       </p>
                       <ul className="space-y-1.5">
                         {summary.findings.good.map((item, i) => (
-                          <li key={i} className="flex items-start gap-2 text-sm" style={{ color: '#065F46' }}>
-                            <span className="mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: '#059669' }} />
+                          <li key={i} className="flex items-start gap-2 text-sm" style={{ color: '#44562a' }}>
+                            <span className="mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: '#5f7a3a' }} />
                             {item}
                           </li>
                         ))}
@@ -405,14 +405,14 @@ export default function HealthSummary({ pet, onClose }) {
 
                   {/* What needs attention */}
                   {summary.findings.concerns?.length > 0 && (
-                    <div className="px-4 py-3" style={{ backgroundColor: '#FFFBEB' }}>
-                      <p className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: '#D97706' }}>
+                    <div className="px-4 py-3" style={{ backgroundColor: '#fff9e0' }}>
+                      <p className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: '#c9891f' }}>
                         ⚠️ Needs Attention
                       </p>
                       <ul className="space-y-1.5">
                         {summary.findings.concerns.map((item, i) => (
-                          <li key={i} className="flex items-start gap-2 text-sm" style={{ color: '#92400E' }}>
-                            <span className="mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: '#D97706' }} />
+                          <li key={i} className="flex items-start gap-2 text-sm" style={{ color: '#7a4900' }}>
+                            <span className="mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: '#c9891f' }} />
                             {item}
                           </li>
                         ))}
@@ -422,7 +422,7 @@ export default function HealthSummary({ pet, onClose }) {
 
                   {/* All clear */}
                   {summary.findings.concerns?.length === 0 && (
-                    <div className="px-4 py-2.5 text-sm" style={{ backgroundColor: '#F0FDF4', color: '#059669' }}>
+                    <div className="px-4 py-2.5 text-sm" style={{ backgroundColor: '#f4f8ea', color: '#5f7a3a' }}>
                       🎉 No concerns found — keep up the great care!
                     </div>
                   )}
@@ -436,15 +436,15 @@ export default function HealthSummary({ pet, onClose }) {
                 <button
                   onClick={() => setShowQuestions(v => !v)}
                   className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl mb-1"
-                  style={{ backgroundColor: '#F0F8FF', border: '1px solid #BFDBFE' }}>
+                  style={{ backgroundColor: '#eef8fb', border: '1px solid #bfe5ef' }}>
                   <div className="flex items-center gap-2">
-                    <MessageSquare className="w-4 h-4" style={{ color: '#2563EB' }} />
-                    <span className="font-bold text-sm" style={{ color: '#1E3A5F' }}>
+                    <MessageSquare className="w-4 h-4" style={{ color: '#2f7286' }} />
+                    <span className="font-bold text-sm" style={{ color: '#1f4b57' }}>
                       {summary.vetQuestions.length} questions to ask your vet
                     </span>
                   </div>
                   <ChevronDown className={`w-4 h-4 transition-transform ${showQuestions ? 'rotate-180' : ''}`}
-                    style={{ color: '#2563EB' }} />
+                    style={{ color: '#2f7286' }} />
                 </button>
 
                 {showQuestions && (
@@ -452,18 +452,18 @@ export default function HealthSummary({ pet, onClose }) {
                     <ol className="space-y-1.5">
                       {summary.vetQuestions.map((q, i) => (
                         <li key={i} className="flex gap-2.5 text-sm rounded-xl px-3 py-2"
-                          style={{ backgroundColor: 'white', border: '1px solid #BFDBFE' }}>
+                          style={{ backgroundColor: 'white', border: '1px solid #bfe5ef' }}>
                           <span className="font-black flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs"
-                            style={{ backgroundColor: '#F9D548', color: '#4A2C0A' }}>
+                            style={{ backgroundColor: '#f2b83d', color: '#7a4900' }}>
                             {i + 1}
                           </span>
-                          <span style={{ color: '#1E3A5F' }}>{q}</span>
+                          <span style={{ color: '#1f4b57' }}>{q}</span>
                         </li>
                       ))}
                     </ol>
                     <button onClick={handleCopyQuestions}
                       className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-semibold w-full justify-center"
-                      style={{ backgroundColor: copied ? '#D1FAE5' : '#DBEAFE', color: copied ? '#065F46' : '#1D4ED8' }}>
+                      style={{ backgroundColor: copied ? '#eef3e2' : '#dceff5', color: copied ? '#44562a' : '#255d6e' }}>
                       {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                       {copied ? 'Copied!' : 'Copy all questions'}
                     </button>

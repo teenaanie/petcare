@@ -42,8 +42,8 @@ function WeightChart({ logs }) {
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: '160px' }}>
       <defs>
         <linearGradient id="wGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#F9D548" stopOpacity="0.45" />
-          <stop offset="100%" stopColor="#F9D548" stopOpacity="0" />
+          <stop offset="0%" stopColor="#f2b83d" stopOpacity="0.45" />
+          <stop offset="100%" stopColor="#f2b83d" stopOpacity="0" />
         </linearGradient>
       </defs>
 
@@ -51,9 +51,9 @@ function WeightChart({ logs }) {
       {ticks.map((t, i) => (
         <g key={i}>
           <line x1={PAD.left} x2={W - PAD.right} y1={t.y} y2={t.y}
-            stroke="#F0E6C8" strokeWidth="1" strokeDasharray="3 3" />
+            stroke="#ebe3d3" strokeWidth="1" strokeDasharray="3 3" />
           <text x={PAD.left - 6} y={t.y + 4} textAnchor="end"
-            fontSize="10" fill="#B8A080" fontFamily="Nunito, sans-serif">
+            fontSize="10" fill="#73775b" fontFamily="Nunito, sans-serif">
             {t.val}
           </text>
         </g>
@@ -63,22 +63,22 @@ function WeightChart({ logs }) {
       <path d={areaD} fill="url(#wGrad)" />
 
       {/* Line */}
-      <path d={lineD} fill="none" stroke="#F9D548" strokeWidth="2.5"
+      <path d={lineD} fill="none" stroke="#f2b83d" strokeWidth="2.5"
         strokeLinecap="round" strokeLinejoin="round" />
 
       {/* Data points + X labels */}
       {pts.map((p, i) => (
         <g key={i}>
-          <circle cx={p.x} cy={p.y} r="4.5" fill="#F9D548"
-            stroke="#4A2C0A" strokeWidth="1.5" />
+          <circle cx={p.x} cy={p.y} r="4.5" fill="#f2b83d"
+            stroke="#7a4900" strokeWidth="1.5" />
           {/* weight label above dot */}
           <text x={p.x} y={p.y - 9} textAnchor="middle"
-            fontSize="9.5" fontWeight="bold" fill="#4A2C0A" fontFamily="Nunito, sans-serif">
+            fontSize="9.5" fontWeight="bold" fill="#7a4900" fontFamily="Nunito, sans-serif">
             {parseFloat(p.weight)}
           </text>
           {/* date below axis */}
           <text x={p.x} y={H - 6} textAnchor="middle"
-            fontSize="9" fill="#B8A080" fontFamily="Nunito, sans-serif">
+            fontSize="9" fill="#73775b" fontFamily="Nunito, sans-serif">
             {format(parseISO(p.date), 'MMM d')}
           </text>
         </g>
@@ -109,18 +109,18 @@ export default function WeightLog({ pet }) {
     const delta = parseFloat(sorted[sorted.length - 1].weight) - parseFloat(sorted[sorted.length - 2].weight)
     if (Math.abs(delta) < 0.05) return (
       <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-bold"
-        style={{ backgroundColor: '#FFF5AA', color: '#6B4C1E' }}>
+        style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
         <Minus className="w-3 h-3" /> Stable
       </span>
     )
     return delta > 0 ? (
       <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-bold"
-        style={{ backgroundColor: '#DBEAFE', color: '#1E40AF' }}>
+        style={{ backgroundColor: '#dceff5', color: '#255d6e' }}>
         <TrendingUp className="w-3 h-3" /> +{delta.toFixed(2)} kg
       </span>
     ) : (
       <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-bold"
-        style={{ backgroundColor: '#D1FAE5', color: '#065F46' }}>
+        style={{ backgroundColor: '#eef3e2', color: '#44562a' }}>
         <TrendingDown className="w-3 h-3" /> {delta.toFixed(2)} kg
       </span>
     )
@@ -152,10 +152,10 @@ export default function WeightLog({ pet }) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-black" style={{ color: '#4A2C0A' }}>Weight Trend</h2>
+          <h2 className="text-lg font-black" style={{ color: '#7a4900' }}>Weight Trend</h2>
           {latest && (
-            <p className="text-sm mt-0.5" style={{ color: '#B8A080' }}>
-              Latest: <span className="font-bold" style={{ color: '#4A2C0A' }}>{parseFloat(latest.weight)} kg</span>
+            <p className="text-sm mt-0.5" style={{ color: '#73775b' }}>
+              Latest: <span className="font-bold" style={{ color: '#7a4900' }}>{parseFloat(latest.weight)} kg</span>
               {' '}· {format(parseISO(latest.date), 'MMM d, yyyy')}
             </p>
           )}
@@ -170,7 +170,7 @@ export default function WeightLog({ pet }) {
 
       {/* Add form */}
       {showForm && (
-        <div className="card" style={{ backgroundColor: '#FFFEF0' }}>
+        <div className="card" style={{ backgroundColor: '#fff9e0' }}>
           <form onSubmit={handleSave} className="flex flex-wrap gap-3 items-end">
             <div className="flex-1 min-w-[140px]">
               <label className="label text-xs">Date</label>
@@ -203,11 +203,11 @@ export default function WeightLog({ pet }) {
       {sorted.length === 0 ? (
         <div className="card flex flex-col items-center py-16 text-center">
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-3"
-            style={{ backgroundColor: '#FFF5AA' }}>
-            <TrendingUp className="w-8 h-8" style={{ color: '#4A2C0A' }} />
+            style={{ backgroundColor: '#fff3c0' }}>
+            <TrendingUp className="w-8 h-8" style={{ color: '#7a4900' }} />
           </div>
-          <p className="font-bold" style={{ color: '#4A2C0A' }}>No weight logs yet</p>
-          <p className="text-sm mt-1" style={{ color: '#B8A080' }}>
+          <p className="font-bold" style={{ color: '#7a4900' }}>No weight logs yet</p>
+          <p className="text-sm mt-1" style={{ color: '#73775b' }}>
             Tap "Log Weight" to start tracking {pet.name}'s weight over time.
           </p>
         </div>
@@ -215,9 +215,9 @@ export default function WeightLog({ pet }) {
         <>
           {/* Chart card */}
           <div className="card">
-            <p className="text-xs font-bold mb-3" style={{ color: '#B8A080' }}>WEIGHT OVER TIME (kg)</p>
+            <p className="text-xs font-bold mb-3" style={{ color: '#73775b' }}>WEIGHT OVER TIME (kg)</p>
             {sorted.length === 1 ? (
-              <p className="text-sm text-center py-4" style={{ color: '#B8A080' }}>
+              <p className="text-sm text-center py-4" style={{ color: '#73775b' }}>
                 Add at least 2 entries to see the trend chart.
               </p>
             ) : (
@@ -239,8 +239,8 @@ export default function WeightLog({ pet }) {
                   { label: 'Heaviest', val: `${max} kg` },
                 ].map(s => (
                   <div key={s.label} className="card text-center py-3">
-                    <p className="text-xs font-bold mb-1" style={{ color: '#B8A080' }}>{s.label}</p>
-                    <p className="text-lg font-black" style={{ color: '#4A2C0A' }}>{s.val}</p>
+                    <p className="text-xs font-bold mb-1" style={{ color: '#73775b' }}>{s.label}</p>
+                    <p className="text-lg font-black" style={{ color: '#7a4900' }}>{s.val}</p>
                   </div>
                 ))}
               </div>
@@ -249,18 +249,18 @@ export default function WeightLog({ pet }) {
 
           {/* Log list */}
           <div className="card">
-            <p className="text-xs font-bold mb-3" style={{ color: '#B8A080' }}>ALL ENTRIES</p>
+            <p className="text-xs font-bold mb-3" style={{ color: '#73775b' }}>ALL ENTRIES</p>
             <div className="space-y-2">
               {[...sorted].reverse().map(l => (
                 <div key={l.id} className="flex items-center justify-between py-2 px-3 rounded-xl group"
-                  style={{ backgroundColor: '#FFFEF0' }}>
+                  style={{ backgroundColor: '#fff9e0' }}>
                   <div>
-                    <span className="font-black" style={{ color: '#4A2C0A' }}>{parseFloat(l.weight)} kg</span>
-                    <span className="text-sm ml-2" style={{ color: '#B8A080' }}>
+                    <span className="font-black" style={{ color: '#7a4900' }}>{parseFloat(l.weight)} kg</span>
+                    <span className="text-sm ml-2" style={{ color: '#73775b' }}>
                       {format(parseISO(l.date), 'MMM d, yyyy')}
                     </span>
                     {l.notes && (
-                      <span className="text-xs ml-2" style={{ color: '#B8A080' }}>· {l.notes}</span>
+                      <span className="text-xs ml-2" style={{ color: '#73775b' }}>· {l.notes}</span>
                     )}
                   </div>
                   <button onClick={() => handleDelete(l.id)}

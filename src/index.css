@@ -2,16 +2,63 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Brand tokens ─────────────────────────────────────────────────────────────
+   Every colour in the app resolves to one of these, so a brand change is edited
+   here rather than hunted across hundreds of inline styles.
+   Palette from the Pippy brand guidelines.
+*/
+:root {
+  /* Brand — primary */
+  --brand-orange-yellow: #f2b83d;
+  --brand-green:         #878c6b;
+
+  /* Brand — secondary */
+  --brand-azure:        #bfe5ef;   /* info, educational, empty states, tips   */
+  --brand-coral:        #ff9999;   /* achievements, milestones, celebrations  */
+  --brand-brown:        #7a4900;   /* accent type, illustration detail        */
+  --brand-yellow:       #ffde59;   /* primary buttons, CTAs, interactive UI   */
+  --brand-yellow-green: #beb950;   /* category labels, icons, health sections */
+
+  /* Text — hierarchy comes from weight plus the muted green, since the brand
+     specifies a single brown rather than a ramp of them. */
+  --text-strong: #7a4900;
+  --text-body:   #7a4900;
+  --text-muted:  #73775b;          /* brand green darkened to clear WCAG AA   */
+  --text-on-dark: #fffef8;
+
+  /* Surfaces */
+  --surface:             #fffef8;
+  --surface-card:        #ffffff;
+  --surface-accent:      #fff3c0;  /* tint of brand yellow                    */
+  --surface-accent-soft: #fff9e0;
+  --surface-sunken:      #f5f0e0;
+
+  /* Lines */
+  --border:        #ebe3d3;        /* brand brown at 15% over the cream       */
+  --border-strong: #e0d3b4;
+
+  /* Status — the brand has no red, so errors keep a functional warm red.
+     Success/achievement uses coral and info uses azure, per the guidelines. */
+  --danger:        #c0392b;
+  --danger-surface:#fdeaea;
+  --success:       #5f7a3a;
+  --success-surface: #eef3e2;
+  --info-surface:  var(--brand-azure);
+}
+
 @layer base {
   body {
-    background-color: #FDFBF0;
-    color: #4A2C0A;
+    background-color: var(--surface);
+    color: var(--text-body);
     font-family: 'Nunito', ui-sans-serif, system-ui, sans-serif;
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-weight: 800;
-    color: #4A2C0A;
+    color: var(--text-strong);
+    /* Display face for titles and headings. Swap this one line when the
+       licensed Choret Fudyng files are available. */
+    font-family: 'Baloo 2', 'Nunito', ui-sans-serif, system-ui, sans-serif;
   }
 }
 
@@ -19,13 +66,13 @@
   /* ── Buttons ── */
   .btn-primary {
     @apply font-bold px-4 py-2 rounded-xl transition-all duration-200 inline-flex items-center;
-    background-color: #F9D548;
-    color: #4A2C0A;
+    background-color: var(--brand-yellow);
+    color: var(--text-strong);
   }
   .btn-primary:hover {
-    background-color: #F0C420;
+    background-color: var(--brand-orange-yellow);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(249, 213, 72, 0.4);
+    box-shadow: 0 4px 12px rgba(242, 184, 61, 0.4);
   }
   .btn-primary:active {
     transform: translateY(0);
@@ -33,40 +80,40 @@
 
   .btn-secondary {
     @apply bg-white font-semibold px-4 py-2 rounded-xl border transition-all duration-200;
-    color: #4A2C0A;
-    border-color: #E8D9B0;
+    color: var(--text-strong);
+    border-color: var(--border-strong);
   }
   .btn-secondary:hover {
-    background-color: #FFFEF0;
-    border-color: #F9D548;
+    background-color: var(--surface-accent-soft);
+    border-color: var(--brand-orange-yellow);
   }
 
   /* ── Cards ── */
   .card {
     @apply bg-white rounded-2xl p-6;
-    border: 1px solid #F0E6C8;
-    box-shadow: 0 2px 8px rgba(74, 44, 10, 0.06);
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(122, 73, 0, 0.06);
   }
 
   /* ── Form inputs ── */
   .input {
     @apply w-full rounded-xl px-3 py-2 text-sm transition-all duration-200;
-    border: 1.5px solid #E8D9B0;
-    color: #4A2C0A;
-    background-color: #FFFEF8;
+    border: 1.5px solid var(--border-strong);
+    color: var(--text-strong);
+    background-color: var(--surface);
   }
   .input:focus {
     outline: none;
-    border-color: #F9D548;
-    box-shadow: 0 0 0 3px rgba(249, 213, 72, 0.25);
+    border-color: var(--brand-orange-yellow);
+    box-shadow: 0 0 0 3px rgba(242, 184, 61, 0.25);
   }
   .input::placeholder {
-    color: #B8A080;
+    color: var(--text-muted);
   }
 
   .label {
     @apply block text-sm font-bold mb-1;
-    color: #6B4C1E;
+    color: var(--text-body);
   }
 }
 

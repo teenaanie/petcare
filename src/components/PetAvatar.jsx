@@ -59,7 +59,7 @@ export default function PetAvatar({ pet, size = 'md', editable = false, onPhotoC
     <img src={pet.photo} alt={pet.name} className={`w-full h-full object-cover ${s.radius}`} />
   ) : (
     <div className={`${s.wrap} ${s.radius} flex items-center justify-center flex-shrink-0 select-none`}
-      style={{ background: 'linear-gradient(135deg, #F9D548, #8B9636)' }}>
+      style={{ background: 'linear-gradient(135deg, #f2b83d, #878c6b)' }}>
       <span className={s.text}>{emoji}</span>
     </div>
   )
@@ -67,7 +67,7 @@ export default function PetAvatar({ pet, size = 'md', editable = false, onPhotoC
   if (!editable) {
     return (
       <div className={`${s.wrap} ${s.radius} overflow-hidden flex-shrink-0 ${className}`}
-        style={pet?.photo ? {} : { background: 'linear-gradient(135deg, #F9D548, #8B9636)' }}>
+        style={pet?.photo ? {} : { background: 'linear-gradient(135deg, #f2b83d, #878c6b)' }}>
         {pet?.photo
           ? <img src={pet.photo} alt={pet.name} className="w-full h-full object-cover" />
           : <div className="w-full h-full flex items-center justify-center"><span className={s.text}>{emoji}</span></div>
@@ -87,13 +87,13 @@ export default function PetAvatar({ pet, size = 'md', editable = false, onPhotoC
         {pet?.photo
           ? <img src={pet.photo} alt={pet.name} className="w-full h-full object-cover" />
           : <div className="w-full h-full flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, #F9D548, #8B9636)' }}>
+              style={{ background: 'linear-gradient(135deg, #f2b83d, #878c6b)' }}>
               <span className={s.text}>{emoji}</span>
             </div>
         }
         {/* Camera overlay on hover */}
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl"
-          style={{ backgroundColor: 'rgba(74,44,10,0.45)' }}>
+          style={{ backgroundColor: 'rgba(122,73,0,0.45)' }}>
           <Camera className="w-5 h-5 text-white" />
         </div>
       </button>
@@ -109,10 +109,10 @@ export default function PetAvatar({ pet, size = 'md', editable = false, onPhotoC
             style={{ backgroundColor: '#FFFEF8' }}
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4"
-              style={{ borderBottom: '1px solid #F0E6C8' }}>
-              <span className="font-black" style={{ color: '#4A2C0A' }}>Update Photo</span>
+              style={{ borderBottom: '1px solid #ebe3d3' }}>
+              <span className="font-black" style={{ color: '#7a4900' }}>Update Photo</span>
               <button onClick={() => setShowPhotoMenu(false)}>
-                <X className="w-5 h-5" style={{ color: '#B8A080' }} />
+                <X className="w-5 h-5" style={{ color: '#73775b' }} />
               </button>
             </div>
             <div className="p-3 space-y-2">
@@ -120,7 +120,7 @@ export default function PetAvatar({ pet, size = 'md', editable = false, onPhotoC
                 type="button"
                 onClick={() => { setShowPhotoMenu(false); cameraRef.current?.click() }}
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left font-bold transition-colors"
-                style={{ backgroundColor: '#FFF9D6', color: '#4A2C0A' }}
+                style={{ backgroundColor: '#fff9e0', color: '#7a4900' }}
               >
                 <Camera className="w-5 h-5" /> Take Photo
               </button>
@@ -128,7 +128,7 @@ export default function PetAvatar({ pet, size = 'md', editable = false, onPhotoC
                 type="button"
                 onClick={() => { setShowPhotoMenu(false); libraryRef.current?.click() }}
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left font-bold transition-colors"
-                style={{ backgroundColor: '#FFF9D6', color: '#4A2C0A' }}
+                style={{ backgroundColor: '#fff9e0', color: '#7a4900' }}
               >
                 <Image className="w-5 h-5" /> Choose from Library
               </button>

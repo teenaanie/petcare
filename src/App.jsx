@@ -12,6 +12,7 @@ import AdminDashboard from './components/AdminDashboard.jsx'
 import FeedbackButton from './components/FeedbackButton.jsx'
 import ProviderDirectory from './components/ProviderDirectory.jsx'
 import InstallPrompt from './components/InstallPrompt.jsx'
+import PippyLogo from './components/PippyLogo.jsx'
 
 const ADMIN_EMAIL = 'teena.anie9@gmail.com'
 
@@ -19,12 +20,9 @@ function LoadingScreen() {
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#FFFEF8' }}>
       <div className="flex flex-col items-center gap-4">
-        <div className="w-14 h-14 rounded-2xl flex items-center justify-center animate-pulse"
-          style={{ backgroundColor: '#F9D548' }}>
-          <PawPrint className="w-8 h-8" style={{ color: '#4A2C0A' }} />
-        </div>
-        <span className="text-2xl font-black" style={{ color: '#4A2C0A', fontFamily: 'Nunito, sans-serif' }}>
-          pip<span style={{ color: '#F9D548' }}>py</span>
+        <PippyLogo size="xl" className="animate-pulse" />
+        <span className="text-2xl font-black" style={{ color: '#7a4900', fontFamily: 'Nunito, sans-serif' }}>
+          pip<span style={{ color: '#f2b83d' }}>py</span>
         </span>
       </div>
     </div>

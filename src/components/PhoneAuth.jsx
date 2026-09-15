@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { PawPrint, Phone, Mail, MessageSquare, Loader2, AlertCircle, ArrowLeft, CheckCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
+import PippyLogo from './PippyLogo.jsx'
 
 const COUNTRY_CODES = [
   { code: '+91',  label: '🇮🇳 +91' },
@@ -159,12 +160,9 @@ export default function PhoneAuth() {
 
       {/* Logo */}
       <div className="flex items-center gap-3 mb-10">
-        <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm"
-          style={{ backgroundColor: '#F9D548' }}>
-          <PawPrint className="w-7 h-7" style={{ color: '#4A2C0A' }} />
-        </div>
-        <span className="text-4xl font-black tracking-tight" style={{ color: '#4A2C0A', fontFamily: 'Nunito, sans-serif' }}>
-          pip<span style={{ color: '#F9D548' }}>py</span>
+        <PippyLogo size="lg" className="shadow-sm" />
+        <span className="text-4xl font-black tracking-tight" style={{ color: '#7a4900', fontFamily: 'Nunito, sans-serif' }}>
+          pip<span style={{ color: '#f2b83d' }}>py</span>
         </span>
       </div>
 
@@ -173,21 +171,21 @@ export default function PhoneAuth() {
 
           {/* ── Method toggle ──────────────────────────────────────────── */}
           {step === 'entry' && (
-            <div className="flex rounded-xl p-1 mb-6" style={{ backgroundColor: '#F0E6C8' }}>
+            <div className="flex rounded-xl p-1 mb-6" style={{ backgroundColor: '#ebe3d3' }}>
               <button
                 onClick={() => switchMethod('phone')}
                 className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
                 style={method === 'phone'
-                  ? { backgroundColor: '#F9D548', color: '#4A2C0A' }
-                  : { color: '#B8A080' }}>
+                  ? { backgroundColor: '#f2b83d', color: '#7a4900' }
+                  : { color: '#73775b' }}>
                 <Phone className="w-4 h-4" /> Phone
               </button>
               <button
                 onClick={() => switchMethod('email')}
                 className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
                 style={method === 'email'
-                  ? { backgroundColor: '#F9D548', color: '#4A2C0A' }
-                  : { color: '#B8A080' }}>
+                  ? { backgroundColor: '#f2b83d', color: '#7a4900' }
+                  : { color: '#73775b' }}>
                 <Mail className="w-4 h-4" /> Email
               </button>
             </div>
@@ -198,13 +196,13 @@ export default function PhoneAuth() {
             <>
               <div className="text-center mb-6">
                 <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                  style={{ backgroundColor: '#FFF5AA' }}>
+                  style={{ backgroundColor: '#fff3c0' }}>
                   {method === 'phone'
-                    ? <Phone className="w-7 h-7" style={{ color: '#4A2C0A' }} />
-                    : <Mail className="w-7 h-7" style={{ color: '#4A2C0A' }} />}
+                    ? <Phone className="w-7 h-7" style={{ color: '#7a4900' }} />
+                    : <Mail className="w-7 h-7" style={{ color: '#7a4900' }} />}
                 </div>
-                <h1 className="text-xl font-black mb-1" style={{ color: '#4A2C0A' }}>Welcome to Pippy</h1>
-                <p className="text-sm" style={{ color: '#B8A080' }}>
+                <h1 className="text-xl font-black mb-1" style={{ color: '#7a4900' }}>Welcome to Pippy</h1>
+                <p className="text-sm" style={{ color: '#73775b' }}>
                   {method === 'phone'
                     ? 'Enter your phone number to get started'
                     : 'Enter your email to get started'}
@@ -227,7 +225,7 @@ export default function PhoneAuth() {
                         value={phone} onChange={e => setPhone(e.target.value)}
                         autoFocus required />
                     </div>
-                    <p className="text-xs mt-1.5" style={{ color: '#B8A080' }}>
+                    <p className="text-xs mt-1.5" style={{ color: '#73775b' }}>
                       We'll send a one-time code to {formattedPhone || 'this number'}
                     </p>
                   </div>
@@ -238,7 +236,7 @@ export default function PhoneAuth() {
                       placeholder="you@example.com"
                       value={email} onChange={e => setEmail(e.target.value)}
                       autoFocus required />
-                    <p className="text-xs mt-1.5" style={{ color: '#B8A080' }}>
+                    <p className="text-xs mt-1.5" style={{ color: '#73775b' }}>
                       We'll send a sign-in link to this email
                     </p>
                   </div>
@@ -261,13 +259,13 @@ export default function PhoneAuth() {
             <>
               <div className="text-center mb-6">
                 <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                  style={{ backgroundColor: '#FFF5AA' }}>
-                  <MessageSquare className="w-7 h-7" style={{ color: '#4A2C0A' }} />
+                  style={{ backgroundColor: '#fff3c0' }}>
+                  <MessageSquare className="w-7 h-7" style={{ color: '#7a4900' }} />
                 </div>
-                <h1 className="text-xl font-black mb-1" style={{ color: '#4A2C0A' }}>Check your messages</h1>
-                <p className="text-sm" style={{ color: '#B8A080' }}>
+                <h1 className="text-xl font-black mb-1" style={{ color: '#7a4900' }}>Check your messages</h1>
+                <p className="text-sm" style={{ color: '#73775b' }}>
                   We sent a 6-digit code to{' '}
-                  <span className="font-bold" style={{ color: '#4A2C0A' }}>{sentTo}</span>
+                  <span className="font-bold" style={{ color: '#7a4900' }}>{sentTo}</span>
                 </p>
               </div>
 
@@ -293,7 +291,7 @@ export default function PhoneAuth() {
                     : <><CheckCircle className="w-4 h-4" /> Verify & Sign In</>}
                 </button>
 
-                <div className="flex items-center justify-between text-xs" style={{ color: '#B8A080' }}>
+                <div className="flex items-center justify-between text-xs" style={{ color: '#73775b' }}>
                   <button type="button"
                     onClick={() => { setStep('entry'); setError(null); setOtp(''); clearOtpState() }}
                     className="flex items-center gap-1 hover:underline">
@@ -314,25 +312,25 @@ export default function PhoneAuth() {
             <>
               <div className="text-center mb-6">
                 <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                  style={{ backgroundColor: '#FFF5AA' }}>
-                  <Mail className="w-7 h-7" style={{ color: '#4A2C0A' }} />
+                  style={{ backgroundColor: '#fff3c0' }}>
+                  <Mail className="w-7 h-7" style={{ color: '#7a4900' }} />
                 </div>
-                <h1 className="text-xl font-black mb-2" style={{ color: '#4A2C0A' }}>Check your email</h1>
-                <p className="text-sm mb-1" style={{ color: '#B8A080' }}>
+                <h1 className="text-xl font-black mb-2" style={{ color: '#7a4900' }}>Check your email</h1>
+                <p className="text-sm mb-1" style={{ color: '#73775b' }}>
                   We sent a sign-in link to
                 </p>
-                <p className="text-sm font-bold mb-4" style={{ color: '#4A2C0A' }}>{sentTo}</p>
-                <p className="text-xs" style={{ color: '#B8A080' }}>
+                <p className="text-sm font-bold mb-4" style={{ color: '#7a4900' }}>{sentTo}</p>
+                <p className="text-xs" style={{ color: '#73775b' }}>
                   Click the link in the email to sign in. You can close this tab.
                 </p>
-                <p className="text-xs mt-3 px-3 py-2 rounded-xl" style={{ backgroundColor: '#FFF5AA', color: '#6B4C1E' }}>
+                <p className="text-xs mt-3 px-3 py-2 rounded-xl" style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
                   💡 Can't find it? Check your spam folder — then tap "Sign in to Pippy" inside the email.
                 </p>
               </div>
 
               {error && <ErrorBox message={error} />}
 
-              <div className="flex items-center justify-between text-xs mt-4" style={{ color: '#B8A080' }}>
+              <div className="flex items-center justify-between text-xs mt-4" style={{ color: '#73775b' }}>
                 <button type="button"
                   onClick={() => { setStep('entry'); setError(null); clearOtpState() }}
                   className="flex items-center gap-1 hover:underline">
@@ -348,7 +346,7 @@ export default function PhoneAuth() {
           )}
         </div>
 
-        <p className="text-center text-xs mt-6" style={{ color: '#B8A080' }}>
+        <p className="text-center text-xs mt-6" style={{ color: '#73775b' }}>
           Your data is private and secure. Only you can see your pets' records.
         </p>
       </div>
@@ -359,7 +357,7 @@ export default function PhoneAuth() {
 function ErrorBox({ message }) {
   return (
     <div className="flex items-start gap-2 p-3 rounded-xl text-sm"
-      style={{ backgroundColor: '#FEE2E2', color: '#DC2626' }}>
+      style={{ backgroundColor: '#fdeaea', color: '#c0392b' }}>
       <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
       <span>{message}</span>
     </div>

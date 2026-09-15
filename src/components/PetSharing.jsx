@@ -97,13 +97,13 @@ export default function PetSharing({ pet, onClose }) {
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 flex-shrink-0"
-          style={{ borderBottom: '1px solid #F0E6C8' }}>
+          style={{ borderBottom: '1px solid #ebe3d3' }}>
           <div className="flex items-center gap-2">
-            <Users className="w-5 h-5" style={{ color: '#4A2C0A' }} />
-            <span className="font-black" style={{ color: '#4A2C0A' }}>Share {pet.name}</span>
+            <Users className="w-5 h-5" style={{ color: '#7a4900' }} />
+            <span className="font-black" style={{ color: '#7a4900' }}>Share {pet.name}</span>
           </div>
           <button onClick={onClose}>
-            <X className="w-5 h-5" style={{ color: '#B8A080' }} />
+            <X className="w-5 h-5" style={{ color: '#73775b' }} />
           </button>
         </div>
 
@@ -111,7 +111,7 @@ export default function PetSharing({ pet, onClose }) {
 
           {/* Invite form */}
           <form onSubmit={handleInvite} className="space-y-3">
-            <label className="text-xs font-black uppercase tracking-wider" style={{ color: '#B8A080' }}>
+            <label className="text-xs font-black uppercase tracking-wider" style={{ color: '#73775b' }}>
               Invite someone by email
             </label>
             <div className="flex gap-2">
@@ -129,7 +129,7 @@ export default function PetSharing({ pet, onClose }) {
               </select>
             </div>
             {inviteErr && (
-              <p className="text-xs" style={{ color: '#DC2626' }}>{inviteErr}</p>
+              <p className="text-xs" style={{ color: '#c0392b' }}>{inviteErr}</p>
             )}
             <button type="submit" disabled={inviting}
               className="btn-primary w-full gap-2 text-sm"
@@ -141,36 +141,36 @@ export default function PetSharing({ pet, onClose }) {
           </form>
 
           {/* Role note */}
-          <p className="text-xs px-3 py-2 rounded-xl" style={{ backgroundColor: '#FFF5AA', color: '#6B4C1E' }}>
+          <p className="text-xs px-3 py-2 rounded-xl" style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
             💡 <strong>Viewer</strong> can see records. <strong>Editor</strong> can also add and edit.
             The invitee must sign up with the same email.
           </p>
 
           {/* Members list */}
           {loading ? (
-            <div className="flex items-center justify-center gap-2 py-6" style={{ color: '#B8A080' }}>
+            <div className="flex items-center justify-center gap-2 py-6" style={{ color: '#73775b' }}>
               <Loader2 className="w-4 h-4 animate-spin" /> Loading…
             </div>
           ) : error ? (
             <div className="flex items-center gap-2 text-sm p-3 rounded-xl"
-              style={{ backgroundColor: '#FEE2E2', color: '#DC2626' }}>
+              style={{ backgroundColor: '#fdeaea', color: '#c0392b' }}>
               <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
             </div>
           ) : members.length === 0 ? (
-            <p className="text-sm text-center py-4" style={{ color: '#B8A080' }}>
+            <p className="text-sm text-center py-4" style={{ color: '#73775b' }}>
               No one else has access yet.
             </p>
           ) : (
             <div className="space-y-2">
-              <p className="text-xs font-black uppercase tracking-wider" style={{ color: '#B8A080' }}>
+              <p className="text-xs font-black uppercase tracking-wider" style={{ color: '#73775b' }}>
                 People with access
               </p>
               {members.map(m => (
                 <div key={m.id} className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl"
-                  style={{ backgroundColor: '#FFF9D6' }}>
+                  style={{ backgroundColor: '#fff9e0' }}>
                   <div className="min-w-0">
-                    <p className="text-sm font-bold truncate" style={{ color: '#4A2C0A' }}>{m.email}</p>
-                    <p className="text-xs capitalize" style={{ color: '#B8A080' }}>{m.role}</p>
+                    <p className="text-sm font-bold truncate" style={{ color: '#7a4900' }}>{m.email}</p>
+                    <p className="text-xs capitalize" style={{ color: '#73775b' }}>{m.role}</p>
                   </div>
                   <button onClick={() => handleRemove(m.id)}
                     className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors flex-shrink-0">

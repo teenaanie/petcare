@@ -3,19 +3,23 @@ import { Search, MapPin, Phone, Clock, ExternalLink, MessageCircle, Stethoscope,
 // MapPin used in ProviderCard address row
 import { getProviders, getProviderFacets } from '../lib/storage.js'
 
+// Category colours are drawn from the brand's secondary palette — azure,
+// yellow-green, orange-yellow and coral — rather than generic UI colours.
+// They still have to stay mutually distinguishable, so each is a distinct
+// brand family darkened to carry legible text on its own tint.
 const TYPE_CONFIG = {
-  Vet:      { icon: Stethoscope, color: '#2563EB', bg: '#EFF6FF', label: 'Vet Clinic' },
-  Groomer:  { icon: Scissors,    color: '#7C3AED', bg: '#F5F3FF', label: 'Groomer' },
-  Store:    { icon: ShoppingBag, color: '#059669', bg: '#F0FDF4', label: 'Pet Store' },
-  Boarder:  { icon: Home,        color: '#D97706', bg: '#FFFBEB', label: 'Boarding' },
-  'Special Services':             { icon: Camera,  color: '#DB2777', bg: '#FDF2F8', label: 'Special Services' },
-  'Pet Loss & Memorial Services': { icon: Flower2, color: '#475569', bg: '#F1F5F9', label: 'Pet Loss & Memorial' },
+  Vet:      { icon: Stethoscope, color: '#2f7286', bg: '#eef8fb', label: 'Vet Clinic' },
+  Groomer:  { icon: Scissors,    color: '#b2566f', bg: '#fdeef2', label: 'Groomer' },
+  Store:    { icon: ShoppingBag, color: '#5f7a3a', bg: '#f4f8ea', label: 'Pet Store' },
+  Boarder:  { icon: Home,        color: '#c9891f', bg: '#fff9e0', label: 'Boarding' },
+  'Special Services':             { icon: Camera,  color: '#c0563d', bg: '#fdefe9', label: 'Special Services' },
+  'Pet Loss & Memorial Services': { icon: Flower2, color: '#5f624b', bg: '#eff0e8', label: 'Pet Loss & Memorial' },
 }
 
 const CATEGORIES = ['Vet', 'Groomer', 'Store', 'Boarder', 'Special Services', 'Pet Loss & Memorial Services']
 
 const TABS = [
-  { id: 'All', label: 'All', color: '#4A2C0A', bg: '#F0E6C8' },
+  { id: 'All', label: 'All', color: '#7a4900', bg: '#ebe3d3' },
   ...CATEGORIES.map(id => ({ id, ...TYPE_CONFIG[id] })),
 ]
 
@@ -27,7 +31,7 @@ function toTitleCase(s) {
 }
 
 function TypeBadge({ type }) {
-  const cfg = TYPE_CONFIG[type] || { color: '#6B7280', bg: '#F9FAFB', label: type }
+  const cfg = TYPE_CONFIG[type] || { color: '#73775b', bg: '#fffef8', label: type }
   const Icon = cfg.icon || ShoppingBag
   return (
     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold"
@@ -43,7 +47,7 @@ function ProviderCard({ p }) {
 
   return (
     <div className="rounded-2xl overflow-hidden"
-      style={{ backgroundColor: '#FFFEF8', border: '1.5px solid #F0E6C8' }}>
+      style={{ backgroundColor: '#FFFEF8', border: '1.5px solid #ebe3d3' }}>
 
       {/* Photo */}
       {p.photo_url && (
@@ -56,9 +60,9 @@ function ProviderCard({ p }) {
         {/* Name + type */}
         <div className="flex items-start justify-between gap-2">
           <div>
-            <h3 className="font-black text-base leading-tight" style={{ color: '#4A2C0A' }}>{p.name}</h3>
+            <h3 className="font-black text-base leading-tight" style={{ color: '#7a4900' }}>{p.name}</h3>
             {(p.area || p.city) && (
-              <p className="text-xs mt-0.5" style={{ color: '#B8A080' }}>{p.area || p.city}</p>
+              <p className="text-xs mt-0.5" style={{ color: '#73775b' }}>{p.area || p.city}</p>
             )}
           </div>
           <TypeBadge type={p.type} />
@@ -67,35 +71,35 @@ function ProviderCard({ p }) {
         {/* Google rating */}
         {p.rating != null && (
           <div className="flex items-center gap-1.5">
-            <Star className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#F59E0B', fill: '#F59E0B' }} />
-            <span className="text-sm font-black" style={{ color: '#4A2C0A' }}>{Number(p.rating).toFixed(1)}</span>
+            <Star className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#c9891f', fill: '#c9891f' }} />
+            <span className="text-sm font-black" style={{ color: '#7a4900' }}>{Number(p.rating).toFixed(1)}</span>
             {p.reviews_count != null && (
-              <span className="text-xs" style={{ color: '#B8A080' }}>({p.reviews_count.toLocaleString('en-IN')})</span>
+              <span className="text-xs" style={{ color: '#73775b' }}>({p.reviews_count.toLocaleString('en-IN')})</span>
             )}
           </div>
         )}
 
         {/* Description */}
         {p.description && (
-          <p className="text-sm leading-relaxed" style={{ color: '#6B4C1E' }}>{p.description}</p>
+          <p className="text-sm leading-relaxed" style={{ color: '#7a4900' }}>{p.description}</p>
         )}
 
         {/* Details */}
         <div className="space-y-1.5">
           {p.address && (
-            <div className="flex items-start gap-2 text-xs" style={{ color: '#B8A080' }}>
+            <div className="flex items-start gap-2 text-xs" style={{ color: '#73775b' }}>
               <MapPin className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
               <span>{p.address}</span>
             </div>
           )}
           {p.hours && (
-            <div className="flex items-start gap-2 text-xs" style={{ color: '#B8A080' }}>
+            <div className="flex items-start gap-2 text-xs" style={{ color: '#73775b' }}>
               <Clock className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
               <span>{p.hours}</span>
             </div>
           )}
           {p.phone && (
-            <div className="flex items-center gap-2 text-xs" style={{ color: '#B8A080' }}>
+            <div className="flex items-center gap-2 text-xs" style={{ color: '#73775b' }}>
               <Phone className="w-3.5 h-3.5 flex-shrink-0" />
               <a href={`tel:${p.phone}`} className="hover:underline">{p.phone}</a>
             </div>
@@ -115,7 +119,7 @@ function ProviderCard({ p }) {
           {p.maps_url && (
             <a href={p.maps_url} target="_blank" rel="noopener noreferrer"
               className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-105"
-              style={{ backgroundColor: '#F0E6C8', color: '#4A2C0A' }}>
+              style={{ backgroundColor: '#ebe3d3', color: '#7a4900' }}>
               <ExternalLink className="w-4 h-4" />
               Map
             </a>
@@ -219,8 +223,8 @@ export default function ProviderDirectory() {
 
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-black" style={{ color: '#4A2C0A' }}>Find Services 🐾</h1>
-          <p className="text-sm mt-1" style={{ color: '#B8A080' }}>Vets, groomers, stores and boarding near you</p>
+          <h1 className="text-2xl font-black" style={{ color: '#7a4900' }}>Find Services 🐾</h1>
+          <p className="text-sm mt-1" style={{ color: '#73775b' }}>Vets, groomers, stores and boarding near you</p>
         </div>
 
         {/* Category tabs */}
@@ -232,7 +236,7 @@ export default function ProviderDirectory() {
               className="px-3 py-1.5 rounded-full text-sm font-semibold transition-all"
               style={activeTab === t.id
                 ? { backgroundColor: t.bg, color: t.color }
-                : { backgroundColor: '#F5F0E0', color: '#B8A080' }}
+                : { backgroundColor: '#f5f0e0', color: '#73775b' }}
             >
               {t.label} ({tabCounts[t.id] ?? 0})
             </button>
@@ -242,7 +246,7 @@ export default function ProviderDirectory() {
         {/* Search + area filter */}
         <div className="flex gap-2 mb-6">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#B8A080' }} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#73775b' }} />
             <input type="text" className="input w-full pl-9"
               placeholder="Search by name, area or service…"
               value={search} onChange={e => setSearch(e.target.value)} />
@@ -260,13 +264,13 @@ export default function ProviderDirectory() {
 
         {/* Loading / error */}
         {loading && (
-          <div className="flex items-center justify-center gap-2 py-16" style={{ color: '#B8A080' }}>
+          <div className="flex items-center justify-center gap-2 py-16" style={{ color: '#73775b' }}>
             <Loader2 className="w-5 h-5 animate-spin" /> Loading…
           </div>
         )}
         {error && (
           <div className="flex items-center gap-2 p-4 rounded-xl text-sm"
-            style={{ backgroundColor: '#FEE2E2', color: '#DC2626' }}>
+            style={{ backgroundColor: '#fdeaea', color: '#c0392b' }}>
             <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
           </div>
         )}
@@ -277,19 +281,19 @@ export default function ProviderDirectory() {
             <div className="text-center py-16">
               {q ? (
                 <>
-                  <Search className="w-10 h-10 mx-auto mb-3 opacity-20" style={{ color: '#4A2C0A' }} />
-                  <p className="font-bold" style={{ color: '#4A2C0A' }}>No results for "{search}"</p>
-                  <p className="text-sm mt-1" style={{ color: '#B8A080' }}>Try a different name or area.</p>
+                  <Search className="w-10 h-10 mx-auto mb-3 opacity-20" style={{ color: '#7a4900' }} />
+                  <p className="font-bold" style={{ color: '#7a4900' }}>No results for "{search}"</p>
+                  <p className="text-sm mt-1" style={{ color: '#73775b' }}>Try a different name or area.</p>
                 </>
               ) : (
-                <p className="text-sm" style={{ color: '#B8A080' }}>
+                <p className="text-sm" style={{ color: '#73775b' }}>
                   No {activeTabLabel.toLowerCase()}{activeTab !== 'All' ? 's' : ' providers'} listed here yet
                 </p>
               )}
             </div>
           ) : (
             <>
-              <p className="text-xs font-bold mb-4" style={{ color: '#B8A080' }}>
+              <p className="text-xs font-bold mb-4" style={{ color: '#73775b' }}>
                 {total.toLocaleString('en-IN')} {total === 1 ? 'provider' : 'providers'}
                 {q ? ` matching "${search.trim()}"` : ''}
               </p>
@@ -298,8 +302,8 @@ export default function ProviderDirectory() {
                 {groupedByArea.map((g, i) => (
                   <div key={`${g.key}-${i}`}>
                     <div className="flex items-center gap-2.5 mb-3">
-                      <h2 className="font-black text-base" style={{ color: '#4A2C0A' }}>{g.label}</h2>
-                      <div className="flex-1 h-px" style={{ backgroundColor: '#F0E6C8' }} />
+                      <h2 className="font-black text-base" style={{ color: '#7a4900' }}>{g.label}</h2>
+                      <div className="flex-1 h-px" style={{ backgroundColor: '#ebe3d3' }} />
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {g.items.map(p => <ProviderCard key={p.id} p={p} />)}
@@ -313,7 +317,7 @@ export default function ProviderDirectory() {
                   onClick={loadMore}
                   disabled={loadingMore}
                   className="w-full mt-6 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
-                  style={{ backgroundColor: '#FFF5AA', color: '#4A2C0A', opacity: loadingMore ? 0.6 : 1 }}
+                  style={{ backgroundColor: '#fff3c0', color: '#7a4900', opacity: loadingMore ? 0.6 : 1 }}
                 >
                   {loadingMore
                     ? <><Loader2 className="w-4 h-4 animate-spin" /> Loading…</>

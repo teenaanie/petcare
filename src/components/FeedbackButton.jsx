@@ -45,7 +45,7 @@ export default function FeedbackButton({ user }) {
       <button
         onClick={() => setOpen(true)}
         className="fixed right-4 bottom-20 md:bottom-6 md:right-6 z-40 flex items-center gap-2 px-4 py-3 rounded-2xl shadow-lg font-bold text-sm transition-all hover:scale-105 active:scale-95"
-        style={{ backgroundColor: '#F9D548', color: '#4A2C0A' }}
+        style={{ backgroundColor: '#f2b83d', color: '#7a4900' }}
         title="Share feedback"
       >
         <MessageSquarePlus className="w-4 h-4" />
@@ -55,7 +55,7 @@ export default function FeedbackButton({ user }) {
       {/* Backdrop */}
       {open && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-          style={{ backgroundColor: 'rgba(74,44,10,0.3)' }}
+          style={{ backgroundColor: 'rgba(122,73,0,0.3)' }}
           onClick={e => { if (e.target === e.currentTarget) close() }}>
 
           <div className="w-full max-w-md rounded-3xl shadow-2xl overflow-hidden"
@@ -63,22 +63,22 @@ export default function FeedbackButton({ user }) {
 
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4"
-              style={{ backgroundColor: '#F9D548' }}>
+              style={{ backgroundColor: '#f2b83d' }}>
               <div className="flex items-center gap-2">
-                <MessageSquarePlus className="w-5 h-5" style={{ color: '#4A2C0A' }} />
-                <span className="font-black text-base" style={{ color: '#4A2C0A' }}>Share your feedback</span>
+                <MessageSquarePlus className="w-5 h-5" style={{ color: '#7a4900' }} />
+                <span className="font-black text-base" style={{ color: '#7a4900' }}>Share your feedback</span>
               </div>
               <button onClick={close} className="p-1 rounded-full hover:bg-black/10 transition-colors">
-                <X className="w-4 h-4" style={{ color: '#4A2C0A' }} />
+                <X className="w-4 h-4" style={{ color: '#7a4900' }} />
               </button>
             </div>
 
             <div className="px-6 py-5">
               {done ? (
                 <div className="flex flex-col items-center py-8 gap-3">
-                  <CheckCircle className="w-12 h-12" style={{ color: '#16A34A' }} />
-                  <p className="font-black text-lg" style={{ color: '#4A2C0A' }}>Thank you! 🐾</p>
-                  <p className="text-sm text-center" style={{ color: '#B8A080' }}>
+                  <CheckCircle className="w-12 h-12" style={{ color: '#5f7a3a' }} />
+                  <p className="font-black text-lg" style={{ color: '#7a4900' }}>Thank you! 🐾</p>
+                  <p className="text-sm text-center" style={{ color: '#73775b' }}>
                     Your feedback helps make Pippy better for every pet parent.
                   </p>
                 </div>
@@ -87,7 +87,7 @@ export default function FeedbackButton({ user }) {
 
                   {/* Star rating */}
                   <div>
-                    <p className="text-xs font-bold mb-2" style={{ color: '#6B4C1E' }}>
+                    <p className="text-xs font-bold mb-2" style={{ color: '#7a4900' }}>
                       How would you rate your experience?
                     </p>
                     <div className="flex gap-1">
@@ -98,8 +98,8 @@ export default function FeedbackButton({ user }) {
                           onClick={() => setRating(n)}
                           className="p-1 transition-transform hover:scale-110">
                           <Star className="w-7 h-7 transition-colors"
-                            fill={(hovered || rating) >= n ? '#F9D548' : 'none'}
-                            style={{ color: (hovered || rating) >= n ? '#D4A800' : '#D1C4A8' }} />
+                            fill={(hovered || rating) >= n ? '#f2b83d' : 'none'}
+                            style={{ color: (hovered || rating) >= n ? '#c99a2e' : '#e0d3b4' }} />
                         </button>
                       ))}
                     </div>
@@ -107,7 +107,7 @@ export default function FeedbackButton({ user }) {
 
                   {/* Category */}
                   <div>
-                    <label className="text-xs font-bold block mb-1.5" style={{ color: '#6B4C1E' }}>
+                    <label className="text-xs font-bold block mb-1.5" style={{ color: '#7a4900' }}>
                       What feature is this about?
                     </label>
                     <div className="flex flex-wrap gap-2">
@@ -116,8 +116,8 @@ export default function FeedbackButton({ user }) {
                           onClick={() => setCategory(cat => cat === c ? '' : c)}
                           className="px-3 py-1.5 rounded-full text-xs font-bold transition-all"
                           style={category === c
-                            ? { backgroundColor: '#F9D548', color: '#4A2C0A' }
-                            : { backgroundColor: '#F0E6C8', color: '#6B4C1E' }}>
+                            ? { backgroundColor: '#f2b83d', color: '#7a4900' }
+                            : { backgroundColor: '#ebe3d3', color: '#7a4900' }}>
                           {c}
                         </button>
                       ))}
@@ -126,8 +126,8 @@ export default function FeedbackButton({ user }) {
 
                   {/* Message */}
                   <div>
-                    <label className="text-xs font-bold block mb-1.5" style={{ color: '#6B4C1E' }}>
-                      Your feedback <span style={{ color: '#DC2626' }}>*</span>
+                    <label className="text-xs font-bold block mb-1.5" style={{ color: '#7a4900' }}>
+                      Your feedback <span style={{ color: '#c0392b' }}>*</span>
                     </label>
                     <textarea
                       value={message}

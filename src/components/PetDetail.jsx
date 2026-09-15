@@ -83,17 +83,17 @@ function LifeStageBar({ pet, ageYears }) {
   }
 
   return (
-    <div className="mt-3 pt-3" style={{ borderTop: '1px solid #F0E6C8' }}>
+    <div className="mt-3 pt-3" style={{ borderTop: '1px solid #ebe3d3' }}>
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-black uppercase tracking-wider" style={{ color: '#B8A080' }}>Life Stage</span>
+        <span className="text-xs font-black uppercase tracking-wider" style={{ color: '#73775b' }}>Life Stage</span>
         <span className="text-xs font-bold px-2 py-0.5 rounded-full"
-          style={{ backgroundColor: STAGE_COLORS[stageColorIdx] + '55', color: '#4A2C0A' }}>
+          style={{ backgroundColor: STAGE_COLORS[stageColorIdx] + '55', color: '#7a4900' }}>
           {stageEmoji} {stageName}
         </span>
       </div>
 
       {/* Bar */}
-      <div className="relative w-full h-4 rounded-full overflow-hidden flex" style={{ backgroundColor: '#F0E6C8' }}>
+      <div className="relative w-full h-4 rounded-full overflow-hidden flex" style={{ backgroundColor: '#ebe3d3' }}>
         {segments.map((seg, i) => (
           <div key={i} style={{ width: `${seg.width}%`, backgroundColor: seg.color, opacity: 0.7 }} />
         ))}
@@ -101,7 +101,7 @@ function LifeStageBar({ pet, ageYears }) {
         <div className="absolute top-0 bottom-0 flex items-center justify-center"
           style={{ left: `${Math.min(pctPos, 98)}%`, transform: 'translateX(-50%)' }}>
           <div className="w-3.5 h-3.5 rounded-full border-2 shadow-sm"
-            style={{ backgroundColor: '#4A2C0A', borderColor: 'white' }} />
+            style={{ backgroundColor: '#7a4900', borderColor: 'white' }} />
         </div>
       </div>
 
@@ -110,7 +110,7 @@ function LifeStageBar({ pet, ageYears }) {
         {segments.map((seg, i) => (
           <div key={i} className="text-center overflow-hidden"
             style={{ width: `${seg.width}%`, minWidth: 0 }}>
-            <span className="text-[9px] font-semibold truncate block" style={{ color: '#B8A080' }}>
+            <span className="text-[9px] font-semibold truncate block" style={{ color: '#73775b' }}>
               {seg.label}
             </span>
           </div>
@@ -172,9 +172,9 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
           <div className="flex items-center gap-3 md:gap-4">
             <PetAvatar pet={pet} size="lg" editable onPhotoChange={handlePhotoChange} />
             <div className="flex-1 min-w-0">
-              <h1 className="text-lg md:text-2xl font-black" style={{ color: '#4A2C0A' }}>{pet.name}</h1>
-              <p className="text-sm" style={{ color: '#B8A080' }}>{pet.species} · {pet.breed}</p>
-              <div className="flex flex-wrap gap-2 md:gap-4 mt-1 text-xs md:text-sm" style={{ color: '#B8A080' }}>
+              <h1 className="text-lg md:text-2xl font-black" style={{ color: '#7a4900' }}>{pet.name}</h1>
+              <p className="text-sm" style={{ color: '#73775b' }}>{pet.species} · {pet.breed}</p>
+              <div className="flex flex-wrap gap-2 md:gap-4 mt-1 text-xs md:text-sm" style={{ color: '#73775b' }}>
                 {age !== null && <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {age} yr</span>}
                 {pet.weight && <span className="flex items-center gap-1"><Weight className="w-3.5 h-3.5" /> {pet.weight}kg</span>}
                 {pet.vetPhone && <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" /> {pet.vetPhone}</span>}
@@ -185,29 +185,29 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
           <div className="flex gap-1.5 flex-shrink-0">
             <button onClick={() => setShowSharing(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
-              style={{ backgroundColor: '#EFF6FF', color: '#1D4ED8' }}
+              style={{ backgroundColor: '#eef8fb', color: '#255d6e' }}
               title="Share with family">
               <Users className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Share</span>
             </button>
             <button onClick={() => setShowEmergencyCard(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
-              style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}
+              style={{ backgroundColor: '#fdeaea', color: '#c0392b' }}
               title="Emergency Card">
               <ShieldAlert className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">SOS</span>
             </button>
             <button onClick={() => setShowHealthSummary(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
-              style={{ backgroundColor: '#F9D548', color: '#4A2C0A' }}
+              style={{ backgroundColor: '#f2b83d', color: '#7a4900' }}
               title="AI Health Brief">
               <Sparkles className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">AI Brief</span>
             </button>
             <button onClick={() => setShowEdit(true)}
               className="p-2 rounded-xl transition-colors"
-              style={{ color: '#6B4C1E' }}
-              onMouseEnter={e => e.currentTarget.style.backgroundColor = '#FFF9D6'}
+              style={{ color: '#7a4900' }}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = '#fff9e0'}
               onMouseLeave={e => e.currentTarget.style.backgroundColor = ''}>
               <Edit2 className="w-4 h-4" />
             </button>

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { PawPrint, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import PippyLogo from './PippyLogo.jsx'
 
 const PROVIDER_TYPES = ['Vet', 'Groomer', 'Store', 'Boarder', 'Special Services', 'Pet Loss & Memorial Services']
 
@@ -41,12 +42,9 @@ export default function ProviderRegistration() {
     <div className="min-h-screen flex flex-col items-center px-4 py-10" style={{ backgroundColor: '#FFFEF8' }}>
       {/* Logo */}
       <div className="flex items-center gap-3 mb-8">
-        <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm"
-          style={{ backgroundColor: '#F9D548' }}>
-          <PawPrint className="w-7 h-7" style={{ color: '#4A2C0A' }} />
-        </div>
-        <span className="text-4xl font-black tracking-tight" style={{ color: '#4A2C0A', fontFamily: 'Nunito, sans-serif' }}>
-          pip<span style={{ color: '#F9D548' }}>py</span>
+        <PippyLogo size="lg" className="shadow-sm" />
+        <span className="text-4xl font-black tracking-tight" style={{ color: '#7a4900', fontFamily: 'Nunito, sans-serif' }}>
+          pip<span style={{ color: '#f2b83d' }}>py</span>
         </span>
       </div>
 
@@ -54,26 +52,26 @@ export default function ProviderRegistration() {
         {status === 'success' ? (
           <div className="card text-center py-10">
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-              style={{ backgroundColor: '#FFF5AA' }}>
-              <CheckCircle2 className="w-7 h-7" style={{ color: '#059669' }} />
+              style={{ backgroundColor: '#fff3c0' }}>
+              <CheckCircle2 className="w-7 h-7" style={{ color: '#5f7a3a' }} />
             </div>
-            <h1 className="text-xl font-black mb-2" style={{ color: '#4A2C0A' }}>Thanks for registering!</h1>
-            <p className="text-sm" style={{ color: '#B8A080' }}>
+            <h1 className="text-xl font-black mb-2" style={{ color: '#7a4900' }}>Thanks for registering!</h1>
+            <p className="text-sm" style={{ color: '#73775b' }}>
               Your listing has been submitted for review and will appear in the Pippy directory once approved.
             </p>
           </div>
         ) : (
           <div className="card">
             <div className="text-center mb-6">
-              <h1 className="text-xl font-black mb-1" style={{ color: '#4A2C0A' }}>Register as a Pippy Provider</h1>
-              <p className="text-sm" style={{ color: '#B8A080' }}>
+              <h1 className="text-xl font-black mb-1" style={{ color: '#7a4900' }}>Register as a Pippy Provider</h1>
+              <p className="text-sm" style={{ color: '#73775b' }}>
                 List your vet clinic, grooming service, store, boarding, or other pet care service.
               </p>
             </div>
 
             {error && (
               <div className="flex items-start gap-2 p-3 rounded-xl text-sm mb-4"
-                style={{ backgroundColor: '#FEE2E2', color: '#DC2626' }}>
+                style={{ backgroundColor: '#fdeaea', color: '#c0392b' }}>
                 <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>
@@ -148,7 +146,7 @@ export default function ProviderRegistration() {
           </div>
         )}
 
-        <p className="text-center text-xs mt-6" style={{ color: '#B8A080' }}>
+        <p className="text-center text-xs mt-6" style={{ color: '#73775b' }}>
           Submissions are reviewed before appearing in the Pippy directory.
         </p>
       </div>
