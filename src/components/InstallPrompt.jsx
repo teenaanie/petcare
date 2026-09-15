@@ -1,14 +1,25 @@
 import { useState, useEffect } from 'react'
-import { Download, X, Share, Plus } from 'lucide-react'
+import { Download, X, Share, Plus, MoreHorizontal } from 'lucide-react'
 
 const DISMISS_KEY = 'pippy_install_dismissed'
 
-// iOS Safari never fires beforeinstallprompt — installing there is a manual
-// Share > Add to Home Screen, so it needs instructions rather than a button.
+// No iOS browser fires beforeinstallprompt — every one of them runs WebKit —
+// so installing there is a manual Add to Home Screen and needs instructions
+// rather than a button.
 function isIos() {
   return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
     // iPadOS 13+ reports itself as a Mac, so check for touch as well
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+}
+
+// The step differs by browser, and pointing a Chrome user at Safari's toolbar
+// just strands them. Chrome for iOS is CriOS; Firefox is FxiOS; Edge EdgiOS.
+function iosBrowser() {
+  const ua = navigator.userAgent
+  if (/CriOS/i.test(ua))  return 'chrome'
+  if (/FxiOS/i.test(ua))  return 'firefox'
+  if (/EdgiOS/i.test(ua)) return 'edge'
+  return 'safari'
 }
 
 function isInStandaloneMode() {
@@ -20,6 +31,7 @@ export default function InstallPrompt() {
   const [prompt, setPrompt]   = useState(null)   // Android/Chrome deferred event
   const [visible, setVisible] = useState(false)
   const [mode, setMode]       = useState(null)   // 'prompt' | 'ios'
+  const [browser, setBrowser] = useState('safari')
 
   useEffect(() => {
     if (localStorage.getItem(DISMISS_KEY) === '1') return
@@ -37,6 +49,7 @@ export default function InstallPrompt() {
     // short delay so it doesn't greet a first-time visitor immediately.
     let timer
     if (isIos()) {
+      setBrowser(iosBrowser())
       timer = setTimeout(() => { setMode('ios'); setVisible(true) }, 4000)
     }
 
@@ -75,11 +88,19 @@ export default function InstallPrompt() {
           <p className="font-black text-sm">Add Pippy to your Home Screen</p>
 
           {mode === 'ios' ? (
-            <p className="text-xs opacity-80 mt-1 leading-relaxed">
-              Tap <Share className="w-3.5 h-3.5 inline -mt-0.5" /> in Safari&apos;s toolbar,
-              then choose <strong>Add to Home Screen</strong>
-              <Plus className="w-3.5 h-3.5 inline -mt-0.5 ml-0.5" />
-            </p>
+            browser === 'safari' ? (
+              <p className="text-xs opacity-80 mt-1 leading-relaxed">
+                Tap <Share className="w-3.5 h-3.5 inline -mt-0.5" /> in the toolbar,
+                then choose <strong>Add to Home Screen</strong>
+                <Plus className="w-3.5 h-3.5 inline -mt-0.5 ml-0.5" />
+              </p>
+            ) : (
+              <p className="text-xs opacity-80 mt-1 leading-relaxed">
+                Tap <MoreHorizontal className="w-3.5 h-3.5 inline -mt-0.5" /> then
+                <strong> Add to Home Screen</strong>. For the full app experience,
+                open this page in <strong>Safari</strong> and add it from there.
+              </p>
+            )
           ) : (
             <p className="text-xs opacity-70 mt-0.5">Works offline &amp; loads instantly</p>
           )}
