@@ -74,7 +74,7 @@ async function analyzeDocument(file, session) {
   // ── Route through Netlify Function (production) ──────────────────────────
   if (!OPENAI_KEY) {
     if (!session?.access_token) throw new Error('Not logged in — please sign in to use the scanner.')
-    const res = await fetch('/.netlify/functions/analyze-document', {
+    const res = await fetch('/api/analyze-document', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

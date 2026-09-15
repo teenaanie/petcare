@@ -24,7 +24,7 @@ export default function ProviderRegistration() {
     setStatus('submitting')
     setError(null)
     try {
-      const res = await fetch('/.netlify/functions/register-provider', {
+      const res = await fetch('/api/register-provider', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
