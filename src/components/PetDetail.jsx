@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Edit2, Trash2, Calendar, Weight, Phone, Sparkles, ShieldAlert, Users } from 'lucide-react'
-import { supabase } from '../lib/supabase.js'
+import { supabase, isConfigured } from '../lib/supabase.js'
 import HealthSummary from './HealthSummary.jsx'
 
 // ── Life stage data ───────────────────────────────────────────────────────────
@@ -157,6 +157,9 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
   const [session, setSession]             = useState(null)
 
   useEffect(() => {
+    // `supabase` is null when the app is running on localStorage only, so this
+    // has to be guarded — otherwise opening any pet throws before it renders.
+    if (!isConfigured) return
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
   }, [])
 
