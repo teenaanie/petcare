@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { getBoarders, saveProvider } from '../lib/storage.js'
 import {
-  REQUIREMENT_CATALOG, GENERIC_POLICY, UNLEASH_POLICY, hasCustomPolicy,
+  REQUIREMENT_CATALOG, GENERIC_POLICY, hasCustomPolicy,
   SUPPORTED_SPECIES, appliesTo,
 } from '../lib/boarding.js'
 import BoarderSearch from './BoarderSearch.jsx'
@@ -117,10 +117,9 @@ function PolicyEditor({ provider, onSaved }) {
           </button>
           <button
             onClick={() => set({
-              // Structure only. Spreading UNLEASH_POLICY here would hand this
-              // boarder another facility's menu, rate card and refused-product
-              // list under its own name — the exact thing the generic fallback
-              // was split apart to stop.
+              // Structure only, never another facility's content: seeding this
+              // from a real boarder's policy would hand it that boarder's menu,
+              // rate card and refused-product list under its own name.
               name: provider.name,
               required: [...GENERIC_POLICY.required],
               trial_required: false,
