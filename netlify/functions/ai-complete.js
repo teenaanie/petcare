@@ -98,8 +98,17 @@ Rules:
 }
 
 function voiceReminderPrompt({ transcript = '' }) {
-  const today = new Date().toISOString().split('T')[0]
-  return `Today is ${today}. A pet owner said: "${transcript}"
+  // IST: these users are in India, and "tomorrow" spoken at 01:00 UTC is a
+  // different day there. Anchoring to UTC shifts every relative date by one.
+  const today = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().split('T')[0]
+  return `Today is ${today} (Asia/Kolkata). A pet owner said: "${transcript}"
+
+The speaker may be using English, Hindi, Hinglish (Hindi and English mixed in one
+sentence, often in Latin script), or another Indian language. Understand it in
+whatever language it is, and translate relative dates the same way:
+"kal" / "कल" = tomorrow, "parso" = the day after tomorrow, "agle hafte" =
+next week, "agle mahine" = next month, "is Saturday" / "इस शनिवार" = the coming
+Saturday. Write the notes field in the language the speaker used.
 
 Extract reminder details and return ONLY valid JSON:
 {
@@ -112,6 +121,9 @@ Extract reminder details and return ONLY valid JSON:
 Rules:
 - Convert relative dates: "next week" = 7 days from today, "tomorrow" = 1 day, "in 3 months" = 90 days, etc.
 - If no date mentioned, leave dueDate empty string.
+- Reminders are date-only; there is no time-of-day field. If a time was spoken
+  ("subah nau baje", "at 9am"), put it in notes verbatim and still set dueDate
+  to the right day. Never drop it silently.
 - Pick the closest matching type from the list.
 - Return valid JSON only.`
 }

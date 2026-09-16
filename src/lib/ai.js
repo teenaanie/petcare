@@ -66,13 +66,17 @@ export async function aiComplete(task, payload, session) {
  * Sent as base64 JSON rather than multipart — see netlify/functions/transcribe.js
  * for why that matters on Vercel.
  */
-export async function transcribeAudio(blob, session) {
+export async function transcribeAudio(blob, session, language) {
   const base64 = await new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload  = () => resolve(String(reader.result).split(',')[1])
     reader.onerror = reject
     reader.readAsDataURL(blob)
   })
-  const { text } = await post('/api/transcribe', { audio: base64, mimeType: blob.type }, session)
+  // `language` is the user's own choice. Omitted or 'auto' means Whisper
+  // detects, which is what anyone who has not chosen should get.
+  const { text } = await post('/api/transcribe',
+    { audio: base64, mimeType: blob.type, ...(language && language !== 'auto' ? { language } : {}) },
+    session)
   return text
 }
