@@ -20,7 +20,7 @@
 
 export const SERVICES = [
   'Boarding', 'Day Care', 'Dog Walking', 'Training', 'Grooming',
-  'Pet Sitting', 'Pet Taxi', 'Adoption & Rescue', 'Photography',
+  'Pet Sitting', 'Pet Taxi', 'Adoption & Rescue', 'Photography', 'Dog Park',
 ]
 
 // Google's category → the service it implies. Matched case-insensitively
@@ -45,6 +45,11 @@ const SERVICE_BY_CATEGORY = {
   'animal rescue service': 'Adoption & Rescue',
   'animal protection organization': 'Adoption & Rescue',
   'photographer':          'Photography',
+  // A dog park in Pune is an amenity of a boarding facility, not a business of
+  // its own: of 75 results for "dog park" and "pet park", exactly one leads
+  // with the category and six carry it alongside boarding or training. So it
+  // is a service, not a type — no tab for a category of one.
+  'dog park':              'Dog Park',
 }
 
 // ── Specialisations ──────────────────────────────────────────────────────────
@@ -108,21 +113,41 @@ const SPEC_BY_NAME = [
 
 export const PROVIDER_TYPES = [
   'Vet', 'Groomer', 'Store', 'Boarder', 'Dog Walking', 'Training',
-  'Special Services', 'Pet Loss & Memorial Services',
+  'Pet Sitting', 'Special Services', 'Pet Loss & Memorial Services',
 ]
 
-// A business gets ONE type for the directory tabs, chosen by what it most is
-// rather than by which regex happened to be tested first. Earlier wins.
-const TYPE_PRIORITY = [
-  ['Pet Loss & Memorial Services', c => /cremat|memorial|funeral|burial|cemeter/.test(c)],
-  ['Vet',      c => /veterinarian|animal hospital|animal clinic|pet clinic|veterinary care/.test(c)],
-  ['Boarder',  c => /pet boarding service|cat boarding service|cattery|pet hostel|dog day care|kennel/.test(c)],
-  ['Groomer',  c => /pet groomer|pet spa|grooming/.test(c)],
-  ['Training', c => /dog trainer|pet trainer|obedience school/.test(c)],
-  ['Dog Walking', c => /dog walker/.test(c)],
-  ['Store',    c => /pet store|pet supply|pet shop|aquarium|fish store|bird shop|animal feed|pet food|veterinary pharmacy/.test(c)],
-  ['Special Services', c => /photographer|pet moving service|pet adoption service|animal shelter/.test(c)],
+// What a single Google category means, on its own.
+//
+// The AUTHORITY is categories[0] — Google's primary category, the one the
+// business itself chose. It equals Apify's `categoryName` field 100% of the
+// time (checked on 146 multi-category records) and it already agrees with 846
+// of 968 rows in the directory.
+//
+// It replaced an ordered list of regexes where the first match won. That list
+// made `type` a function of rule ordering rather than of the business: Pune
+// Pet Park — a day-care park with nine categories, one of which is a pet
+// cemetery — came out as a memorial service, because memorial was tested
+// first. A rare category must never outrank the primary one.
+const CATEGORY_TYPE = [
+  [/pet cemetery|pet funeral|cremat|memorial|funeral|burial|cemeter/, 'Pet Loss & Memorial Services'],
+  [/veterinarian|animal hospital|animal clinic|pet clinic|veterinary care/,          'Vet'],
+  [/pet boarding service|cat boarding service|cattery|pet hostel|dog day care|day care center|kennel/, 'Boarder'],
+  [/pet sitter/,                                                                      'Pet Sitting'],
+  [/pet groomer|pet spa|grooming/,                                                    'Groomer'],
+  [/dog trainer|pet trainer|obedience school/,                                        'Training'],
+  [/dog walker/,                                                                      'Dog Walking'],
+  // A pharmacy is a shop. "Veterinary pharmacy" matching the vet rule put 49
+  // medicine shops in front of people looking for a clinic.
+  [/pet store|pet supply|pet shop|aquarium|fish store|bird shop|animal feed|pet food|veterinary pharmacy|pharmacy|pharmaceutical company|health and beauty shop/, 'Store'],
+  [/pet moving service/,                                                              'Special Services'],
+  [/photographer|pet adoption service|animal shelter|animal rescue/,                  'Special Services'],
 ]
+
+function typeForCategory(c) {
+  const lc = (c || '').toLowerCase()
+  for (const [re, t] of CATEGORY_TYPE) if (re.test(lc)) return t
+  return null
+}
 
 // A pharmacy is a shop, not a clinic. "Veterinary pharmacy" matched the vet
 // rule and put 49 medicine shops in front of people looking for a vet, so a
@@ -135,6 +160,7 @@ function clinicalSignal(cats) {
 const EXCLUDE = [
   [/dog breeder|cat breeder/, 'breeder'],
   [/training center/,         'training institute'],   // veterinary colleges, not pet services
+  [/seafood market|poultry store|agricultural service|pond fish supplier/, 'not a pet business'],
 ]
 
 // An excluded category only counts when it's ALL the business is. A shop that
@@ -191,13 +217,31 @@ const TYPE_BY_NAME = [
 ]
 
 export function deriveType(categories = [], name = '') {
-  const cats = categories.map(c => (c || '').toLowerCase())
-  const joined = cats.join(' | ')
-  for (const [type, test] of TYPE_PRIORITY) {
-    if (!test(joined)) continue
-    if (type === 'Vet' && !clinicalSignal(cats)) continue
-    return type
+  const cats = categories.filter(Boolean)
+
+  // 1. Google's primary category. The business chose it; trust it.
+  const primary = typeForCategory(cats[0])
+  if (primary) {
+    // One exception: a pharmacy that also carries a real clinical category is
+    // a clinic with a dispensary, not a shop.
+    if (primary === 'Store' && /pharmacy/i.test(cats[0]) && clinicalSignal(cats.map(c => c.toLowerCase()))) return 'Vet'
+    return primary
   }
+
+  // 2. Primary said nothing we understand — the most common answer among the
+  //    remaining categories, first-listed breaking ties (Google orders them by
+  //    relevance, so an earlier one is a stronger claim).
+  const tally = new Map()
+  for (const c of cats.slice(1)) {
+    const t = typeForCategory(c)
+    if (t) tally.set(t, (tally.get(t) || 0) + 1)
+  }
+  if (tally.size) {
+    const best = [...tally.entries()].sort((a, b) => b[1] - a[1])[0][0]
+    if (best !== 'Vet' || clinicalSignal(cats.map(c => c.toLowerCase()))) return best
+  }
+
+  // 3. Nothing in the categories. Fall back to the name.
   for (const [re, type] of TYPE_BY_NAME) if (re.test(name || '')) return type
   return null   // not a pet business — a scrape false positive
 }

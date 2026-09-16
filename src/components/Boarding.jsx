@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Home, Plus, Trash2, Share2, Bell, Check, AlertTriangle, HelpCircle, Circle,
   CalendarClock, Loader2, ChevronDown, ChevronRight, IndianRupee, Info, X,
@@ -452,23 +452,50 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
     else setDraft(t => ({ ...t, ...patch }))
   }
 
-  async function persist(patch) {
-    const next = { ...trip, ...patch, petId: pet.id }
+  // saveBoardingTrip INSERTS when the trip has no id, and setActiveId only takes
+  // effect on the next render. Typing a year into a date field fires onChange
+  // per keystroke, so four writes went out inside 240ms, none of them yet
+  // knowing the id the first one had just created — and the stay was saved four
+  // times, as 0002, 0020, 0202 and finally 2026.
+  //
+  // Two things stop that. Dates now save on blur rather than per keystroke, and
+  // writes are queued here: each waits for the one before it, so the id from the
+  // first insert is known by the time the second runs, and it updates.
+  const idRef      = useRef(null)   // survives the gap that setActiveId cannot
+  const patchRef   = useRef({})     // fields edited but not yet confirmed saved
+  const queueRef   = useRef(Promise.resolve())
+  const tripRef    = useRef(trip)
+  tripRef.current  = trip
+
+  // Editing a different stay: forget the previous row's id and pending edits.
+  useEffect(() => {
+    idRef.current = activeId
+    patchRef.current = {}
+  }, [activeId])
+
+  function persist(patch) {
     patchTrip(patch)
-    if (tableMissing) return next          // draft-only mode; nothing to write to
-    try {
-      const saved = await saveBoardingTrip(next)
-      setTrips(ts => {
-        const without = ts.filter(t => t.id !== saved.id)
-        return [saved, ...without].sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''))
-      })
-      setActiveId(saved.id)
-      return saved
-    } catch (e) {
-      if (isMissingSchema(e)) { setTableMissing(true); return next }
-      alert('Could not save the stay: ' + e.message)
-      return next
-    }
+    patchRef.current = { ...patchRef.current, ...patch }
+    if (tableMissing) return queueRef.current   // draft-only; nothing to write to
+
+    queueRef.current = queueRef.current.then(async () => {
+      const row = { ...tripRef.current, ...patchRef.current, petId: pet.id }
+      if (!row.id && idRef.current) row.id = idRef.current
+      try {
+        const saved = await saveBoardingTrip(row)
+        idRef.current = saved.id
+        patchRef.current = {}
+        setTrips(ts => {
+          const without = ts.filter(t => t.id !== saved.id)
+          return [saved, ...without].sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''))
+        })
+        setActiveId(saved.id)
+      } catch (e) {
+        if (isMissingSchema(e)) { setTableMissing(true); return }
+        alert('Could not save the stay: ' + e.message)
+      }
+    })
+    return queueRef.current
   }
 
   function setChecklist(id, patch) {
@@ -636,7 +663,8 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
           <div>
             <label className="label">Drop-off date</label>
             <input type="date" className="input" value={trip.startDate || ''}
-              onChange={e => persist({ startDate: e.target.value })} />
+              onChange={e => patchTrip({ startDate: e.target.value })}
+              onBlur={e => persist({ startDate: e.target.value })} />
           </div>
           <div>
             <label className="label">Drop-off time{hasSlotWindows(policy) ? '' : ' (roughly)'}</label>
@@ -647,7 +675,8 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
           <div>
             <label className="label">Pick-up date</label>
             <input type="date" className="input" value={trip.endDate || ''}
-              onChange={e => persist({ endDate: e.target.value })} />
+              onChange={e => patchTrip({ endDate: e.target.value })}
+              onBlur={e => persist({ endDate: e.target.value })} />
           </div>
           <div>
             <label className="label">Pick-up time{hasSlotWindows(policy) ? '' : ' (roughly)'}</label>
@@ -659,7 +688,8 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
             <div>
               <label className="label">Trial / orientation visit</label>
               <input type="date" className="input" value={trip.trialDate || ''}
-                onChange={e => persist({ trialDate: e.target.value })} />
+                onChange={e => patchTrip({ trialDate: e.target.value })}
+              onBlur={e => persist({ trialDate: e.target.value })} />
             </div>
           )}
           <div>
