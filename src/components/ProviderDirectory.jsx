@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { Search, MapPin, Phone, Clock, ExternalLink, MessageCircle, Stethoscope, Scissors, ShoppingBag, Home, Camera, Flower2, Star, Loader2, AlertCircle, ClipboardCheck, ChevronDown, ChevronRight } from 'lucide-react'
+import { Search, MapPin, Phone, Clock, ExternalLink, MessageCircle, Stethoscope, Scissors, ShoppingBag, Home, Camera, Flower2, Star, Loader2, AlertCircle, ClipboardCheck, ChevronDown, ChevronRight, Footprints, GraduationCap } from 'lucide-react'
 // MapPin used in ProviderCard address row
 import { getProviders, getProviderFacets } from '../lib/storage.js'
 import { resolvePolicy, hasCustomPolicy, REQUIREMENT_CATALOG, GENERIC_PROVENANCE } from '../lib/boarding.js'
@@ -13,11 +13,16 @@ const TYPE_CONFIG = {
   Groomer:  { icon: Scissors,    color: '#b2566f', bg: '#fdeef2', label: 'Groomer' },
   Store:    { icon: ShoppingBag, color: '#5f7a3a', bg: '#f4f8ea', label: 'Pet Store' },
   Boarder:  { icon: Home,        color: '#c9891f', bg: '#fff9e0', label: 'Boarding' },
+  'Dog Walking': { icon: Footprints,    color: '#5f7a3a', bg: '#eef3e2', label: 'Dog Walking' },
+  Training:      { icon: GraduationCap, color: '#255d6e', bg: '#dceff5', label: 'Training' },
   'Special Services':             { icon: Camera,  color: '#c0563d', bg: '#fdefe9', label: 'Special Services' },
   'Pet Loss & Memorial Services': { icon: Flower2, color: '#5f624b', bg: '#eff0e8', label: 'Pet Loss & Memorial' },
 }
 
-const CATEGORIES = ['Vet', 'Groomer', 'Store', 'Boarder', 'Special Services', 'Pet Loss & Memorial Services']
+// Dog Walking and Training used to live inside "Special Services", which the
+// importer defined as one regex over trainer|walker|breeder|photographer|
+// adoption — six unrelated businesses in one bucket. They're real tabs now.
+const CATEGORIES = ['Vet', 'Groomer', 'Store', 'Boarder', 'Dog Walking', 'Training', 'Special Services', 'Pet Loss & Memorial Services']
 
 const TABS = [
   { id: 'All', label: 'All', color: '#7a4900', bg: '#ebe3d3' },
@@ -175,6 +180,22 @@ function ProviderCard({ p, onPrepForStay }) {
             </div>
           )}
         </div>
+
+        {/* What this business does, and what it specialises in. A provider with
+            neither shows neither — `type` alone can't say that a boarder also
+            walks and trains, which is why these exist. */}
+        {(p.services?.length > 0 || p.specializations?.length > 0) && (
+          <div className="flex flex-wrap gap-1.5">
+            {(p.specializations || []).map(x => (
+              <span key={x} className="text-xs font-bold px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: '#dceff5', color: '#255d6e' }}>{x}</span>
+            ))}
+            {(p.services || []).filter(x => x !== TYPE_CONFIG[p.type]?.label).map(x => (
+              <span key={x} className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: '#f5f0e0', color: '#5f624b' }}>{x}</span>
+            ))}
+          </div>
+        )}
 
         {isBoarder && <BoardingRequirements provider={p} />}
 
