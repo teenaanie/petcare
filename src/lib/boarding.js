@@ -190,14 +190,19 @@ export function requirement(id) { return REQUIREMENT_CATALOG.find(r => r.id === 
 
 // ── Policies ─────────────────────────────────────────────────────────────────
 //
-// Every boarder's rules are data, not code. Two constants, deliberately not one:
+// Every boarder's rules are data, not code.
 //
-//   GENERIC_POLICY  the fallback for a boarder nobody has configured yet. It
-//                   carries only what is true of boarders in general, and says
-//                   nothing about menus, hours or rates — because inventing
-//                   those on a facility's behalf is worse than staying quiet.
-//   UNLEASH_POLICY  one real facility's published rules, and the seed for its
-//                   provider row. Its shape is what an admin fills in.
+// GENERIC_POLICY is the fallback for a boarder nobody has configured yet. It
+// carries only what is true of boarders in general and says nothing about
+// menus, hours or rates — inventing those on a facility's behalf is worse
+// than staying quiet.
+//
+// There is deliberately no constant here for any particular facility. One real
+// boarder's published rules live in supabase/boarding.sql as a seed, and every
+// other boarder is configured through Admin → Boarding. A facility-shaped
+// constant in this file would be two things at once: a second copy of the seed
+// that can drift from it, and something a future change could spread onto the
+// wrong boarder — which is exactly what happened to a row called "Unleashed".
 
 const STRUCTURAL = {
   kc_lead_days: 7,
@@ -237,75 +242,6 @@ export const GENERIC_POLICY = {
   // wherever they are missing.
 }
 
-export const UNLEASH_POLICY = {
-  ...STRUCTURAL,
-  name: 'Unleash – The Dog Town',
-  // This boarder's own list. Worded as what they will and won't take, rather
-  // than why — "they do not work reliably" is a clinical claim, and it isn't
-  // the app's to make on a facility's behalf.
-  tick: {
-    ...STRUCTURAL.tick,
-    accepted: ['spot-on', 'bravecto', 'nexgard', 'simparica'],
-    rejected: [
-      { pattern: 'collar', reason: 'This boarder does not accept tick collars.' },
-      { pattern: 'spray',  reason: 'This boarder does not accept tick sprays.' },
-      { pattern: 'powder', reason: 'This boarder does not accept tick powders.' },
-    ],
-  },
-  required: [
-    'vaccination_records', 'kennel_cough', 'tick_protection', 'deworming',
-    'vet_confirmation', 'trial_visit', 'diet_brief', 'bedding',
-    'original_records', 'govt_id', 'declaration',
-  ],
-  trial_required: true,
-  slot_windows: [
-    { id: 'morning', label: 'Morning', from: '08:00', to: '11:00' },
-    { id: 'evening', label: 'Evening', from: '17:00', to: '20:00' },
-  ],
-  pricing: {
-    currency: 'INR',
-    full_day: 1000,
-    day: 600,
-    night: 600,
-    last_minute_days: 3,
-    note: 'Rates change — always confirm current pricing before the stay.',
-  },
-  food_menu: [
-    { id: 'chicken_rice',  label: 'Home-cooked chicken, rice & veg',  extra_charge: false },
-    { id: 'egg_rice',      label: 'Home-cooked egg, rice & veg',      extra_charge: false },
-    { id: 'fish_rice',     label: 'Home-cooked fish, rice & veg',     extra_charge: true  },
-    { id: 'curd_rice',     label: 'Curd rice (with or without honey)', extra_charge: false },
-    { id: 'potato',        label: 'Boiled potatoes',                  extra_charge: false },
-    { id: 'kibble',        label: 'Kibble — Pedigree / Chappie / Smart Heart / Meat Up', extra_charge: false },
-    { id: 'kibble_rc',     label: 'Kibble — Royal Canin',             extra_charge: true  },
-    { id: 'boiled_chicken', label: 'Plain boiled chicken',            extra_charge: false },
-    { id: 'boiled_chicken_boneless', label: 'Plain boiled chicken (boneless)', extra_charge: true },
-    { id: 'boiled_eggs',   label: 'Boiled eggs',                      extra_charge: false },
-    { id: 'bhakri',        label: 'Bhakri',                           extra_charge: true  },
-    { id: 'curd',          label: 'Plain curd / buttermilk',          extra_charge: false },
-    { id: 'icecream',      label: 'Vanilla ice cream',                extra_charge: false },
-    { id: 'biscuits',      label: 'Dog / Marie biscuits',             extra_charge: false },
-  ],
-  food_note: 'Anything outside this menu can be arranged with advance notice, at extra cost.',
-  bring: ['A small rug, bedsheet or dari', 'Original vaccination record book', 'Two govt photo IDs with address'],
-  do_not_bring: ['Fancy leashes', 'Expensive beds', 'Favourite toys'],
-  advisories: [
-    { months: [3, 4, 5], text: 'No air-conditioning — coolers, fans and sprinklers are used. Conjunctivitis, kennel cough and wheezing occasionally occur in summer.' },
-    { months: [6, 7, 8, 9], text: 'Monsoon: hotspots, skin issues and digestive trouble are more likely, and the tick-free campus is harder to maintain. Active tick protection matters most now.' },
-  ],
-  arrival_notes: 'Please do not honk on arrival — call or message from the gate.',
-  extras_note: 'Pick-up and drop is available at extra cost, through a third-party vendor.',
-  // A boarder's own wording for a criterion, shown under the general help. The
-  // catalogue text stays deliberately non-committal so it is true everywhere;
-  // this is where a facility gets to be specific.
-  requirement_notes: {
-    govt_id: 'Two original government photo IDs with address, carried by the pet parent. Required for first-time boarders.',
-    bedding: 'A small rug, bedsheet or dari. Leave fancy leashes, expensive beds and favourite toys at home.',
-    kennel_cough: 'Available at your vet. Mandatory here.',
-    vet_confirmation: 'Written confirmation of tick protection and timely deworming.',
-  },
-}
-
 // Everything the generic fallback deliberately omits. Kept as one list so the
 // admin editor and resolvePolicy agree on what counts as facility-specific.
 export const FACILITY_FIELDS = [
@@ -313,8 +249,8 @@ export const FACILITY_FIELDS = [
   'bring', 'do_not_bring', 'advisories', 'arrival_notes', 'extras_note',
 ]
 
-// What an admin fills in. A field left out stays out — it is not backfilled
-// from Unleash's.
+// What an admin fills in. A field left out stays out — it is never backfilled
+// from another boarder's policy.
 export function resolvePolicy(provider) {
   const p = provider?.boarding_policy
   if (!p || typeof p !== 'object' || !Object.keys(p).length) return GENERIC_POLICY
