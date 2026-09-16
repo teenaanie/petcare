@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Loader2, Check, Plus, Trash2, RotateCcw, AlertCircle, ClipboardCheck,
-  Clock, IndianRupee, Utensils, Package, CloudRain, Info, PawPrint,
+  Clock, IndianRupee, Utensils, Package, CloudRain, Info, PawPrint, AlertTriangle,
 } from 'lucide-react'
 import { getBoarders, saveProvider } from '../lib/storage.js'
 import {
@@ -238,6 +238,47 @@ function PolicyEditor({ provider, onSaved }) {
             onChange={e => set({ trial_required: e.target.checked })} />
           <span className="text-xs font-bold" style={{ color: '#7a4900' }}>
             A trial / orientation visit is required before a first stay
+          </span>
+        </label>
+      </Group>
+
+      <Group icon={AlertTriangle} title="Who they'll take"
+        subtitle="Leave anything blank that this boarder hasn't actually stated. Blank means silent — the app will never tell a pet parent their pet might be refused on a rule the boarder never published.">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Minimum age (months)" hint="Blank if they don't say.">
+            <input type="number" min="0" className="input w-full" value={policy.min_age_months ?? ''}
+              onChange={e => set({ min_age_months: e.target.value === '' ? undefined : Number(e.target.value) })} />
+          </Field>
+          <Field label="Case-by-case from age (years)" hint="e.g. 10 for senior pets.">
+            <input type="number" min="0" className="input w-full" value={policy.senior_age_years ?? ''}
+              onChange={e => set({ senior_age_years: e.target.value === '' ? undefined : Number(e.target.value) })} />
+          </Field>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+          <Field label="Females in season">
+            <select className="input w-full" value={policy.heat_policy || ''}
+              onChange={e => set({ heat_policy: e.target.value || undefined })}>
+              <option value="">Not stated</option>
+              <option value="separated">Taken, housed separately</option>
+              <option value="refused">Not taken</option>
+            </select>
+          </Field>
+          <Field label="Pets that can't be grouped">
+            <select className="input w-full" value={policy.aggression_policy || ''}
+              onChange={e => set({ aggression_policy: e.target.value || undefined })}>
+              <option value="">Not stated</option>
+              <option value="managed">Taken, handled separately</option>
+              <option value="refused">Not taken</option>
+            </select>
+          </Field>
+        </div>
+
+        <label className="flex items-center gap-2 mt-3 cursor-pointer">
+          <input type="checkbox" checked={!!policy.health_check_on_arrival}
+            onChange={e => set({ health_check_on_arrival: e.target.checked || undefined })} />
+          <span className="text-xs font-bold" style={{ color: '#7a4900' }}>
+            They check each pet over on arrival, and may turn away one that looks unwell
           </span>
         </label>
       </Group>

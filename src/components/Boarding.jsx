@@ -11,7 +11,7 @@ import {
 import {
   GENERIC_POLICY, resolvePolicy, evaluateReadiness, readinessScore, prepTasks,
   estimateCost, validateSlot, slotOptions, hasSlotWindows, coerceSlot, activeAdvisories,
-  buildBoardingPack, speciesSupport, speciesStance, speciesCovered,
+  buildBoardingPack, admissionNotes, speciesSupport, speciesStance, speciesCovered,
   GENERIC_PROVENANCE, d, iso, today, OTHER_SLOT,
 } from '../lib/boarding.js'
 import BoarderSearch from './BoarderSearch.jsx'
@@ -374,6 +374,9 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
   const [showPrep, setShowPrep] = useState(false)
   const [showPack, setShowPack] = useState(false)
   const [openProfile, setOpenProfile] = useState(false)
+  // Deliberately not persisted — see the note on saveBoardingTrip. It only
+  // selects which admission note renders, and that recomputes every time.
+  const [inHeat, setInHeat]     = useState(false)
   const [saving, setSaving]     = useState(false)
 
   useEffect(() => {
@@ -431,6 +434,7 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
   const tasks     = useMemo(() => prepTasks(policy, trip.startDate, evaluation), [policy, trip.startDate, evaluation])
   const cost      = useMemo(() => estimateCost(policy, trip, pet), [policy, trip, pet])
   const advisories = useMemo(() => activeAdvisories(policy, trip.startDate, trip.endDate), [policy, trip.startDate, trip.endDate])
+  const notes     = useMemo(() => admissionNotes(pet, policy, { ...trip, inHeat }), [pet, policy, trip, inHeat])
 
   // Does this boarder's published list actually speak to this pet's species?
   // A dog kennel's criteria filtered down for a cat can leave a near-empty
@@ -790,6 +794,39 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
         </div>
       )}
 
+      {/* ── Admission notes — advisory, never a verdict, never tickable ── */}
+      {(notes.length > 0 || (policy.heat_policy && pet.gender === 'Female')) && (
+        <div className="card">
+          <h2 className="type-subhead mb-1" style={{ color: '#7a4900' }}>Worth checking with them</h2>
+          <p className="text-xs mb-3" style={{ color: '#73775b' }}>
+            Things that can affect whether a stay goes ahead. None of this is a decision — only the
+            boarder can tell you how they'd handle {pet.name}.
+          </p>
+
+          {policy.heat_policy && pet.gender === 'Female' && (
+            <label className="flex items-center gap-2 mb-3 pb-3 cursor-pointer text-xs font-bold"
+              style={{ borderBottom: '1px solid #ebe3d3', color: '#7a4900' }}>
+              <input type="checkbox" checked={inHeat} onChange={e => setInHeat(e.target.checked)} />
+              {pet.name} will be in season around these dates
+            </label>
+          )}
+
+          <div className="space-y-2">
+            {notes.map(n => (
+              <div key={n.id} className="flex items-start gap-2 rounded-xl p-2.5"
+                style={n.severity === 'check'
+                  ? { backgroundColor: '#fff3c0' }
+                  : { backgroundColor: '#f5f0e0' }}>
+                {n.severity === 'check'
+                  ? <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: '#c9891f' }} />
+                  : <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: '#5f624b' }} />}
+                <p className="text-xs" style={{ color: n.severity === 'check' ? '#7a4900' : '#5f624b' }}>{n.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── Cost ─────────────────────────────────────────────────────── */}
       {trip.startDate && (cost.lines.length > 0 || cost.discussionFlags.length > 0) && (
         <div className="card">
@@ -852,7 +889,7 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
         <PackModal
           petName={pet.name}
           text={buildBoardingPack({
-            pet, policy, trip, evaluation,
+            pet, policy, trip, evaluation, notes,
             allergies: records.allergies, medicines: records.medicines,
           })}
           onClose={() => setShowPack(false)} />

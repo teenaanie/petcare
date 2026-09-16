@@ -783,6 +783,9 @@ export function estimateCost(policy = GENERIC_POLICY, trip = {}, pet = {}) {
     }
   }
 
+  // Only genuinely price-affecting things live here. Age, temperament and
+  // season moved to admissionNotes — "senior dogs may need extra care hours"
+  // was one boarder's rule, hardcoded at 10 years and shown to everyone.
   const flags = []
   const chargeable = (policy.food_menu || [])
     .filter(m => m.extra_charge && (pet.foodPreferences || []).includes(m.id))
@@ -790,18 +793,12 @@ export function estimateCost(policy = GENERIC_POLICY, trip = {}, pet = {}) {
     flags.push(`${chargeable.map(m => m.label).join(', ')} — charged extra.`)
   }
 
-  if (start) {
+  if (start && pricing) {
     const daysOut = differenceInCalendarDays(start, today())
-    if (daysOut >= 0 && daysOut < (pricing?.last_minute_days ?? 3)) {
+    if (daysOut >= 0 && daysOut < (pricing.last_minute_days ?? 3)) {
       flags.push('Booked at short notice — last-minute bookings cost more.')
     }
   }
-
-  const age = pet.dob ? differenceInCalendarDays(today(), d(pet.dob)) / 365.25 : null
-  if (age !== null && age >= 10) flags.push('Senior dogs (10+) may need extra care hours — the boarder may ask about this.')
-  if (pet.anxietyNotes)  flags.push('You have noted anxiety or barking — worth discussing with the boarder in advance.')
-  if (pet.handlingNotes) flags.push('You have noted special handling needs — worth discussing in advance.')
-  if ((pet.triggers || []).length) flags.push('You have noted triggers — share these at the trial visit.')
 
   return {
     currency: pricing?.currency || 'INR',
@@ -816,11 +813,80 @@ export function estimateCost(policy = GENERIC_POLICY, trip = {}, pet = {}) {
   }
 }
 
+// ── Admission notes ──────────────────────────────────────────────────────────
+//
+// Things that might affect whether a stay goes ahead: age limits, season,
+// temperament, an arrival health check. Two hard rules:
+//
+//   1. Every facility rule here is OPT-IN. No defaults. A boarder that hasn't
+//      published a minimum age has no minimum age as far as the app is
+//      concerned — inventing one would be asserting a refusal on their behalf.
+//   2. Nothing here is a verdict. `check` means ask them; `mention` means
+//      worth raising. The app never says a pet will be turned away.
+//
+// Deliberately NOT part of evaluateReadiness: those rows are tickable and get
+// a ✔/✖ in the handover sheet, and "✖ Female in season" is not something to
+// send a boarder.
+
+export function admissionNotes(pet = {}, policy = GENERIC_POLICY, trip = {}) {
+  const notes = []
+  const add = (id, severity, text) => notes.push({ id, severity, text })
+  const name = pet.name || 'your pet'
+  const born = d(pet.dob)
+  const years = born ? differenceInCalendarDays(today(), born) / 365.25 : null
+  const months = years === null ? null : years * 12
+
+  if (policy.min_age_months && months !== null && months < policy.min_age_months) {
+    add('min_age', 'check',
+      `This boarder's minimum age is ${policy.min_age_months} months, and ${name} is about ${Math.floor(months)}. Check with them before you book.`)
+  }
+
+  if (policy.senior_age_years && years !== null && years >= policy.senior_age_years) {
+    add('senior', 'check',
+      `${name} is ${Math.floor(years)}, and this boarder takes pets over ${policy.senior_age_years} case by case — often after a health check, and sometimes at a different rate.`)
+  }
+
+  if (policy.heat_policy && pet.gender === 'Female') {
+    if (trip.inHeat) {
+      add('heat', 'check', policy.heat_policy === 'refused'
+        ? `This boarder does not take females in season, so these dates may not work. Talk to them.`
+        : `This boarder takes females in season but houses them away from other dogs. Tell them in advance.`)
+    } else {
+      add('heat', 'mention',
+        `If ${name} comes into season around these dates, let them know — it changes how she'd be housed${policy.heat_policy === 'refused' ? ', and this boarder may not take her' : ''}.`)
+    }
+  } else if (policy.heat_policy && pet.gender !== 'Male') {
+    add('heat', 'mention',
+      `This boarder has a policy on females in season. ${name}'s sex isn't recorded, so set it on the pet if it applies.`)
+  }
+
+  // Gated on the explicit "gets on with other dogs: no" answer only. Never
+  // inferred from free text — the app is in no position to call a dog
+  // aggressive, and that label in a shared record does real harm.
+  if (policy.aggression_policy && pet.socialisesWithDogs === false) {
+    add('socialising', 'check', policy.aggression_policy === 'refused'
+      ? `You've noted that ${name} doesn't get on with other dogs, and this boarder only takes pets that can be grouped. Worth a call first.`
+      : `You've noted that ${name} doesn't get on with other dogs. This boarder manages that, but tell them before the stay so they can plan.`)
+  }
+
+  if (policy.health_check_on_arrival) {
+    add('health_check', 'mention',
+      `They check each pet over on arrival, and may turn away one that looks unwell. If ${name} is off-colour that morning, call ahead rather than travelling.`)
+  }
+
+  // Not facility rules — the parent's own notes, always worth passing on.
+  if (pet.anxietyNotes)          add('anxiety', 'mention', `You've noted anxiety or barking. Tell the boarder what settles ${name}.`)
+  if (pet.handlingNotes)         add('handling', 'mention', `You've noted special handling needs — worth going through in person.`)
+  if ((pet.triggers || []).length) add('triggers', 'mention', `Share ${name}'s triggers (${pet.triggers.join(', ')}) when you visit.`)
+
+  return notes
+}
+
 // ── The handover sheet ───────────────────────────────────────────────────────
 // The artefact that actually reaches the boarder, so it carries the things they
 // will otherwise have to ask for at the gate.
 
-export function buildBoardingPack({ pet, policy = GENERIC_POLICY, trip = {}, evaluation = [], allergies = [], medicines = [] }) {
+export function buildBoardingPack({ pet, policy = GENERIC_POLICY, trip = {}, evaluation = [], notes = [], allergies = [], medicines = [] }) {
   const menu = policy.food_menu || []
   const prefs = (pet.foodPreferences || [])
     .map(id => menu.find(m => m.id === id)?.label || id)
@@ -865,6 +931,9 @@ export function buildBoardingPack({ pet, policy = GENERIC_POLICY, trip = {}, eva
     pet.anxietyNotes ? `Anxiety / barking: ${pet.anxietyNotes}` : '',
     pet.handlingNotes ? `Handling: ${pet.handlingNotes}` : '',
     '',
+    // Plain bullets, never ✔/✖ — these are things to discuss, not pass/fail
+    // rows, and a "✖" against one would read as a verdict on the animal.
+    notes.length ? `💬 WORTH DISCUSSING:\n${notes.map(n => `  • ${n.text}`).join('\n')}` : '',
     pet.vetName || pet.vetPhone ? `🏥 VET: ${[pet.vetName, pet.vetPhone].filter(Boolean).join(' · ')}` : '',
     trip.notes ? `\n📝 ${trip.notes}` : '',
   ].filter(l => l !== '')
