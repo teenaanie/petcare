@@ -142,7 +142,36 @@ Compare Mokshprapti, which looks the same on paper and whose site lists
 The two are indistinguishable from the scrape alone. This is what authority
 level 2 is for, and it is why a category is evidence rather than proof.
 
-### 4. Flag, don't guess
+### 4. Human death care is not pet death care
+
+The hardest call in the directory, and the one that has already gone wrong.
+
+Google's `Pet funeral service` label does not mean a business serves pets.
+Anthyesti carries it and its own site is entirely about human last rites —
+"10,000+ families served", pandit and imam, death certificates. Mokshprapti
+carries it, lists "Pet Funeral" on its site, and the owner's ruling is still
+that it is a human funeral business and does not belong here.
+
+Two tests settle every case found in Pune, with no false calls either way:
+
+1. **Undertaker's trade categories mean human.** `Funeral home`,
+   `Funeral director`, `Funeral celebrant`, `Mortuary`, `Coffin supplier`.
+   Nobody cremating a dog needs a mortuary or a coffin supplier. This holds
+   even when `Pet funeral service` is the primary category, and there is **no
+   rescue** — a funeral home that also runs a shop or an ambulance is still a
+   funeral home.
+
+2. **Generic death care must say "pet" in its name.** `Cremation service` and
+   `Cemetery` are what Google gives a municipal crematorium and a pet one
+   alike — Balewadi smashanbhumi and PMC Pet crematorium are both plain
+   `Cremation service`. Nothing in the categories separates them. So a business
+   carrying only generic categories needs "pet", "animal", "dog", "cat" or
+   "paw" in its name. A pet-specific category settles it on its own.
+
+Verified against all 14 memorial businesses found in Pune: the 4 genuine pet
+crematoria kept, the 4 human funeral firms and 4 human crematoria dropped.
+
+### 5. Flag, don't guess
 
 ```
 name:       Verity Vet Laboratories
@@ -155,7 +184,7 @@ and plainly not a clinic a pet parent books an appointment at. **Flag it.**
 Do not force it into `Vet` because that is closest, and do not invent a
 "Diagnostics" type — you may only assign labels that already exist.
 
-### 5. A proposal, in full
+### 6. A proposal, in full
 
 Every proposal carries its evidence. The Evaluator must be able to reach the
 same conclusion from this alone:
@@ -220,6 +249,8 @@ confidence:   high
   business does. A pet shop that also breeds keeps its listing.
 - Clear scrape false positives — `Seafood market`, `Poultry store`,
   `Agricultural service`, `Pond fish supplier` — propose hiding.
+- **Human funeral and cremation services are never listed**, whatever Google
+  labels them. See example 4; the rule is in `exclusionReason()`.
 - Anything else the vocabulary cannot map: **flag**.
 
 ### Known state at the time of writing

@@ -157,10 +157,40 @@ function clinicalSignal(cats) {
 }
 
 // Businesses we don't list at all.
+// A human funeral business that lists pet funerals as a side-line is still a
+// human funeral business, and does not belong in a pet directory. Google's
+// "Pet funeral service" category alone does not settle it — Anthyesti carries
+// that label and its own site is entirely about human last rites.
+//
+// What does settle it: the trade categories only a human undertaker has.
+// Nobody cremating a dog needs a mortuary, a coffin supplier or a funeral
+// director. Checked against every memorial business found in Pune, this
+// separates the four genuine pet crematoria from the three human funeral homes
+// with no false calls either way.
+const HUMAN_FUNERAL_TRADE = /funeral home|funeral director|funeral celebrant|mortuary|coffin supplier/
+
+// The second half of the problem. "Cremation service" and "Cemetery" are the
+// categories Google gives a municipal crematorium AND a pet one — Balewadi
+// smashanbhumi and PMC Pet crematorium are both plain "Cremation service".
+// Nothing in the categories separates them, so a business carrying only those
+// has to say "pet" somewhere in its name to count as one. A pet-specific
+// category ("Pet cemetery", "Pet funeral service") settles it on its own.
+const GENERIC_DEATH_CARE = /^(cremation service|cemetery|funeral)/
+const PET_DEATH_CARE     = /pet cemetery|pet funeral|pet cremation/
+const PET_WORD           = /\bpets?\b|\banimal|\bdog|\bcat\b|\bpaw/i
+
+function humanDeathCare(cats, name) {
+  const joined = cats.join(' | ')
+  if (PET_DEATH_CARE.test(joined)) return false              // explicitly a pet service
+  if (!cats.some(c => GENERIC_DEATH_CARE.test(c))) return false
+  return !PET_WORD.test(name || '')                          // generic, and the name never says pet
+}
+
 const EXCLUDE = [
   [/dog breeder|cat breeder/, 'breeder'],
   [/training center/,         'training institute'],   // veterinary colleges, not pet services
   [/seafood market|poultry store|agricultural service|pond fish supplier/, 'not a pet business'],
+  [HUMAN_FUNERAL_TRADE,       'human funeral service'],
 ]
 
 // An excluded category only counts when it's ALL the business is. A shop that
@@ -173,11 +203,17 @@ const OTHER_BUSINESS_NAME = /hostel|boarding|shop|store|clinic|salon|spa|resort|
 export function exclusionReason(categories = [], name = '') {
   const cats = categories.map(c => (c || '').toLowerCase())
   const joined = cats.join(' | ')
+
+  if (humanDeathCare(cats, name)) return 'human funeral service'
   for (const [re, reason] of EXCLUDE) {
     if (!re.test(joined)) continue
-    // The rescue applies to EVERY exclusion, not just breeders. "Pets Hangover
-    // Pet Resort and Dog Park" carries a Training center category and would
-    // otherwise be thrown out as a veterinary college.
+    // No rescue for human undertakers. The others are rescued when the business
+    // plainly does something else too — "Pets Hangover Pet Resort and Dog Park"
+    // carries a Training center category and would otherwise be thrown out as a
+    // veterinary college — but a funeral home that also stocks a shop, or runs
+    // an ambulance, is still a funeral home.
+    if (reason === 'human funeral service') return reason
+
     if (OTHER_BUSINESS.test(joined) || OTHER_BUSINESS_NAME.test(name)) continue
     return reason
   }
