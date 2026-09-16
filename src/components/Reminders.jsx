@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { Plus, Trash2, Bell, BellOff, BellRing, Mail, MessageCircle, CheckCircle, AlertCircle, Loader2, Mic, MicOff, Wand2, X, Check } from 'lucide-react'
 import { getReminders, saveReminder, deleteReminder, markReminderDone } from '../lib/storage.js'
 import { pushSupported, getPushSubscriptionStatus, subscribeToPush, unsubscribeFromPush } from '../lib/push.js'
-import { format } from 'date-fns'
+import { format, parseISO, isValid } from 'date-fns'
 import { aiComplete, transcribeAudio } from '../lib/ai.js'
 import { startWebSpeech, webSpeechSupported, webSpeechEnabled, webSpeechLangFor, WEB_SPEECH_OPT_OUT_KEY } from '../lib/speech.js'
 
@@ -273,7 +273,8 @@ export default function Reminders({ pet }) {
   const [browserAsr, setBrowserAsr]     = useState(() => webSpeechEnabled())
   const [aiParsing, setAiParsing]       = useState(false)
   const [voiceError, setVoiceError]     = useState(null)
-  const [parsedPreview, setParsedPreview] = useState(null) // AI-parsed form values
+  const [voiceResult, setVoiceResult]   = useState(null) // what was just saved from speech
+  const [undoing, setUndoing]           = useState(false)
 
   // Push notification opt-in
   const [pushStatus, setPushStatus]   = useState('checking') // checking | unsupported | denied | unsubscribed | subscribed
@@ -312,7 +313,6 @@ export default function Reminders({ pet }) {
     await saveReminder({ ...form, petId: pet.id })
     setForm({ type: 'Vaccination', dueDate: '', frequency: 'Once', email: '', whatsapp: '', notes: '' })
     setShowForm(false)
-    setParsedPreview(null)
     load()
   }
 
@@ -362,27 +362,45 @@ export default function Reminders({ pet }) {
   }
 
   // Called when speech recognition finishes
+  // Speech goes straight to a saved reminder. The user said it out loud; making
+  // them then read it back in a form and press Save is asking them to do the
+  // job twice. Undo is offered instead — one tap, and it is genuinely gone.
   async function handleTranscript(text) {
     if (!text.trim()) return
     setAiParsing(true)
     setVoiceError(null)
     try {
       const parsed = await parseVoiceReminder(text)
-      setParsedPreview(parsed)
-      // Pre-fill the form
-      setForm(f => ({
-        ...f,
-        type:      parsed.type      || f.type,
-        dueDate:   parsed.dueDate   || f.dueDate,
-        frequency: parsed.frequency || f.frequency,
-        notes:     parsed.notes     || f.notes,
-      }))
-      setShowForm(true)
+      const saved  = await saveReminder({
+        petId:     pet.id,
+        type:      parsed.type      || 'Other',
+        dueDate:   parsed.dueDate   || '',
+        frequency: parsed.frequency || 'Once',
+        notes:     parsed.notes     || '',
+        email:     '',
+        whatsapp:  '',
+      })
+      setVoiceResult({ reminder: saved, heard: text })
       setVoiceMode(false)
+      load()
     } catch (e) {
       setVoiceError(e.message)
     } finally {
       setAiParsing(false)
+    }
+  }
+
+  async function handleUndoVoice() {
+    if (!voiceResult?.reminder?.id) return
+    setUndoing(true)
+    try {
+      await deleteReminder(voiceResult.reminder.id)
+      setVoiceResult(null)
+      load()
+    } catch (e) {
+      setVoiceError(`Could not undo: ${e.message}`)
+    } finally {
+      setUndoing(false)
     }
   }
 
@@ -422,7 +440,7 @@ export default function Reminders({ pet }) {
             <Mic className="w-4 h-4" /> Voice
           </button>
           <button
-            onClick={() => { setShowForm(s => !s); setVoiceMode(false); setParsedPreview(null) }}
+            onClick={() => { setShowForm(s => !s); setVoiceMode(false) }}
             className="btn-primary flex items-center gap-2 text-sm"
           >
             <Plus className="w-4 h-4" /> Add Reminder
@@ -541,12 +559,33 @@ export default function Reminders({ pet }) {
       )}
 
       {/* ── AI-parsed preview banner ─────────────────────────────────────── */}
-      {parsedPreview && showForm && (
-        <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2 text-sm text-green-800">
-          <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
-          AI filled in the details from your voice — review and save below.
-        </div>
-      )}
+      {voiceResult && (() => {
+        const r    = voiceResult.reminder
+        const d    = r?.dueDate ? parseISO(r.dueDate) : null
+        const when = d && isValid(d) ? format(d, 'EEEE d MMMM yyyy') : null
+        return (
+          <div className="mb-3 p-3 rounded-xl flex items-start gap-2 text-sm"
+            style={{ backgroundColor: when ? '#eef3e2' : '#fff3c0', color: when ? '#44562a' : '#7a4900' }}>
+            <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p>
+                <strong>{r.type} reminder set</strong>
+                {when ? <> for <strong>{when}</strong></> : ' — but no date was mentioned, so it will not remind you until you add one'}
+                {r.frequency && r.frequency !== 'Once' ? `, repeating ${r.frequency.toLowerCase()}` : ''}.
+              </p>
+              {r.notes && <p className="text-xs mt-0.5 opacity-80">{r.notes}</p>}
+              <p className="text-xs mt-1 italic opacity-70">Heard: "{voiceResult.heard}"</p>
+            </div>
+            <button onClick={handleUndoVoice} disabled={undoing}
+              className="text-xs font-bold underline flex-shrink-0 disabled:opacity-50">
+              {undoing ? 'Undoing…' : 'Undo'}
+            </button>
+            <button onClick={() => setVoiceResult(null)} className="flex-shrink-0">
+              <X className="w-3.5 h-3.5 opacity-60" />
+            </button>
+          </div>
+        )
+      })()}
 
       {pushError && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center gap-2">
@@ -565,8 +604,8 @@ export default function Reminders({ pet }) {
       {showForm && (
         <div className="card mb-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold">{parsedPreview ? 'Review & Save' : 'New Reminder'}</h3>
-            <button onClick={() => { setShowForm(false); setParsedPreview(null) }} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+            <h3 className="font-semibold">New Reminder</h3>
+            <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
           </div>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -598,7 +637,7 @@ export default function Reminders({ pet }) {
               <textarea value={form.notes} onChange={e => setForm(f => ({...f, notes: e.target.value}))} className="input" rows={2} placeholder="Any additional details..." />
             </div>
             <div className="sm:col-span-2 flex justify-end gap-3">
-              <button type="button" onClick={() => { setShowForm(false); setParsedPreview(null) }} className="btn-secondary">Cancel</button>
+              <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>
               <button type="submit" className="btn-primary">Save Reminder</button>
             </div>
           </form>
