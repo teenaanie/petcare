@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { Sparkles, X, Loader2, AlertCircle, Copy, Check, ChevronDown, Heart, AlertTriangle, Calendar, Pill, TrendingUp, MessageSquare } from 'lucide-react'
 import { getMedicalHistory, getVaccinations, getMedicines, getWeightLogs, getReminders, getAllergies } from '../lib/storage.js'
 import { format, subDays, parseISO, isValid, isAfter } from 'date-fns'
-
-const OPENAI_KEY = import.meta.env.VITE_OPENAI_API_KEY
+import { aiComplete } from '../lib/ai.js'
 
 const PERIODS = [
   { label: '2 weeks', days: 14 },
@@ -18,108 +17,17 @@ function safeDate(str) {
 
 // ── AI call ───────────────────────────────────────────────────────────────────
 
+// The prompt that turns this into a health brief is composed server-side, in
+// netlify/functions/ai-complete.js, next to the API key. We send the records.
 async function generateHealthSummary(pet, data, periodLabel) {
-  const lines = []
-  lines.push(`Pet name: ${pet.name}`)
-  lines.push(`Species: ${pet.species || 'Unknown'}`)
-  lines.push(`Breed: ${pet.breed || 'Unknown'}`)
-  if (pet.dob) {
-    const ageYears = Math.floor((Date.now() - new Date(pet.dob)) / (1000 * 60 * 60 * 24 * 365))
-    lines.push(`Age: ${ageYears} years`)
-  }
-  if (pet.weight) lines.push(`Recorded weight: ${pet.weight} kg`)
-
-  lines.push(`\n--- Data from the last ${periodLabel} ---`)
-
-  if (data.records.length > 0) {
-    lines.push('\nMEDICAL VISITS:')
-    data.records.forEach(r => {
-      lines.push(`  • [${r.date || '?'}] ${r.title || r.type} — ${r.description || ''}${r.vet ? ` (Vet: ${r.vet})` : ''}`)
-    })
-  }
-
-  if (data.vaccinations.length > 0) {
-    lines.push('\nVACCINATIONS GIVEN:')
-    data.vaccinations.forEach(v => {
-      lines.push(`  • ${v.name} on ${v.dateGiven || '?'}${v.nextDue ? ` — next due ${v.nextDue}` : ''}`)
-    })
-  }
-
-  if (data.medicines.length > 0) {
-    lines.push('\nMEDICINES (active/recent):')
-    data.medicines.forEach(m => {
-      lines.push(`  • ${m.name} ${m.dosage || ''} ${m.frequency || ''} [${m.category}]${m.isDone ? ' (completed)' : ''}${m.nextDue ? ` — next due ${m.nextDue}` : ''}`)
-    })
-  }
-
-  if (data.weightLogs.length > 0) {
-    lines.push('\nWEIGHT READINGS:')
-    data.weightLogs.forEach(w => lines.push(`  • ${w.date}: ${w.weight} kg`))
-  }
-
-  if (data.allergies.length > 0) {
-    lines.push('\nKNOWN ALLERGIES:')
-    data.allergies.forEach(a => lines.push(`  • ${a.allergen} (${a.severity}) — ${a.type}`))
-  }
-
-  if (data.upcomingReminders.length > 0) {
-    lines.push('\nUPCOMING REMINDERS:')
-    data.upcomingReminders.forEach(r => lines.push(`  • ${r.type} on ${r.dueDate}`))
-  }
-
-  const prompt = `You are a veterinary health assistant. Based on the pet health data below, provide a concise health summary for the owner.
-
-${lines.join('\n')}
-
-Return a JSON object with this exact structure:
-{
-  "overallStatus": "Good" | "Monitor" | "Attention Needed",
-  "statusReason": "one sentence explaining the status",
-  "observations": [
-    { "type": "positive" | "warning" | "info", "text": "observation about something specific in the data" }
-  ],
-  "findings": {
-    "good": ["thing that is healthy or on track", "another positive finding"],
-    "concerns": ["something that needs attention or monitoring", "another concern if any"]
-  },
-  "weightTrend": "brief comment on weight trend or null if no data",
-  "upcomingActions": [
-    { "action": "what to do", "dueDate": "YYYY-MM-DD or timeframe like 'Next month'", "priority": "high" | "medium" | "low" }
-  ],
-  "vetVisitRecommended": true | false,
-  "vetVisitReason": "reason if recommended, null if not",
-  "vetQuestions": ["Question 1?", "Question 2?"]
-}
-
-Rules:
-- findings.good: 2-4 specific positive things from the data (vaccinations up to date, weight stable, no allergies, regular vet visits etc.)
-- findings.concerns: 1-4 specific concerns or gaps (overdue vaccines, weight change, missing records, no recent vet visit etc.). Empty array [] if everything looks fine.
-- observations: 3-6 bullet points mixing positive and warnings. Be specific — reference actual data.
-- upcomingActions: only things due in the near future (overdue meds, upcoming vaccines, follow-ups)
-- vetQuestions: 4-6 specific questions the owner should ask at their next appointment. Reference actual data.
-- vetVisitRecommended: true if there are overdue items, concerning trends, or anything needing professional review
-- Keep language plain, warm, and non-alarmist. This is for a pet owner, not a clinician.
-- Return valid JSON only.`
-
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_KEY}` },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      max_tokens: 1500,
-      response_format: { type: 'json_object' },
-      messages: [{ role: 'user', content: prompt }]
-    })
+  // Only the fields the brief actually uses. Sending the whole pet would upload
+  // pet.photo — a base64 data URL, often megabytes — on every generation.
+  const { name, species, breed, dob, weight } = pet
+  return aiComplete('health_summary', {
+    pet: { name, species, breed, dob, weight },
+    data,
+    periodLabel,
   })
-
-  if (!res.ok) {
-    const e = await res.json().catch(() => ({}))
-    throw new Error(e.error?.message || `API error ${res.status}`)
-  }
-  const out = await res.json()
-  const raw = out.choices?.[0]?.message?.content
-  if (!raw) throw new Error('Empty response — please try again.')
-  return JSON.parse(raw)
 }
 
 // ── Status badge ──────────────────────────────────────────────────────────────
@@ -264,14 +172,7 @@ export default function HealthSummary({ pet, onClose }) {
               ))}
             </div>
 
-            {!OPENAI_KEY && (
-              <div className="text-xs rounded-xl px-3 py-2 text-center"
-                style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
-                Add <code>VITE_OPENAI_API_KEY</code> to your .env file to enable AI features.
-              </div>
-            )}
-
-            <button onClick={handleGenerate} disabled={!OPENAI_KEY}
+            <button onClick={handleGenerate}
               className="btn-primary flex items-center gap-2 w-full justify-center">
               <Sparkles className="w-4 h-4" />
               Generate Health Brief
