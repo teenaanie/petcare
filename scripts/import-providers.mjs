@@ -164,29 +164,112 @@ console.log('Top skip reasons:', Object.entries(skipped).sort((a, b) => b[1] - a
 const toInsert = limit ? deduped.slice(0, limit) : deduped
 
 if (dryRun) {
-  console.log('\n--dry-run — nothing written. Sample row:')
+  console.log('\nSample row:')
   console.log(JSON.stringify(toInsert[0], null, 2))
-  process.exit(0)
 }
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 })
 
-// place_id is covered by a *partial* unique index (WHERE place_id IS NOT NULL),
-// which ON CONFLICT can't target — so split into inserts and updates by hand.
-const existing = new Set()
+// ── Matching incoming rows to existing ones ─────────────────────────────────
+//
+// place_id stays the primary key for this: Google's identifier is stable, and
+// it is covered by a *partial* unique index (WHERE place_id IS NOT NULL) that
+// ON CONFLICT can't target, so inserts and updates are split by hand.
+//
+// The gap it leaves: a provider added from a Maps lookup or by an admin has no
+// place_id, and a later scrape of that same business DOES have one — so it
+// would arrive looking brand new and the listing would appear twice. Four pet
+// crematoria are in the directory in exactly that state.
+//
+// So when place_id doesn't match, fall back to the name. Carefully, because
+// names are not identifiers:
+//
+//   · Only ever claim a row that has NO place_id of its own. A row already
+//     carrying a different place_id is a different business that happens to
+//     share a name.
+//   · Require the same city, and where both have coordinates, require them to
+//     be close. Pune has two businesses called "Dog Spot" — one in Baner, one
+//     in Taljai — whose names match exactly.
+//   · Require exactly one candidate. Two matches means we cannot tell which,
+//     so insert and let a human see the duplicate rather than merge blind.
+//
+// Fuzzy matching is deliberately NOT used here. "Mahesh Pet Cremation Ground"
+// against "Mahesh Pet Creamation Ground" — the same business with a typo —
+// scores 0.74, and so does "Pets Spot - Baner" against "Pets Spot - Koregaon
+// Park", which are two different shops. No threshold separates them, and a
+// wrong merge silently overwrites one business's details with another's. A
+// visible duplicate is the better failure.
+
+const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+
+// Rough metres between two lat/lng pairs — fine at city scale.
+function metresApart(a, b) {
+  if (![a?.lat, a?.lng, b?.lat, b?.lng].every(Number.isFinite)) return null
+  const dLat = (a.lat - b.lat) * 111_320
+  const dLng = (a.lng - b.lng) * 111_320 * Math.cos(a.lat * Math.PI / 180)
+  return Math.hypot(dLat, dLng)
+}
+const SAME_PLACE_METRES = 400
+
+let existingRows = []
 for (let from = 0; ; from += 1000) {
   const { data, error } = await supabase
-    .from('providers').select('place_id').not('place_id', 'is', null).range(from, from + 999)
+    .from('providers').select('id, place_id, name, city, lat, lng').range(from, from + 999)
   if (error) { console.error('Failed to read existing providers:', error.message); process.exit(1) }
-  data.forEach(r => existing.add(r.place_id))
+  existingRows = existingRows.concat(data)
   if (data.length < 1000) break
 }
-console.log(`\n${existing.size} providers already imported`)
 
-const fresh   = toInsert.filter(r => !existing.has(r.place_id))
-const updates = toInsert.filter(r => existing.has(r.place_id))
+const byPlaceId = new Set(existingRows.filter(r => r.place_id).map(r => r.place_id))
+const unclaimed = new Map()   // normalised name → rows with no place_id
+for (const r of existingRows.filter(r => !r.place_id)) {
+  const k = norm(r.name)
+  if (!unclaimed.has(k)) unclaimed.set(k, [])
+  unclaimed.get(k).push(r)
+}
+console.log(`\n${byPlaceId.size} providers already imported, ${existingRows.length - byPlaceId.size} without a place_id`)
+
+const fresh = [], updates = [], claims = [], ambiguous = []
+const claimedIds = new Set()
+
+for (const row of toInsert) {
+  if (byPlaceId.has(row.place_id)) { updates.push(row); continue }
+
+  const candidates = (unclaimed.get(norm(row.name)) || [])
+    .filter(c => !claimedIds.has(c.id))
+    .filter(c => norm(c.city) === norm(row.city))
+    .filter(c => {
+      const d = metresApart({ lat: c.lat, lng: c.lng }, { lat: row.lat, lng: row.lng })
+      return d === null || d <= SAME_PLACE_METRES   // no coords to compare on = allow
+    })
+
+  if (candidates.length === 1) {
+    claimedIds.add(candidates[0].id)
+    claims.push({ row, target: candidates[0] })
+  } else {
+    if (candidates.length > 1) ambiguous.push({ row, count: candidates.length })
+    fresh.push(row)
+  }
+}
+
+if (claims.length) {
+  console.log(`\n${claims.length} existing row(s) matched by name and will be updated rather than duplicated:`)
+  for (const { row, target } of claims) console.log(`  · ${row.name.slice(0, 60)}`)
+}
+if (ambiguous.length) {
+  console.log(`\n${ambiguous.length} incoming row(s) matched MORE THAN ONE existing row by name — inserting rather than guessing:`)
+  for (const a of ambiguous) console.log(`  · ${a.row.name.slice(0, 60)} (${a.count} candidates)`)
+}
+
+if (dryRun) {
+  console.log('\n--dry-run — nothing written.')
+  console.log(`  would insert          : ${fresh.length}`)
+  console.log(`  would update by place_id: ${updates.length}`)
+  console.log(`  would claim by name   : ${claims.length}`)
+  process.exit(0)
+}
 
 const BATCH = 100
 let done = 0
@@ -210,4 +293,14 @@ for (const row of updates) {
   process.stdout.write(`\rUpdated ${updated}/${updates.length}`)
 }
 
-console.log(`\nDone — ${done} inserted, ${updated} updated.`)
+// Claiming a row means writing the scraped data over it AND giving it the
+// place_id, so every later import matches it the fast, certain way.
+let claimed = 0
+for (const { row, target } of claims) {
+  const { error } = await supabase.from('providers').update(row).eq('id', target.id)
+  if (error) { console.error(`\nClaim failed for ${row.name}:`, error.message); process.exit(1) }
+  claimed++
+  process.stdout.write(`\rClaimed ${claimed}/${claims.length}`)
+}
+
+console.log(`\nDone — ${done} inserted, ${updated} updated, ${claimed} matched by name.`)
