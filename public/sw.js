@@ -1,5 +1,9 @@
 // Pippy Service Worker — offline caching
-const CACHE = 'pippy-v3'
+//
+// Bump CACHE on any change to this file. The activate handler deletes every
+// cache whose name does not match, so a bump is what evicts stale entries.
+// It sat on v3 across a dozen deploys, which is half of why clients went stale.
+const CACHE = 'pippy-v4'
 
 // Assets to pre-cache (shell only — API calls are network-first)
 const SHELL = [
@@ -19,6 +23,10 @@ self.addEventListener('activate', e => {
       Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
     ).then(() => self.clients.claim())
   )
+})
+
+self.addEventListener('message', e => {
+  if (e.data === 'SKIP_WAITING') self.skipWaiting()
 })
 
 self.addEventListener('push', e => {
@@ -59,7 +67,11 @@ self.addEventListener('fetch', e => {
   // Navigation requests: network first, fall back to cached index.html (SPA)
   if (request.mode === 'navigate') {
     e.respondWith(
-      fetch(request)
+      // 'no-store' bypasses the browser's HTTP cache as well as this one.
+      // index.html is what points at /assets/index-<hash>.js, so serving a
+      // stale copy pins the user to an old bundle no matter how many times
+      // they reload — which is exactly what happened.
+      fetch(request, { cache: 'no-store' })
         .catch(() => caches.match('/index.html'))
         // caches.match resolves undefined on a miss, and returning undefined
         // from respondWith fails the navigation outright.
@@ -67,6 +79,10 @@ self.addEventListener('fetch', e => {
     )
     return
   }
+
+  // Cache-first is only safe for content-hashed files, whose names change when
+  // their contents do. Everything else goes to the network.
+  if (!url.pathname.startsWith('/assets/')) return
 
   // Static assets: cache first
   e.respondWith(
