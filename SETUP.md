@@ -4,6 +4,16 @@
 
 The app works out of the box with browser storage — no backend required to get started.
 
+> **Setting up an environment?** Copy `.env.example` to `.env` and fill it in.
+> It lists every variable the app and its serverless functions read, says which
+> are safe to be public, and flags the one you should not set. The same names go
+> in your host's dashboard for a deploy.
+>
+> A deployed app that shows no login screen and no pets is almost always missing
+> `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` — the app falls back to browser
+> storage silently. Vite bakes those in at build time, so **redeploy** after
+> setting them; restarting is not enough.
+
 ```bash
 # 1. Install dependencies
 npm install
