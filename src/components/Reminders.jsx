@@ -32,21 +32,57 @@ async function parseVoiceReminder(transcript) {
   return aiComplete('voice_reminder', { transcript })
 }
 
-// ── Voice recording hook (MediaRecorder → Whisper API) ───────────────────────
+// ── Voice recording hook (MediaRecorder → /api/transcribe) ───────────────────
+//
+// Opus in the browser produces roughly 15 KB per second of audio. Measured in
+// Chrome: a 1.0s clip is ~15,600 bytes, a 2.5s clip ~38,000. That matters,
+// because this hook used to reject anything under 1.5 SECONDS — throwing away
+// a perfectly good 15 KB recording and telling the user "tap the mic, speak,
+// then tap again to stop", which is exactly what they had just done.
+//
+// Duration is the wrong test. Whether a clip contains intelligible speech is
+// Whisper's call, and the server already answers "Couldn't hear anything" when
+// the transcript comes back empty. All this needs to catch is a capture that is
+// genuinely empty — no chunks, or a bare container header with no audio in it.
+
+const MIN_BYTES  = 1200        // a webm/mp4 header with no audio is smaller than this
+const MIN_MS     = 400         // a tap, not an utterance
+const MAX_MS     = 120_000     // stop before the upload hits the server's size cap
+
 function useVoiceRecorder(onTranscript) {
   const [listening, setListening]       = useState(false)
   const [transcript, setTranscript]     = useState('')
   const [transcribing, setTranscribing] = useState(false)
   const [error, setError]               = useState(null)
+  const [elapsedMs, setElapsedMs]       = useState(0)
   const mediaRecorderRef                = useRef(null)
+  const streamRef                       = useRef(null)
   const chunksRef                       = useRef([])
   const startTimeRef                    = useRef(null)
   const readyRef                        = useRef(false)   // true once recorder is recording
+  const tickRef                         = useRef(null)
+  const autoStopRef                     = useRef(null)
+
+  function clearTimers() {
+    clearInterval(tickRef.current);   tickRef.current = null
+    clearTimeout(autoStopRef.current); autoStopRef.current = null
+  }
+
+  // Releasing the microphone is not optional. Without this, closing the voice
+  // panel mid-recording leaves the mic live and the browser's recording
+  // indicator on, with nothing in the UI to explain why.
+  function releaseMic() {
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    streamRef.current = null
+  }
+
+  useEffect(() => () => { clearTimers(); releaseMic() }, [])
 
   async function start() {
     if (listening) { stop(); return }   // tap-to-toggle: second tap = stop
     setError(null)
     setTranscript('')
+    setElapsedMs(0)
     chunksRef.current = []
     readyRef.current  = false
 
@@ -55,6 +91,12 @@ function useVoiceRecorder(onTranscript) {
         throw new Error('Microphone access requires HTTPS. Open the app via https:// or use localhost.')
       }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      streamRef.current = stream
+
+      if (!stream.getAudioTracks().length) {
+        releaseMic()
+        throw new Error('No microphone was found. Check that one is connected and selected.')
+      }
 
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'
@@ -70,12 +112,20 @@ function useVoiceRecorder(onTranscript) {
       }
 
       recorder.onstop = async () => {
-        stream.getTracks().forEach(t => t.stop())
+        clearTimers()
+        releaseMic()
         const elapsed = Date.now() - (startTimeRef.current || 0)
         const blob    = new Blob(chunksRef.current, { type: mimeType })
 
-        if (elapsed < 1500 || blob.size < 500) {
-          setError('Recording too short — tap the mic, speak, then tap again to stop.')
+        // Only a genuinely empty capture is rejected here. Everything that has
+        // audio in it goes to Whisper, which is better at judging it than a
+        // byte count is.
+        if (!chunksRef.current.length || blob.size < MIN_BYTES) {
+          setError("Didn't catch any audio — check the microphone permission in your browser's address bar, then try again.")
+          return
+        }
+        if (elapsed < MIN_MS) {
+          setError('That was a tap rather than a recording — hold on while you speak, then tap again.')
           return
         }
 
@@ -89,7 +139,7 @@ function useVoiceRecorder(onTranscript) {
           if (text) onTranscript(text)
           else setError('No speech detected — please try again.')
         } catch (e) {
-          setError(`Transcription error: ${e.message}`)
+          setError(e.message)
         } finally {
           setTranscribing(false)
         }
@@ -99,9 +149,26 @@ function useVoiceRecorder(onTranscript) {
       startTimeRef.current = Date.now()
       readyRef.current     = true
       setListening(true)
+
+      // Show the user that something is being captured. Without this the only
+      // feedback is a pulsing button, which looks the same whether the
+      // microphone is working or muted.
+      tickRef.current = setInterval(() => {
+        setElapsedMs(Date.now() - (startTimeRef.current || 0))
+      }, 200)
+
+      // A forgotten recording would otherwise grow until the server rejects it.
+      autoStopRef.current = setTimeout(() => {
+        setError('Stopped after 2 minutes — that is the longest note we can send.')
+        stop()
+      }, MAX_MS)
     } catch (e) {
+      clearTimers()
+      releaseMic()
       if (e.name === 'NotAllowedError') {
-        setError('Microphone access denied. Allow mic access in your browser settings.')
+        setError('Microphone access denied. Allow it for this site in your browser settings, then try again.')
+      } else if (e.name === 'NotFoundError') {
+        setError('No microphone was found. Check that one is connected and selected.')
       } else {
         setError(`Could not start recording: ${e.message}`)
       }
@@ -109,14 +176,17 @@ function useVoiceRecorder(onTranscript) {
   }
 
   function stop() {
+    clearTimers()
     if (readyRef.current && mediaRecorderRef.current?.state === 'recording') {
-      mediaRecorderRef.current.stop()
+      mediaRecorderRef.current.stop()   // onstop releases the mic
+    } else {
+      releaseMic()
     }
     readyRef.current = false
     setListening(false)
   }
 
-  return { listening, transcribing, transcript, error, start, stop }
+  return { listening, transcribing, transcript, error, elapsedMs, start, stop }
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -272,7 +342,7 @@ export default function Reminders({ pet }) {
           )}
           {/* Voice button */}
           <button
-            onClick={() => { setVoiceMode(v => !v); setShowForm(false) }}
+            onClick={() => { if (voice.listening) voice.stop(); setVoiceMode(v => !v); setShowForm(false) }}
             className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border transition-colors ${
               voiceMode ? 'bg-primary-600 text-white border-primary-600' : 'btn-secondary'
             }`}
@@ -294,7 +364,7 @@ export default function Reminders({ pet }) {
         <div className="card mb-4 border-primary-200 border bg-primary-50">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-primary-900">Set reminder by voice</h3>
-            <button onClick={() => setVoiceMode(false)} className="text-gray-400 hover:text-gray-600">
+            <button onClick={() => { if (voice.listening) voice.stop(); setVoiceMode(false) }} className="text-gray-400 hover:text-gray-600">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -326,7 +396,7 @@ export default function Reminders({ pet }) {
             <p className="text-sm font-medium text-primary-800 text-center">
               {voice.transcribing ? 'Transcribing...'
                 : aiParsing ? 'AI is understanding your request...'
-                : voice.listening ? 'Tap again to stop'
+                : voice.listening ? `Listening… ${(voice.elapsedMs / 1000).toFixed(1)}s — tap again to stop`
                 : 'Tap to start speaking'}
             </p>
 
