@@ -39,7 +39,9 @@ export const PRODUCT_DURATION_DAYS = {
   'spot-on':   30,
   spoton:      30,
   advantix:    30,
-  seresto:     0,   // collar — rejected outright by most boarders, see policy
+  // A collar, and some boarders refuse collars — but that's their policy to
+  // state, not ours to encode as a zero-length cover. Its actual label claim.
+  seresto:     240,
 }
 
 const DEWORMER_DURATION_DAYS = 90
@@ -49,59 +51,100 @@ const DEWORMER_DURATION_DAYS = 90
 // advance, so mixing it into the prep list would make the readiness figure lie.
 // `scope` separates what the *human* must carry from what the dog needs.
 
+// Dogs and cats are the only species this catalogue covers. The research
+// behind it found detailed criteria published for dogs at roughly 10 of 25
+// Indian boarders and for cats at 7; for birds and small mammals, 2. Rather
+// than import UK/US rules for the rest — rabbit myxomatosis and RHD, avian
+// disease panels — the app says it doesn't know. Copying those in would
+// present foreign guidance as local practice, and the research is explicit
+// that rabbit vaccination in particular needs Indian veterinary input first.
+export const SUPPORTED_SPECIES = ['Dog', 'Cat']
+
+// Shown wherever the generic list appears. The generic list is a summary of
+// what Indian boarders commonly publish — not a standard, and not any
+// particular boarder's rules.
+export const GENERIC_PROVENANCE =
+  'Compiled from boarding policies published by Indian boarders, September 2026. ' +
+  'This is what boarders commonly ask for, not an official standard — and not this ' +
+  "boarder's own published rules. Validity periods we estimate (a year for kennel " +
+  'cough, for example) are clinical convention, not something a facility stated.'
+
+// "fishs" and "others" both read as a bug to the person holding the animal.
+const SPECIES_PLURAL = {
+  Dog: 'dogs', Cat: 'cats', Bird: 'birds', Rabbit: 'rabbits',
+  Hamster: 'hamsters', Fish: 'fish', Reptile: 'reptiles', Other: 'this kind of pet',
+}
+
+export function speciesSupport(species) {
+  if (!species) {
+    return { supported: false, reason: 'no_species',
+             text: "This pet has no species set, so we can't tell which boarding requirements apply. Add one by editing the pet." }
+  }
+  if (!SUPPORTED_SPECIES.includes(species)) {
+    const plural = SPECIES_PLURAL[species] || `${species.toLowerCase()}s`
+    return { supported: false, reason: 'unsupported',
+             text: `We don't have boarding criteria for ${plural}. Indian boarders very rarely publish them, and we'd rather say so than show you a dog's checklist.` }
+  }
+  return { supported: true, reason: null, text: '' }
+}
+
 export const REQUIREMENT_CATALOG = [
   {
-    id: 'vaccination_records', phase: 'prepare_before', scope: 'pet', derive: 'vaccination_any',
+    id: 'vaccination_records', species: '*', phase: 'prepare_before', scope: 'pet', derive: 'vaccination_any',
     label: 'Vaccinations up to date',
     help: 'Core vaccines current, with the original record book ready to carry.',
   },
   {
-    id: 'kennel_cough', phase: 'prepare_before', scope: 'pet', derive: 'kennel_cough',
+    // Kennel cough is a dog disease — this must never be asked of a cat.
+    id: 'kennel_cough', species: ['Dog'], phase: 'prepare_before', scope: 'pet', derive: 'kennel_cough',
     label: 'Kennel Cough (KC) nasal vaccine',
     help: 'Available at your vet. Needs a few days to take effect, so book it early.',
   },
   {
-    id: 'tick_protection', phase: 'prepare_before', scope: 'pet', derive: 'tick',
+    // Dog-only by default: the product table below carries dog products, one of
+    // which (Advantix, permethrin) is toxic to cats. An admin who ticks this
+    // for a cat gets product-free wording.
+    id: 'tick_protection', species: ['Dog'], phase: 'prepare_before', scope: 'pet', derive: 'tick',
     label: 'Tick protection active',
-    help: 'Spot-on, Bravecto, NexGard or Simparica. Collars and sprays are not accepted.',
+    help: 'An effective tick and flea preventive, active across the whole stay.',
   },
   {
-    id: 'deworming', phase: 'prepare_before', scope: 'pet', derive: 'deworming',
+    id: 'deworming', species: '*', phase: 'prepare_before', scope: 'pet', derive: 'deworming',
     label: 'Deworming done',
     help: 'Recent deworming, with written confirmation from your vet.',
   },
   {
-    id: 'vet_confirmation', phase: 'prepare_before', scope: 'owner', derive: 'manual',
+    id: 'vet_confirmation', species: '*', phase: 'prepare_before', scope: 'owner', derive: 'manual',
     label: "Vet's written confirmation in hand",
     help: 'One note from your vet covering tick protection and deworming. Add the vet name and date below.',
   },
   {
-    id: 'trial_visit', phase: 'prepare_before', scope: 'pet', derive: 'manual',
+    id: 'trial_visit', species: '*', phase: 'prepare_before', scope: 'pet', derive: 'manual',
     label: 'Trial / orientation visit booked',
     help: 'By appointment, a few days before the stay — it surfaces problems while there is still time to fix them.',
   },
   {
-    id: 'diet_brief', phase: 'prepare_before', scope: 'pet', derive: 'diet',
+    id: 'diet_brief', species: '*', phase: 'prepare_before', scope: 'pet', derive: 'diet',
     label: 'Food preferences shared',
     help: 'Pick from the boarder’s menu so they can plan. Anything off-menu needs advance notice.',
   },
   {
-    id: 'bedding', phase: 'prepare_before', scope: 'owner', derive: 'manual',
+    id: 'bedding', species: '*', phase: 'prepare_before', scope: 'owner', derive: 'manual',
     label: 'Bedding packed',
     help: 'A small rug, bedsheet or dari. Leave fancy leashes, expensive beds and favourite toys at home.',
   },
   {
-    id: 'original_records', phase: 'at_drop_off', scope: 'owner', derive: 'manual',
+    id: 'original_records', species: '*', phase: 'at_drop_off', scope: 'owner', derive: 'manual',
     label: 'Original vaccination record book',
     help: 'The original, not a photo or a photocopy.',
   },
   {
-    id: 'govt_id', phase: 'at_drop_off', scope: 'owner', derive: 'manual',
+    id: 'govt_id', species: '*', phase: 'at_drop_off', scope: 'owner', derive: 'manual',
     label: 'Two original govt photo IDs with address',
     help: 'Carried by the pet parent. Usually asked for on a first stay.',
   },
   {
-    id: 'declaration', phase: 'at_drop_off', scope: 'owner', derive: 'manual',
+    id: 'declaration', species: '*', phase: 'at_drop_off', scope: 'owner', derive: 'manual',
     label: 'Declaration & T&C signed',
     help: 'Signed at the gate on arrival — nothing to do in advance.',
   },
@@ -127,13 +170,12 @@ const STRUCTURAL = {
   tick: {
     lead_days: 2,
     default_duration_days: 30,
-    // Matched against the record name; a hit here overrides an otherwise
-    // valid-looking product, because these are explicitly not accepted.
-    rejected: [
-      { pattern: 'collar', reason: 'Tick collars are not accepted — they do not work reliably.' },
-      { pattern: 'spray',  reason: 'Tick sprays are not accepted — they do not work reliably.' },
-      { pattern: 'powder', reason: 'Tick powders are not accepted — they do not work reliably.' },
-    ],
+    // `accepted` and `rejected` are deliberately EMPTY here. Only one boarder
+    // in the research refuses collars and sprays, and only one names the
+    // products it will take — so both lists belong to a facility, not to every
+    // boarder in the directory. A boarder that published neither says neither.
+    accepted: [],
+    rejected: [],
   },
 }
 
@@ -157,6 +199,18 @@ export const GENERIC_POLICY = {
 export const UNLEASH_POLICY = {
   ...STRUCTURAL,
   name: 'Unleash – The Dog Town',
+  // This boarder's own list. Worded as what they will and won't take, rather
+  // than why — "they do not work reliably" is a clinical claim, and it isn't
+  // the app's to make on a facility's behalf.
+  tick: {
+    ...STRUCTURAL.tick,
+    accepted: ['spot-on', 'bravecto', 'nexgard', 'simparica'],
+    rejected: [
+      { pattern: 'collar', reason: 'This boarder does not accept tick collars.' },
+      { pattern: 'spray',  reason: 'This boarder does not accept tick sprays.' },
+      { pattern: 'powder', reason: 'This boarder does not accept tick powders.' },
+    ],
+  },
   required: [
     'vaccination_records', 'kennel_cough', 'tick_protection', 'deworming',
     'vet_confirmation', 'trial_visit', 'diet_brief', 'bedding',
@@ -256,6 +310,15 @@ function rejectedBy(policy, name) {
   return (policy.tick?.rejected || []).find(r => n.includes(r.pattern.toLowerCase())) || null
 }
 
+// Only name products when the boarder named them. Otherwise the app would be
+// recommending one facility's brand list to everyone else's customers.
+function tickProducts(policy) {
+  const list = policy.tick?.accepted || []
+  if (!list.length) return ''
+  const pretty = list.map(x => x.replace(/(^|[\s-])\w/g, c => c.toUpperCase()))
+  return ` This boarder accepts ${pretty.join(', ')}.`
+}
+
 // Given a record's start and an inferred duration, how long is cover good for?
 // An explicit `nextDue` from the vet always wins over anything we infer.
 function coverUntil(record, startKey, fallbackDays) {
@@ -281,13 +344,22 @@ function coverUntil(record, startKey, fallbackDays) {
 // A manual `done` override always wins: a vet's written confirmation is a fact
 // the app has no way to see.
 
+export function appliesTo(req, species) {
+  if (!req) return false
+  if (req.species === '*') return SUPPORTED_SPECIES.includes(species)
+  return (req.species || []).includes(species)
+}
+
 export function evaluateReadiness(pet, { vaccinations = [], medicines = [] } = {}, policy = GENERIC_POLICY, tripStartDate = null, overrides = {}) {
   const start = d(tripStartDate) || today()
   const ids = policy.required || GENERIC_POLICY.required
 
   return ids.map(id => {
     const req = requirement(id)
-    if (!req) return null
+    // A boarder keeps one flat list of criteria; each pet sees the subset that
+    // applies to its species. Kennel cough is the reason this exists — it is a
+    // dog disease, and a cat's owner must never be told to go and get one.
+    if (!appliesTo(req, pet?.species)) return null
 
     const base = { ...req, status: 'manual', reason: '', source: null, validUntil: null, actionDate: null }
     const ov = overrides[id]
@@ -351,7 +423,7 @@ function deriveTick(medicines, policy, start) {
 
   if (!latest) {
     return { status: 'action_needed',
-             reason: 'No tick protection on record. A spot-on, Bravecto, NexGard or Simparica is needed.',
+             reason: `No tick protection on record.${tickProducts(policy) || ' An effective preventive your vet recommends is needed.'}`,
              actionDate: leadDate }
   }
   const reject = rejectedBy(policy, latest.name)
@@ -431,13 +503,20 @@ function clamp(dateStr) {
 export function prepTasks(policy = GENERIC_POLICY, tripStartDate = null, evaluation = []) {
   const start = d(tripStartDate)
   if (!start) return []
+  // Nothing applied to this pet's species, so there is nothing to prepare.
+  if (!evaluation.length) return []
   const by = (id) => evaluation.find(e => e.id === id)
   // Something we found but had to infer an expiry for doesn't need doing again
   // — it needs confirming. Telling a parent to re-vaccinate a dog that is
   // already covered is worse than saying nothing.
-  const status = (id) => by(id)?.status || 'manual'
-  const needs   = (id) => ['action_needed', 'expiring', 'manual'].includes(status(id))
-  const confirm = (id) => status(id) === 'found_unverified'
+  // A requirement that isn't in `evaluation` doesn't apply to this pet — it was
+  // filtered out by species. Without this guard an absent id reads as 'manual',
+  // which counts as outstanding, and a cat's owner would get "Kennel Cough
+  // vaccine at the vet" emailed to them even though the screen never showed it.
+  const has     = (id) => evaluation.some(e => e.id === id)
+  const status  = (id) => by(id)?.status || 'manual'
+  const needs   = (id) => has(id) && ['action_needed', 'expiring', 'manual'].includes(status(id))
+  const confirm = (id) => has(id) && status(id) === 'found_unverified'
   const tasks = []
 
   const push = (id, label, whenISO, notes) => {
@@ -460,9 +539,9 @@ export function prepTasks(policy = GENERIC_POLICY, tripStartDate = null, evaluat
       `We found ${by('kennel_cough').source || 'a record'} but had to estimate the expiry — check with your vet.`)
   }
   if (needs('tick_protection')) {
-    push('tick_protection', 'Apply tick protection (spot-on / Bravecto / NexGard / Simparica)',
+    push('tick_protection', 'Apply tick protection',
       iso(addDays(start, -(policy.tick?.lead_days ?? 2))),
-      `Apply at night, ${policy.tick?.lead_days ?? 2} days before the stay, so it spreads properly. Collars and sprays are not accepted.`)
+      `Apply at night, ${policy.tick?.lead_days ?? 2} days before the stay, so it spreads properly.${tickProducts(policy)}`)
   } else if (confirm('tick_protection')) {
     push('tick_protection', 'Confirm tick protection still covers the stay',
       iso(addDays(start, -(policy.tick?.lead_days ?? 2))),
@@ -471,17 +550,24 @@ export function prepTasks(policy = GENERIC_POLICY, tripStartDate = null, evaluat
   if (needs('deworming') || confirm('deworming')) {
     push('deworming', 'Deworming + written confirmation from the vet',
       iso(addDays(start, -7)),
-      'Ask the vet to put the deworming and tick protection in writing.')
+      has('tick_protection')
+        ? 'Ask the vet to put the deworming and tick protection in writing.'
+        : 'Ask the vet to put the deworming in writing.')
   }
   if (needs('vet_confirmation')) {
     push('vet_confirmation', "Collect the vet's written confirmation",
       iso(addDays(start, -3)),
-      'One note covering tick protection and deworming, to hand over at drop-off.')
+      has('tick_protection')
+        ? 'One note covering tick protection and deworming, to hand over at drop-off.'
+        : 'One note covering the deworming, to hand over at drop-off.')
   }
-  push('pack', 'Pack for boarding',
-    iso(addDays(start, -1)),
-    [`Bring: ${(policy.bring || []).join(', ')}`,
-     (policy.do_not_bring || []).length ? `Leave at home: ${policy.do_not_bring.join(', ')}` : ''].filter(Boolean).join('. '))
+  const bring = (policy.bring || []).length
+    ? `Bring: ${policy.bring.join(', ')}`
+    : 'Bedding, any medication, and the original vaccination record book.'
+  const leave = (policy.do_not_bring || []).length
+    ? `Leave at home: ${policy.do_not_bring.join(', ')}`
+    : ''
+  push('pack', 'Pack for boarding', iso(addDays(start, -1)), [bring, leave].filter(Boolean).join('. '))
 
   return tasks
 }

@@ -11,7 +11,7 @@ import {
 import {
   GENERIC_POLICY, resolvePolicy, evaluateReadiness, readinessScore, prepTasks,
   estimateCost, validateSlot, slotOptions, hasSlotWindows, coerceSlot, activeAdvisories,
-  buildBoardingPack, d, iso, today, OTHER_SLOT,
+  buildBoardingPack, speciesSupport, GENERIC_PROVENANCE, d, iso, today, OTHER_SLOT,
 } from '../lib/boarding.js'
 import BoarderSearch from './BoarderSearch.jsx'
 
@@ -505,6 +505,42 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
     </div>
   }
 
+  // Dogs and cats are the only species we have criteria for. Showing anyone
+  // else a dog's checklist would be worse than admitting the gap.
+  const support = speciesSupport(pet.species)
+  if (!support.supported) {
+    return (
+      <div className="card">
+        <h2 className="type-subhead mb-1 flex items-center gap-2" style={{ color: '#7a4900' }}>
+          <Home className="w-4 h-4" /> Boarding {pet.name}
+        </h2>
+        <p className="text-sm" style={{ color: '#73775b' }}>{support.text}</p>
+
+        <div className="rounded-xl p-3 mt-4" style={{ backgroundColor: '#dceff5' }}>
+          <p className="text-xs font-bold mb-1" style={{ color: '#255d6e' }}>Worth asking any boarder</p>
+          {[
+            'Which vaccinations they need, and how long before the stay.',
+            'Whether they have housed this kind of animal before.',
+            `Whether you should bring ${pet.name}'s own enclosure, bedding and food.`,
+            'What they do if your pet stops eating or looks unwell.',
+          ].map((q, i) => (
+            <p key={i} className="text-xs" style={{ color: '#255d6e' }}>· {q}</p>
+          ))}
+        </div>
+
+        {support.reason === 'no_species' && (
+          <p className="text-xs mt-3" style={{ color: '#878c6b' }}>
+            Edit {pet.name} and set a species, and this page will fill in.
+          </p>
+        )}
+        <p className="text-xs mt-3" style={{ color: '#878c6b' }}>
+          {pet.name}'s records, reminders and health brief all still work as normal —
+          this page is only about a boarder's admission requirements.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
 
@@ -566,11 +602,17 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
                 endSlot:   coerceSlot(GENERIC_POLICY, trip.endSlot),
               })} />
             {policy.isGeneric && (
-              <p className="text-xs mt-1.5" style={{ color: '#878c6b' }}>
-                {trip.providerName
-                  ? `We don't have ${trip.providerName}'s own requirements yet, so this is the general list — check it against what they ask for.`
-                  : 'Showing the general list most boarders ask for. Pick a boarder above to see their own requirements.'}
-              </p>
+              <details className="mt-1.5">
+                <summary className="text-xs cursor-pointer" style={{ color: '#878c6b' }}>
+                  {trip.providerName
+                    ? `We don't have ${trip.providerName}'s own requirements yet, so this is the general list — check it against what they ask for.`
+                    : 'Showing the general list most boarders ask for. Pick a boarder above to see their own requirements.'}
+                  {' '}<span className="font-bold" style={{ color: '#255d6e' }}>Where this list comes from</span>
+                </summary>
+                <p className="text-xs mt-1.5 rounded-xl p-2.5" style={{ backgroundColor: '#f5f0e0', color: '#5f624b' }}>
+                  {GENERIC_PROVENANCE}
+                </p>
+              </details>
             )}
           </div>
 

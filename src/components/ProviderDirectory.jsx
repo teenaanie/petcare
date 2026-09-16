@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { Search, MapPin, Phone, Clock, ExternalLink, MessageCircle, Stethoscope, Scissors, ShoppingBag, Home, Camera, Flower2, Star, Loader2, AlertCircle, ClipboardCheck, ChevronDown, ChevronRight } from 'lucide-react'
 // MapPin used in ProviderCard address row
 import { getProviders, getProviderFacets } from '../lib/storage.js'
-import { resolvePolicy, hasCustomPolicy, REQUIREMENT_CATALOG } from '../lib/boarding.js'
+import { resolvePolicy, hasCustomPolicy, REQUIREMENT_CATALOG, GENERIC_PROVENANCE } from '../lib/boarding.js'
 
 // Category colours are drawn from the brand's secondary palette — azure,
 // yellow-green, orange-yellow and coral — rather than generic UI colours.
@@ -69,9 +69,12 @@ function BoardingRequirements({ provider }) {
       {open && (
         <div className="px-3 pb-3 space-y-1.5">
           {!custom && (
-            <p className="text-xs pb-1" style={{ color: '#c0563d' }}>
-              We don’t have this boarder’s own list yet — this is the general one. Confirm it with them.
-            </p>
+            <>
+              <p className="text-xs pb-1" style={{ color: '#c0563d' }}>
+                We don’t have this boarder’s own list yet — this is the general one. Confirm it with them.
+              </p>
+              <p className="text-xs pb-1" style={{ color: '#878c6b' }}>{GENERIC_PROVENANCE}</p>
+            </>
           )}
 
           {(policy.required || []).map(id => (
