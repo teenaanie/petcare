@@ -3,6 +3,7 @@ import { ShieldCheck, Users, PawPrint, ChevronRight, ChevronLeft, Search, Phone,
 import { getAdminUsers, getPets, getMedicalHistory, getVaccinations, getMedicines, getBills, getReminders, getFeedback, getProviders, saveProvider, deleteProvider } from '../lib/storage.js'
 import PetAvatar from './PetAvatar.jsx'
 import BoardingRulesPanel from './BoardingRulesPanel.jsx'
+import { PROVIDER_TYPES, SERVICES, SPECIALIZATIONS } from '../lib/taxonomy.js'
 
 // ── User Card ────────────────────────────────────────────────────────────────
 
@@ -405,11 +406,32 @@ function FeedbackPanel() {
 
 // ── Providers Panel ──────────────────────────────────────────────────────────
 
-const PROVIDER_TYPES = ['Vet', 'Groomer', 'Store', 'Boarder', 'Special Services', 'Pet Loss & Memorial Services']
-const EMPTY_PROVIDER = { name: '', type: 'Vet', description: '', address: '', area: '', city: '', phone: '', whatsapp: '', email: '', website: '', hours: '', photo_url: '', maps_url: '', is_approved: false }
+const EMPTY_PROVIDER = { name: '', type: 'Vet', services: [], specializations: [], description: '', address: '', area: '', city: '', phone: '', whatsapp: '', email: '', website: '', hours: '', photo_url: '', maps_url: '', is_approved: false }
 
 const TYPE_ICONS = { Vet: Stethoscope, Groomer: Scissors, Store: ShoppingBag, Boarder: Home, 'Special Services': Camera, 'Pet Loss & Memorial Services': Flower2 }
 const TYPE_COLORS = { Vet: '#2f7286', Groomer: '#b2566f', Store: '#5f7a3a', Boarder: '#c9891f', 'Special Services': '#c0563d', 'Pet Loss & Memorial Services': '#5f624b' }
+
+function TagPicker({ label, options, value, onChange }) {
+  const toggle = t => onChange(value.includes(t) ? value.filter(x => x !== t) : [...value, t].sort())
+  return (
+    <div>
+      <label className="label text-xs">{label}</label>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map(t => {
+          const on = value.includes(t)
+          return (
+            <button key={t} type="button" onClick={() => toggle(t)}
+              className="px-2.5 py-1 rounded-full text-xs font-bold transition-all"
+              style={on ? { backgroundColor: '#ffde59', color: '#7a4900' }
+                        : { backgroundColor: '#f5f0e0', color: '#73775b' }}>
+              {t}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 function ProviderForm({ initial, onSave, onCancel, saving }) {
   const [form, setForm] = useState(initial)
@@ -465,6 +487,16 @@ function ProviderForm({ initial, onSave, onCancel, saving }) {
           <textarea name="description" value={form.description} onChange={set} className="input w-full" rows={2} placeholder="Short description visible to users" />
         </div>
       </div>
+      {/* Services and specialisations are picked from a fixed vocabulary, not
+          typed. providers is world-readable through the anon-granted
+          search_providers(), and these columns get pattern-matched, so nothing
+          hand-authored belongs in them. This is also how the ~70% of vets the
+          import couldn't evidence get a specialisation — by someone who knows. */}
+      <TagPicker label="Services offered" options={SERVICES}
+        value={form.services || []} onChange={v => setForm(f => ({ ...f, services: v }))} />
+      <TagPicker label="Specialisations" options={SPECIALIZATIONS}
+        value={form.specializations || []} onChange={v => setForm(f => ({ ...f, specializations: v }))} />
+
       <div className="flex gap-2">
         <button type="button" onClick={onCancel} className="btn-secondary flex-1 justify-center text-sm">Cancel</button>
         <button type="button" onClick={() => onSave(form)} disabled={saving || !form.name.trim()}

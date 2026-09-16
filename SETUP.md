@@ -88,10 +88,24 @@ Each one is idempotent, so re-running is safe:
 | `providers_search.sql` | The `search_providers()` and `provider_facets()` RPCs |
 | `push_notifications.sql` | Web push subscriptions |
 | `boarding.sql` | Boarding prep — the pet boarding profile, `providers.boarding_policy`, and `boarding_trips` |
+| `fix_pet_members_select.sql` | Lets the sharing dialog read `pet_members` (its policy read `auth.users` inline, which the calling role can't) |
+| `provider_taxonomy.sql` | `providers.services` / `.specializations`, and the Dog Walking + Training types |
 
 The base block below also predates the `medicines`, `bills` and `weight_logs`
 tables and the `is_done` columns on `vaccinations`, `medicines` and `reminders`.
 The app tells you which `ALTER` to run if it hits a column that isn't there yet.
+
+After `provider_taxonomy.sql`, backfill the new columns from the Google
+categories already on each row:
+
+```bash
+node scripts/reclassify-providers.mjs          # dry run — prints every change
+node scripts/reclassify-providers.mjs --apply
+```
+
+Those rules live in `src/lib/taxonomy.js`, shared with
+`scripts/import-providers.mjs`, so an imported row and a backfilled row are
+classified identically.
 
 ```sql
 create table pets (

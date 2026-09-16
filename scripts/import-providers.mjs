@@ -9,12 +9,16 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { createClient } from '@supabase/supabase-js'
+import { classify } from '../src/lib/taxonomy.js'
 
 // ── Load .env (no dotenv dependency) ─────────────────────────────────────────
-for (const line of fs.readFileSync(path.resolve('.env'), 'utf8').split('\n')) {
-  const m = line.match(/^([A-Z_]+)=(.*)$/)
-  if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim()
-}
+// .env is optional — the variables may already be in the environment.
+try {
+  for (const line of fs.readFileSync(path.resolve('.env'), 'utf8').split('\n')) {
+    const m = line.match(/^([A-Z_]+)=(.*)$/)
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim()
+  }
+} catch { /* fall through to the check below */ }
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_KEY
@@ -23,23 +27,17 @@ if (!SUPABASE_URL || !SERVICE_KEY) {
   process.exit(1)
 }
 
-// ── Category → provider type ─────────────────────────────────────────────────
-// Order matters: first match wins, so the more specific services are tested
-// before the catch-all "store" patterns.
-const TYPE_RULES = [
-  ['Pet Loss & Memorial Services', /cremat|memorial|funeral|burial/i],
-  ['Vet',                          /veterinar|animal hospital|animal clinic|pet clinic/i],
-  ['Groomer',                      /groom|pet spa/i],
-  ['Boarder',                      /boarding|day care|daycare|cattery|pet sitter|kennel|pet hostel|pet resort/i],
-  ['Special Services',             /trainer|training|walker|breeder|photograph|behaviou?r|adoption|shelter|rescue/i],
-  ['Store',                        /pet store|pet supply|pet shop|aquarium|fish store|bird shop|animal feed|pet food/i],
-]
-
-function mapType(record) {
-  const haystack = [record.categoryName, ...(record.categories || [])].filter(Boolean).join(' | ')
-  for (const [type, re] of TYPE_RULES) if (re.test(haystack)) return type
-  return null // not a pet provider — scrape false positive
-}
+// ── Classification ───────────────────────────────────────────────────────────
+// The rules live in src/lib/taxonomy.js, shared with
+// scripts/reclassify-providers.mjs, so a row imported today is classified
+// exactly like a row already in the table.
+//
+// This used to be a list of regexes tested in order, first match wins. That
+// made `type` a function of rule ordering rather than of the business: a dog
+// walker who also boarded became a Boarder because Boarder was tested first,
+// and 40 walkers ended up spread across four different types. Now a business
+// gets one type for the tabs plus a `services` array carrying everything it
+// actually does.
 
 // ── Neighborhood → area ──────────────────────────────────────────────────────
 // Raw values look like "Kausar Baugh, Kondhwa" or "Paud Road, Right Bhusari
@@ -79,12 +77,16 @@ const clean = (value, max) => {
 }
 
 function toProvider(record) {
-  const type = mapType(record)
-  if (!type) return null
   if (record.permanentlyClosed || record.temporarilyClosed) return null
 
   const name = clean(record.title, 120)
   if (!name) return null
+
+  const { excluded, type, services, specializations } = classify(record.categories || [], name)
+  // Breeders and veterinary colleges are not listed. A scrape for "pet cancer
+  // treatment" also returns human oncologists and dental clinics — those come
+  // back with no type at all and are dropped here.
+  if (excluded || !type) return null
 
   const phone = clean(record.phone, 30) || clean(record.phoneUnformatted, 30)
 
@@ -107,6 +109,8 @@ function toProvider(record) {
     lat:           record.location?.lat ?? null,
     lng:           record.location?.lng ?? null,
     categories:    Array.isArray(record.categories) ? record.categories.slice(0, 12) : null,
+    services,
+    specializations,
     place_id:      clean(record.placeId, 200),
     source:        'google_maps',
     is_approved:   true,
@@ -132,11 +136,16 @@ const rows = []
 const skipped = {}
 for (const record of raw) {
   const provider = toProvider(record)
-  if (provider) rows.push(provider)
+  if (provider) { rows.push(provider); continue }
+
+  let reason
+  if (record.permanentlyClosed || record.temporarilyClosed) reason = 'closed'
+  else if (!clean(record.title, 120)) reason = 'no name'
   else {
-    const reason = record.permanentlyClosed || record.temporarilyClosed ? 'closed' : (record.categoryName || 'uncategorised')
-    skipped[reason] = (skipped[reason] || 0) + 1
+    const c = classify(record.categories || [], record.title || '')
+    reason = c.excluded ? `excluded: ${c.excluded}` : `not a pet business (${record.categoryName || 'uncategorised'})`
   }
+  skipped[reason] = (skipped[reason] || 0) + 1
 }
 
 // Last one wins on duplicate place_id — Postgres rejects a batch that targets
