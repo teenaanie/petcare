@@ -3,6 +3,7 @@
 // listing. Always saved with is_approved=false; admin reviews in the Admin panel.
 
 import { createClient } from '@supabase/supabase-js'
+import { maskEmail } from './_redact.js'
 
 const SUPABASE_URL   = process.env.SUPABASE_URL
 const SERVICE_KEY    = process.env.SUPABASE_SERVICE_KEY
@@ -31,7 +32,7 @@ function isValidUrl(value) {
 
 async function sendEmail(to, subject, html) {
   if (!RESEND_API_KEY) {
-    console.log(`[EMAIL SKIPPED] No RESEND_API_KEY. Would send to ${to}: ${subject}`)
+    console.log(`[EMAIL SKIPPED] No RESEND_API_KEY. Would send to ${maskEmail(to)}`)
     return
   }
   const res = await fetch('https://api.resend.com/emails', {
