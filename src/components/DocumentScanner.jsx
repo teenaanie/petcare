@@ -2,9 +2,8 @@ import { useState, useRef } from 'react'
 import { Upload, Camera, FileText, Loader2, CheckCircle, AlertCircle, Wand2, Calendar, TriangleAlert, MessageSquare, Copy, Check, Syringe, Pill, Receipt, Weight, X, Plus } from 'lucide-react'
 import { saveMedicalRecord, saveVaccination, saveAllergy, saveReminder, saveMedicine, saveBill, saveWeightLog } from '../lib/storage.js'
 import { format, isPast, parseISO } from 'date-fns'
+import { aiComplete } from '../lib/ai.js'
 
-const OPENAI_KEY = import.meta.env.VITE_OPENAI_API_KEY  // fallback for local dev only
-const USE_FUNCTION = !OPENAI_KEY  // use Netlify Function in prod where VITE key isn't set
 const MED_CATS = ['Deworming', 'Flea/Tick', 'Antibiotic', 'Anti-inflammatory', 'Supplement', 'Vaccination', 'Other']
 const CURRENCIES = ['INR', 'USD', 'GBP', 'AUD', 'EUR', 'SGD']
 
@@ -71,147 +70,41 @@ async function analyzeDocument(file, session) {
   const base64 = isPdf ? await pdfToImageBase64(file) : await fileToBase64(file)
   const mimeType = isPdf ? 'image/png' : (file.type || 'image/jpeg')
 
-  // ── Route through Netlify Function (production) ──────────────────────────
-  if (!OPENAI_KEY) {
-    if (!session?.access_token) throw new Error('Not logged in — please sign in to use the scanner.')
-    const res = await fetch('/api/analyze-document', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({ base64, mimeType }),
-    })
-    const data = await res.json()
-    if (!res.ok) {
-      if (data.limitReached) throw new Error(data.error)
-      throw new Error(data.error || `Server error ${res.status}`)
-    }
-    return data.result
-  }
+  // The parsing prompt lives in netlify/functions/analyze-document.js along with
+  // the API key. This used to have a second branch that called api.openai.com
+  // directly whenever VITE_OPENAI_API_KEY was set — which, once that variable
+  // was set in production, silently bypassed this authenticated, rate-limited
+  // route for every user. There is now one door.
+  if (!session?.access_token) throw new Error('Please sign in to use the scanner.')
 
-  // ── Direct OpenAI call (local dev only — key set in .env) ────────────────
-  const today = new Date().toISOString().split('T')[0]  // e.g. "2026-08-06"
-  const prompt = `You are a veterinary record parser. Analyze this pet medical document image carefully.
-
-TODAY'S DATE IS ${today}. Use this as your reference for what is past vs future.
-
-⚠️ CRITICAL DATE RULES — these override everything else:
-1. ONLY extract a date if you can CLEARLY and LITERALLY read every digit in the document. If ANY digit is unclear, return "" (empty string). NEVER guess, estimate, or use a date from memory.
-2. Indian documents use DD/MM/YYYY format — convert correctly to YYYY-MM-DD. E.g. "06/08/2025" → "2025-08-06". "27/08/2026" → "2026-08-27".
-3. For vaccinations: "dateGiven" must be a past date (before ${today}) found in the DATE GIVEN column only. "nextDue" must be a future date found in the NEXT DUE column only.
-4. NEVER use MFG (manufacture date) or EXP (expiry date) from vaccine stickers as dateGiven or nextDue. Those are product manufacturing/expiry dates, not visit dates.
-5. The image may be rotated or photographed at an angle. Correct for orientation before reading.
-6. If you cannot read the full year (all 4 digits) from the document, return "" — do NOT assume the year.
-7. Extract the ACTUAL vaccine product name from the sticker or document (e.g. "Felocell 3", "Nobivac", "Rabivax") — not generic labels like "Vaccine 1".
-
-Return a JSON object:
-{
-  "type": "medical" | "vaccination" | "allergy" | "prescription" | "bill",
-  "summary": "one-sentence summary",
-  "medicalRecord": {
-    "date": "YYYY-MM-DD or empty", "type": "Checkup|Illness|Surgery|Lab Result|Prescription|Other",
-    "title": "diagnosis or procedure", "description": "details/symptoms/treatment/medications",
-    "vet": "vet name or clinic", "cost": "number or empty"
-  },
-  "vaccinations": [
-    { "name": "actual vaccine product name from label/text", "dateGiven": "YYYY-MM-DD or empty if unclear",
-      "nextDue": "YYYY-MM-DD or empty if unclear",
-      "batchNumber": "SER/lot number from sticker or empty", "vet": "vet name or empty", "notes": "" }
-  ],
-  "medicines": [
-    { "name": "drug name e.g. Simparica, Amoxicillin", "dosage": "e.g. 40mg, 5ml",
-      "frequency": "e.g. Once daily, Monthly", "category": "Deworming|Flea/Tick|Antibiotic|Anti-inflammatory|Supplement|Other",
-      "startDate": "YYYY-MM-DD or empty", "endDate": "YYYY-MM-DD or empty",
-      "nextDue": "YYYY-MM-DD or empty", "prescribedBy": "vet name", "reason": "what it treats", "notes": "" }
-  ],
-  "allergy": {
-    "allergen": "substance", "type": "Food|Environmental|Medication|Contact|Other",
-    "severity": "Mild|Moderate|Severe", "reactions": ["list"], "notes": "", "diagnosedDate": "YYYY-MM-DD or empty"
-  },
-  "bill": {
-    "date": "YYYY-MM-DD or empty", "clinic": "clinic name", "invoiceNumber": "if visible",
-    "lineItems": [{ "description": "item name", "amount": 0 }],
-    "totalAmount": 0, "currency": "INR"
-  },
-  "weightReadings": [{ "date": "YYYY-MM-DD or empty", "weight": 0 }],
-  "timelines": [
-    { "label": "e.g. Next vaccination due", "date": "YYYY-MM-DD", "type": "Vaccination|Vet Checkup|Medication|Other" }
-  ],
-  "abnormalities": [
-    { "parameter": "name", "value": "value", "unit": "unit", "referenceRange": "range",
-      "status": "HIGH|LOW", "severity": "Mild|Moderate|Severe", "clinicalNote": "plain english explanation" }
-  ]
-}
-
-VACCINATION RULES: one entry per vaccine product per row; separate entries for same vaccine on different dates; always return an array. Use the actual product name, not "Vaccine N".
-
-MEDICINES: extract ALL drugs/medications regardless of document type. For deworming schedules, one entry per row. Category = Flea/Tick for tick prevention, Deworming for dewormers.
-
-WEIGHT READINGS: extract any weight column in tables. One entry per row with a date and weight.
-
-BILL: if this is a receipt or invoice, set type="bill". Extract every line item. Indian clinics use INR.
-
-TIMELINES: extract ALL clearly legible future dates — next due dates, follow-ups, medication end dates.
-
-ABNORMALITIES: only values outside normal range from lab reports.
-
-Return valid JSON only. Only populate relevant sections. Leave dates empty rather than guessing.`
-
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+  const res = await fetch('/api/analyze-document', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_KEY}` },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      max_tokens: 3000,
-      response_format: { type: 'json_object' },
-      messages: [{ role: 'user', content: [
-        { type: 'text', text: prompt },
-        { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } }
-      ]}]
-    })
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ base64, mimeType }),
   })
-
+  const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    const e = await res.json().catch(() => ({}))
-    throw new Error(e.error?.message || `API error ${res.status}`)
+    if (data.limitReached) throw new Error(data.error)
+    throw new Error(data.error || `Server error ${res.status}`)
   }
-  const data = await res.json()
-  const raw = data.choices?.[0]?.message?.content
-  if (!raw) throw new Error('Empty response from AI — please try again.')
-  try {
-    return JSON.parse(raw)
-  } catch {
-    // Shouldn't happen with json_object mode, but handle gracefully
-    const extracted = raw.match(/\{[\s\S]*\}/)
-    if (extracted) return JSON.parse(extracted[0])
-    throw new Error('Could not parse AI response. Please try again.')
-  }
+  return data.result
 }
 
 // ── Vet questions ─────────────────────────────────────────────────────────────
 
-async function generateVetQuestions(parsed, petName) {
-  if (!OPENAI_KEY) return []
-  const parts = [`Pet: ${petName}`, `Report type: ${parsed.type}`, `Summary: ${parsed.summary}`]
-  if (parsed.abnormalities?.length > 0)
-    parts.push('Abnormal: ' + parsed.abnormalities.map(a => `${a.parameter} ${a.value}${a.unit} (${a.status}, ${a.severity})`).join('; '))
-  if (parsed.medicalRecord?.title) parts.push(`Diagnosis: ${parsed.medicalRecord.title}`)
-  if (parsed.medicines?.length) parts.push('Medicines: ' + parsed.medicines.map(m => `${m.name} ${m.dosage || ''}`).join(', '))
-  if (parsed.vaccinations?.length) parts.push('Vaccines: ' + parsed.vaccinations.map(v => v.name).join(', '))
-  if (parsed.allergy) parts.push(`Allergy: ${parsed.allergy.allergen} (${parsed.allergy.severity})`)
-
-  const prompt = `Based on this vet report for ${petName}:\n${parts.join('\n')}\n\nGenerate 5-7 specific questions the owner should ask their vet. Each must reference something in this report. Write in plain language. Return ONLY a valid JSON array of strings: ["Question 1?", ...]`
-
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_KEY}` },
-    body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 500, messages: [{ role: 'user', content: prompt }] })
-  })
-  if (!res.ok) return []
-  const data = await res.json()
-  const text = data.choices[0].message.content.trim().replace(/^```json\n?/, '').replace(/\n?```$/, '')
-  try { return JSON.parse(text) } catch { return [] }
+async function generateVetQuestions(parsed, petName, session) {
+  // Best-effort: the questions are a bonus on top of a successful scan, so a
+  // failure here returns an empty list rather than surfacing an error over the
+  // parsed document the user actually came for.
+  try {
+    const qs = await aiComplete('vet_questions', { parsed, petName }, session)
+    return Array.isArray(qs) ? qs : []
+  } catch {
+    return []
+  }
 }
 
 // ── Small helpers ─────────────────────────────────────────────────────────────
@@ -354,7 +247,7 @@ export default function DocumentScanner({ pet, session }) {
 
       // Non-blocking vet questions
       setLoadingQuestions(true)
-      generateVetQuestions(result, pet.name)
+      generateVetQuestions(result, pet.name, session)
         .then(qs => setVetQuestions(qs || []))
         .catch(() => {})
         .finally(() => setLoadingQuestions(false))
@@ -449,12 +342,6 @@ export default function DocumentScanner({ pet, session }) {
       <p className="text-sm mb-5" style={{ color: '#73775b' }}>
         Vet bills, prescriptions, vaccination cards, deworming schedules — our AI reads them and fills in every detail for you.
       </p>
-
-      {!OPENAI_KEY && (
-        <div className="mb-4 p-3 rounded-xl text-sm" style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
-          <strong>Setup required:</strong> Add your OpenAI API key to <code>.env</code> as <code>VITE_OPENAI_API_KEY</code>.
-        </div>
-      )}
 
       {/* Upload area */}
       <div className="flex gap-3 mb-4">

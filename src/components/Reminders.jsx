@@ -3,10 +3,10 @@ import { Plus, Trash2, Bell, BellOff, BellRing, Mail, MessageCircle, CheckCircle
 import { getReminders, saveReminder, deleteReminder, markReminderDone } from '../lib/storage.js'
 import { pushSupported, getPushSubscriptionStatus, subscribeToPush, unsubscribeFromPush } from '../lib/push.js'
 import { format } from 'date-fns'
+import { aiComplete, transcribeAudio } from '../lib/ai.js'
 
 const TYPES = ['Vaccination', 'Grooming', 'Vet Checkup', 'Medication', 'Boarding', 'Other']
 const FREQ  = ['Once', 'Weekly', 'Monthly', 'Yearly']
-const OPENAI_KEY = import.meta.env.VITE_OPENAI_API_KEY
 
 // ── EmailJS ───────────────────────────────────────────────────────────────────
 async function sendEmail({ toEmail, toName, petName, reminderType, dueDate, notes }) {
@@ -25,39 +25,11 @@ async function sendEmail({ toEmail, toName, petName, reminderType, dueDate, note
   if (!res.ok) throw new Error('Failed to send email.')
 }
 
-// ── Parse voice transcript with OpenAI ───────────────────────────────────────
+// ── Parse voice transcript ───────────────────────────────────────────────────
+// The extraction prompt is composed server-side, in
+// netlify/functions/ai-complete.js, next to the API key.
 async function parseVoiceReminder(transcript) {
-  if (!OPENAI_KEY) throw new Error('OpenAI API key not configured.')
-  const today = new Date().toISOString().split('T')[0]
-  const prompt = `Today is ${today}. A pet owner said: "${transcript}"
-
-Extract reminder details and return ONLY valid JSON:
-{
-  "type": "Vaccination|Grooming|Vet Checkup|Medication|Other",
-  "dueDate": "YYYY-MM-DD",
-  "frequency": "Once|Weekly|Monthly|Yearly",
-  "notes": "any extra context from what they said"
-}
-
-Rules:
-- Convert relative dates: "next week" = 7 days from today, "tomorrow" = 1 day, "in 3 months" = 90 days, etc.
-- If no date mentioned, leave dueDate empty string.
-- Pick the closest matching type from the list.
-- Return valid JSON only.`
-
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_KEY}` },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      max_tokens: 200,
-      messages: [{ role: 'user', content: prompt }]
-    })
-  })
-  if (!res.ok) throw new Error('AI parsing failed.')
-  const data = await res.json()
-  const text = data.choices[0].message.content.trim().replace(/^```json\n?/, '').replace(/\n?```$/, '')
-  return JSON.parse(text)
+  return aiComplete('voice_reminder', { transcript })
 }
 
 // ── Voice recording hook (MediaRecorder → Whisper API) ───────────────────────
@@ -109,23 +81,10 @@ function useVoiceRecorder(onTranscript) {
 
         setTranscribing(true)
         try {
-          const formData = new FormData()
-          const ext = mimeType.includes('mp4') ? 'mp4' : 'webm'
-          formData.append('file', blob, `recording.${ext}`)
-          formData.append('model', 'whisper-1')
-          // No language lock — let Whisper auto-detect (handles Indian English / mixed)
-
-          const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${OPENAI_KEY}` },
-            body: formData,
-          })
-          if (!res.ok) {
-            const err = await res.json()
-            throw new Error(err.error?.message || 'Transcription failed')
-          }
-          const data = await res.json()
-          const text = data.text?.trim()
+          // Goes to our own endpoint, which holds the key and calls Whisper.
+          // No language lock there — Whisper auto-detects, which handles Indian
+          // English and mixed speech.
+          const text = (await transcribeAudio(blob))?.trim()
           setTranscript(text)
           if (text) onTranscript(text)
           else setError('No speech detected — please try again.')
@@ -385,11 +344,6 @@ export default function Reminders({ pet }) {
               </div>
             )}
 
-            {!OPENAI_KEY && (
-              <p className="text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg w-full text-center">
-                Add <code>VITE_OPENAI_API_KEY</code> to .env to enable voice transcription.
-              </p>
-            )}
           </div>
         </div>
       )}
