@@ -144,4 +144,9 @@ UPDATE providers SET boarding_policy = '{
   "arrival_notes": "Please do not honk on arrival — call or message from the gate.",
   "extras_note": "Pick-up and drop is available at extra cost, through a third-party vendor."
 }'::jsonb
-WHERE name ILIKE '%unleash%';
+-- Exact match, not ILIKE '%unleash%'. The loose version attached this
+-- facility's rate card and menu to a bare manually-added row called
+-- "Unleashed", which is the same mistake — one boarder's terms under another
+-- boarder's name — that the GENERIC/UNLEASH split exists to prevent.
+-- For any other boarder, use Admin → Boarding rather than editing this file.
+WHERE name = 'Unleash – The Dog Town';
