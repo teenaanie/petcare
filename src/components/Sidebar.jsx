@@ -4,6 +4,7 @@ import { getPets } from '../lib/storage.js'
 import MigrateData from './MigrateData.jsx'
 import PetAvatar from './PetAvatar.jsx'
 import PippyLogo from './PippyLogo.jsx'
+import DeleteAccount from './DeleteAccount.jsx'
 
 const tabs = [
   { id: 'timeline',      label: 'Timeline',          icon: GitBranch },
@@ -21,6 +22,7 @@ const tabs = [
 export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab, onTabChange, refresh, onRefresh, isOpen, onClose, user, isAdmin, onSignOut, adminView, onToggleAdmin, servicesView, onToggleServices }) {
   const [pets, setPets]               = useState([])
   const [showMigrate, setShowMigrate] = useState(false)
+  const [showDelete, setShowDelete]   = useState(false)
 
   const hasLocalData = (() => {
     try { return ['mypetcare_pets','mypetcare_medical','mypetcare_vaccinations','mypetcare_allergies','mypetcare_reminders'].some(k => (JSON.parse(localStorage.getItem(k) || '[]')).length > 0) } catch { return false }
@@ -229,9 +231,23 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
                   <LogOut className="w-3.5 h-3.5" style={{ color: '#73775b' }} />
                 </button>
               </div>
+
+              <button onClick={() => setShowDelete(true)}
+                className="w-full text-left text-[11px] mt-2 px-2 py-1 rounded-lg transition-colors hover:bg-red-50"
+                style={{ color: '#a08f7a' }}>
+                Delete my account
+              </button>
             </div>
           )}
         </>
+      )}
+
+      {showDelete && (
+        <DeleteAccount
+          user={user}
+          onClose={() => setShowDelete(false)}
+          onDeleted={() => { setShowDelete(false); window.location.reload() }}
+        />
       )}
 
       {showMigrate && (
