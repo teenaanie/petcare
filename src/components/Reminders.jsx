@@ -4,6 +4,7 @@ import { getReminders, saveReminder, deleteReminder, markReminderDone } from '..
 import { pushSupported, getPushSubscriptionStatus, subscribeToPush, unsubscribeFromPush } from '../lib/push.js'
 import { format } from 'date-fns'
 import { aiComplete, transcribeAudio } from '../lib/ai.js'
+import { startWebSpeech, webSpeechSupported, webSpeechEnabled, webSpeechLangFor, WEB_SPEECH_OPT_OUT_KEY } from '../lib/speech.js'
 
 // Whisper decodes better when told the language than when left to guess, and it
 // mis-detects Hinglish in particular. 'auto' stays the default because forcing
@@ -83,10 +84,20 @@ function useVoiceRecorder(onTranscript, language) {
   const autoStopRef                     = useRef(null)
   const languageRef                     = useRef(language)
   languageRef.current                   = language
+  const speechRef                       = useRef(null)   // live Web Speech handle
+  const [partial, setPartial]           = useState('')   // words as they are heard
+  const [engine, setEngine]             = useState(null) // 'browser' | 'whisper'
 
   function clearTimers() {
     clearInterval(tickRef.current);   tickRef.current = null
     clearTimeout(autoStopRef.current); autoStopRef.current = null
+  }
+
+  // Recognition holds the microphone too; abandoning it without this leaves the
+  // browser listening.
+  function abortSpeech() {
+    speechRef.current?.abort()
+    speechRef.current = null
   }
 
   // Releasing the microphone is not optional. Without this, closing the voice
@@ -97,13 +108,15 @@ function useVoiceRecorder(onTranscript, language) {
     streamRef.current = null
   }
 
-  useEffect(() => () => { clearTimers(); releaseMic() }, [])
+  useEffect(() => () => { clearTimers(); abortSpeech(); releaseMic() }, [])
 
   async function start() {
     if (listening) { stop(); return }   // tap-to-toggle: second tap = stop
     setError(null)
     setTranscript('')
     setElapsedMs(0)
+    setPartial('')
+    setEngine(null)
     chunksRef.current = []
     readyRef.current  = false
 
@@ -138,6 +151,31 @@ function useVoiceRecorder(onTranscript, language) {
         const elapsed = Date.now() - (startTimeRef.current || 0)
         const blob    = new Blob(chunksRef.current, { type: mimeType })
 
+        // ── 1. What did the browser hear? ───────────────────────────────────
+        // Recognition ran alongside the recording rather than instead of it, so
+        // if the browser comes back empty we already hold the audio and can
+        // fall back without making the user say it a second time.
+        let web = { text: '' }
+        if (speechRef.current) {
+          speechRef.current.stop()
+          web = await speechRef.current.result
+          speechRef.current = null
+        }
+
+        if (web.denied) {
+          setError('Microphone access denied. Allow it for this site in your browser settings, then try again.')
+          return
+        }
+        if (web.text) {
+          setPartial('')
+          setEngine('browser')
+          setTranscript(web.text)
+          onTranscript(web.text)
+          return
+        }
+
+        // ── 2. Fall back to Whisper with the audio we kept ──────────────────
+        setPartial('')
         // Only a genuinely empty capture is rejected here. Everything that has
         // audio in it goes to Whisper, which is better at judging it than a
         // byte count is.
@@ -152,10 +190,8 @@ function useVoiceRecorder(onTranscript, language) {
 
         setTranscribing(true)
         try {
-          // Goes to our own endpoint, which holds the key and calls Whisper.
-          // No language lock there — Whisper auto-detects, which handles Indian
-          // English and mixed speech.
           const text = (await transcribeAudio(blob, undefined, languageRef.current))?.trim()
+          setEngine('whisper')
           setTranscript(text)
           if (text) onTranscript(text)
           else setError('No speech detected — please try again.')
@@ -165,6 +201,14 @@ function useVoiceRecorder(onTranscript, language) {
           setTranscribing(false)
         }
       }
+
+      // Free recognition in parallel, when the browser has it, the user has not
+      // opted out, and we have a language to give it (the Web Speech API cannot
+      // auto-detect). Whisper covers every case this does not.
+      const bcp47 = webSpeechLangFor(languageRef.current)
+      speechRef.current = (webSpeechSupported() && webSpeechEnabled() && bcp47)
+        ? startWebSpeech({ lang: bcp47, onPartial: setPartial })
+        : null
 
       recorder.start(250)   // collect data every 250 ms
       startTimeRef.current = Date.now()
@@ -185,6 +229,7 @@ function useVoiceRecorder(onTranscript, language) {
       }, MAX_MS)
     } catch (e) {
       clearTimers()
+      abortSpeech()
       releaseMic()
       if (e.name === 'NotAllowedError') {
         setError('Microphone access denied. Allow it for this site in your browser settings, then try again.')
@@ -201,13 +246,14 @@ function useVoiceRecorder(onTranscript, language) {
     if (readyRef.current && mediaRecorderRef.current?.state === 'recording') {
       mediaRecorderRef.current.stop()   // onstop releases the mic
     } else {
+      abortSpeech()
       releaseMic()
     }
     readyRef.current = false
     setListening(false)
   }
 
-  return { listening, transcribing, transcript, error, elapsedMs, start, stop }
+  return { listening, transcribing, transcript, error, elapsedMs, partial, engine, start, stop }
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -224,6 +270,7 @@ export default function Reminders({ pet }) {
   const [voiceLang, setVoiceLang]       = useState(() => {
     try { return localStorage.getItem(LANG_KEY) || 'auto' } catch { return 'auto' }
   })
+  const [browserAsr, setBrowserAsr]     = useState(() => webSpeechEnabled())
   const [aiParsing, setAiParsing]       = useState(false)
   const [voiceError, setVoiceError]     = useState(null)
   const [parsedPreview, setParsedPreview] = useState(null) // AI-parsed form values
@@ -412,6 +459,33 @@ export default function Reminders({ pet }) {
             </select>
           </div>
 
+          {webSpeechSupported() && (
+            <div className="mb-4 px-3 py-2 rounded-xl" style={{ backgroundColor: '#fff9e0' }}>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={browserAsr}
+                  disabled={voice.listening || voice.transcribing}
+                  onChange={e => {
+                    const on = e.target.checked
+                    setBrowserAsr(on)
+                    try {
+                      if (on) localStorage.removeItem(WEB_SPEECH_OPT_OUT_KEY)
+                      else    localStorage.setItem(WEB_SPEECH_OPT_OUT_KEY, '1')
+                    } catch { /* private mode */ }
+                  }}
+                />
+                <span className="text-xs" style={{ color: '#7a4900' }}>
+                  <strong>Use my browser's speech recognition.</strong> It's faster and
+                  free, but your browser sends the audio to its own speech service
+                  ({navigator.vendor?.includes('Apple') ? 'Apple' : 'Google'}) to do it.
+                  Turn this off and Pippy transcribes it instead.
+                </span>
+              </label>
+            </div>
+          )}
+
           {/* Mic button */}
           <div className="flex flex-col items-center gap-3">
             <button
@@ -439,9 +513,18 @@ export default function Reminders({ pet }) {
                 : 'Tap to start speaking'}
             </p>
 
+            {voice.listening && voice.partial && (
+              <div className="w-full bg-white rounded-lg px-4 py-3 text-sm border border-primary-200">
+                <p className="text-xs text-gray-400 mb-1">Hearing…</p>
+                <p className="italic text-gray-500">"{voice.partial}"</p>
+              </div>
+            )}
+
             {voice.transcript && !aiParsing && (
               <div className="w-full bg-white rounded-lg px-4 py-3 text-sm text-gray-700 border border-primary-200">
-                <p className="text-xs text-gray-400 mb-1">Heard:</p>
+                <p className="text-xs text-gray-400 mb-1">
+                  Heard{voice.engine === 'whisper' ? ' (via Pippy)' : voice.engine === 'browser' ? ' (via your browser)' : ''}:
+                </p>
                 <p className="italic">"{voice.transcript}"</p>
               </div>
             )}
