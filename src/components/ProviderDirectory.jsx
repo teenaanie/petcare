@@ -3,6 +3,7 @@ import { Search, MapPin, Phone, Clock, ExternalLink, MessageCircle, Stethoscope,
 // MapPin used in ProviderCard address row
 import { getProviders, getProviderFacets } from '../lib/storage.js'
 import { resolvePolicy, hasCustomPolicy, REQUIREMENT_CATALOG, GENERIC_PROVENANCE } from '../lib/boarding.js'
+import { visitPrepFor } from '../lib/visitPrep.js'
 
 // Category colours are drawn from the brand's secondary palette — azure,
 // yellow-green, orange-yellow and coral — rather than generic UI colours.
@@ -115,6 +116,47 @@ function BoardingRequirements({ provider }) {
   )
 }
 
+// Advice to the pet parent, shown against any vet or groomer. It asserts
+// nothing about the business, which is exactly why it can be shown against all
+// of them — unlike the boarding card, which reports a facility's own rules and
+// stays silent when we don't have them.
+function VisitPrep({ type }) {
+  const [open, setOpen] = useState(false)
+  const prep = visitPrepFor(type)
+  if (!prep) return null
+
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ backgroundColor: '#eef8fb' }}>
+      <button onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-xs font-bold"
+        style={{ color: '#255d6e' }}>
+        <span className="flex items-center gap-1.5 text-left">
+          <ClipboardCheck className="w-3.5 h-3.5 flex-shrink-0" /> {prep.title}
+        </span>
+        {open ? <ChevronDown className="w-4 h-4 flex-shrink-0" /> : <ChevronRight className="w-4 h-4 flex-shrink-0" />}
+      </button>
+
+      {open && (
+        <div className="px-3 pb-3">
+          {prep.groups.map(g => (
+            <div key={g.heading} className="mt-2 first:mt-0">
+              <p className="text-xs font-black uppercase tracking-wider mb-1" style={{ color: '#2f7286' }}>{g.heading}</p>
+              {g.items.map((item, i) => (
+                <p key={i} className="text-xs flex gap-1.5 mb-1" style={{ color: '#255d6e' }}>
+                  <span aria-hidden>·</span><span>{item}</span>
+                </p>
+              ))}
+            </div>
+          ))}
+          <p className="text-xs mt-2 pt-2" style={{ color: '#5f7a8a', borderTop: '1px solid #cfe6ef' }}>
+            {prep.note}
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ProviderCard({ p, onPrepForStay }) {
   const waNumber = p.whatsapp?.replace(/\D/g, '') || p.phone?.replace(/\D/g, '')
   const waLink   = waNumber ? `https://wa.me/${waNumber}` : null
@@ -198,6 +240,7 @@ function ProviderCard({ p, onPrepForStay }) {
         )}
 
         {isBoarder && <BoardingRequirements provider={p} />}
+        <VisitPrep type={p.type} />
 
         {isBoarder && onPrepForStay && (
           <button onClick={() => onPrepForStay(p)}
