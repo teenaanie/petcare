@@ -33,11 +33,24 @@ CREATE POLICY "pet_owner_manage_members" ON pet_members
     pet_id IN (SELECT id FROM pets WHERE user_id = auth.uid())
   );
 
+-- auth.users can only be read from a SECURITY DEFINER function: a policy's
+-- expression runs as the calling role, and `authenticated` has no SELECT on
+-- it. Inlining the lookup here made every read of pet_members fail with
+-- "permission denied for table users".
+CREATE OR REPLACE FUNCTION current_user_email()
+RETURNS text LANGUAGE sql SECURITY DEFINER STABLE SET search_path TO 'public' AS $$
+  SELECT email::text FROM auth.users WHERE id = auth.uid();
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.current_user_email() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.current_user_email() FROM anon;
+GRANT  EXECUTE ON FUNCTION public.current_user_email() TO authenticated;
+
 DROP POLICY IF EXISTS "member_see_own_row" ON pet_members;
 CREATE POLICY "member_see_own_row" ON pet_members
   FOR SELECT USING (
     user_id = auth.uid()
-    OR email = (SELECT email FROM auth.users WHERE id = auth.uid())
+    OR email = current_user_email()
   );
 
 -- ── Helper functions ───────────────────────────────────────────────────────
@@ -45,7 +58,7 @@ CREATE POLICY "member_see_own_row" ON pet_members
 -- the calling role's own RLS visibility into those tables.
 
 CREATE OR REPLACE FUNCTION is_pet_member(check_pet_id uuid)
-RETURNS boolean LANGUAGE sql SECURITY DEFINER STABLE AS $$
+RETURNS boolean LANGUAGE sql SECURITY DEFINER STABLE SET search_path TO 'public' AS $$
   SELECT EXISTS (
     SELECT 1 FROM pets WHERE id = check_pet_id AND user_id = auth.uid()
   ) OR EXISTS (
@@ -56,7 +69,7 @@ RETURNS boolean LANGUAGE sql SECURITY DEFINER STABLE AS $$
 $$;
 
 CREATE OR REPLACE FUNCTION is_pet_editor(check_pet_id uuid)
-RETURNS boolean LANGUAGE sql SECURITY DEFINER STABLE AS $$
+RETURNS boolean LANGUAGE sql SECURITY DEFINER STABLE SET search_path TO 'public' AS $$
   SELECT EXISTS (
     SELECT 1 FROM pets WHERE id = check_pet_id AND user_id = auth.uid()
   ) OR EXISTS (

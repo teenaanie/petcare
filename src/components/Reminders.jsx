@@ -4,7 +4,7 @@ import { getReminders, saveReminder, deleteReminder, markReminderDone } from '..
 import { pushSupported, getPushSubscriptionStatus, subscribeToPush, unsubscribeFromPush } from '../lib/push.js'
 import { format } from 'date-fns'
 
-const TYPES = ['Vaccination', 'Grooming', 'Vet Checkup', 'Medication', 'Other']
+const TYPES = ['Vaccination', 'Grooming', 'Vet Checkup', 'Medication', 'Boarding', 'Other']
 const FREQ  = ['Once', 'Weekly', 'Monthly', 'Yearly']
 const OPENAI_KEY = import.meta.env.VITE_OPENAI_API_KEY
 

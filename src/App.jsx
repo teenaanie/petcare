@@ -13,6 +13,7 @@ import FeedbackButton from './components/FeedbackButton.jsx'
 import ProviderDirectory from './components/ProviderDirectory.jsx'
 import InstallPrompt from './components/InstallPrompt.jsx'
 import PippyLogo from './components/PippyLogo.jsx'
+import PetPickerModal from './components/PetPickerModal.jsx'
 
 const ADMIN_EMAIL = 'teena.anie9@gmail.com'
 
@@ -78,10 +79,28 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen]   = useState(false)
   const [adminView, setAdminView]       = useState(false)
   const [servicesView, setServicesView] = useState(false)
+  // "Prep for a stay here" in the directory: which boarder to preselect, and
+  // which pet it's for. The directory clears the selected pet on entry, so the
+  // pet has to be chosen again on the way back out.
+  const [boardingPrefill, setBoardingPrefill] = useState(null)
+  const [prepProvider, setPrepProvider]       = useState(null)
 
   function onPetSaved() {
     setRefresh(r => r + 1)
     setShowAddPet(false)
+  }
+
+  function startBoardingPrep(provider) {
+    setPrepProvider(provider)
+  }
+
+  function openBoardingFor(pet, providerId) {
+    setPrepProvider(null)
+    setBoardingPrefill(providerId)
+    setSelectedPet(pet)
+    setServicesView(false)
+    setAdminView(false)
+    setActiveTab('boarding')
   }
 
   function selectPet(pet) {
@@ -125,6 +144,13 @@ export default function App() {
         onToggleServices={() => { setServicesView(v => !v); setAdminView(false); setSelectedPet(null); setSidebarOpen(false) }}
       />
 
+      {prepProvider && (
+        <PetPickerModal
+          provider={prepProvider}
+          onClose={() => setPrepProvider(null)}
+          onPick={pet => openBoardingFor(pet, prepProvider.id)} />
+      )}
+
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/40 z-30 md:hidden"
@@ -144,11 +170,13 @@ export default function App() {
           {adminView ? (
             <AdminDashboard />
           ) : servicesView ? (
-            <ProviderDirectory />
+            <ProviderDirectory onPrepForStay={startBoardingPrep} />
           ) : selectedPet ? (
             <PetDetail
               pet={selectedPet}
               activeTab={activeTab}
+              prefillProviderId={boardingPrefill}
+              onPrefillUsed={() => setBoardingPrefill(null)}
               onTabChange={setActiveTab}
               onPetUpdated={(updated) => { setSelectedPet(updated); setRefresh(r => r + 1) }}
               onPetDeleted={() => { setSelectedPet(null); setRefresh(r => r + 1) }}

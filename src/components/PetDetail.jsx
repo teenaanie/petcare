@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Edit2, Trash2, Calendar, Weight, Phone, Sparkles, ShieldAlert, Users } from 'lucide-react'
-import { supabase } from '../lib/supabase.js'
+import { supabase, isConfigured } from '../lib/supabase.js'
 import HealthSummary from './HealthSummary.jsx'
 
 // ── Life stage data ───────────────────────────────────────────────────────────
@@ -35,6 +35,7 @@ const PET_TABS = [
   { id: 'weight',       label: 'Weight' },
   { id: 'allergies',    label: 'Allergies' },
   { id: 'bills',        label: 'Bills' },
+  { id: 'boarding',     label: 'Boarding' },
 ]
 
 function LifeStageBar({ pet, ageYears }) {
@@ -148,8 +149,9 @@ import Bills from './Bills.jsx'
 import EmergencyCard from './EmergencyCard.jsx'
 import PetSharing from './PetSharing.jsx'
 import BreedAlert from './BreedAlert.jsx'
+import Boarding from './Boarding.jsx'
 
-export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, onPetDeleted }) {
+export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, onPetDeleted, prefillProviderId, onPrefillUsed }) {
   const [showEdit, setShowEdit]                   = useState(false)
   const [showHealthSummary, setShowHealthSummary] = useState(false)
   const [showEmergencyCard, setShowEmergencyCard] = useState(false)
@@ -157,6 +159,9 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
   const [session, setSession]             = useState(null)
 
   useEffect(() => {
+    // `supabase` is null when the app is running on localStorage only, so this
+    // has to be guarded — otherwise opening any pet throws before it renders.
+    if (!isConfigured) return
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
   }, [])
 
@@ -265,6 +270,8 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
       {activeTab === 'allergies'    && <Allergies pet={pet} />}
       {activeTab === 'scanner'      && <DocumentScanner pet={pet} session={session} />}
       {activeTab === 'reminders'    && <Reminders pet={pet} />}
+      {activeTab === 'boarding'     && <Boarding pet={pet} onPetUpdated={onPetUpdated}
+                                          prefillProviderId={prefillProviderId} onPrefillUsed={onPrefillUsed} />}
 
       {showEdit && (
         <AddPetModal

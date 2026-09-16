@@ -15,23 +15,32 @@ async function getMembers(petId) {
 }
 
 async function inviteMember(petId, email, role = 'viewer') {
-  // Look up the invitee's user_id from profiles (they must be signed up)
-  const { data: profile, error: pe } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('email', email)
-    .single()
-
-  // If they're not found we still save the invite — they'll get access on sign-up
-  const inviteeId = profile?.id || null
-
+  // The invite is stored against the email alone. There used to be a lookup
+  // here against profiles to resolve a user_id first, but profiles holds only
+  // (id, is_admin, created_at) — it has no email column, so that query failed
+  // every single time and its error was discarded. Access is granted by
+  // matching the email anyway: see is_pet_member() in supabase/pet_members.sql.
   const { error } = await supabase.from('pet_members').insert({
     pet_id: petId,
-    user_id: inviteeId,
     email,
     role,
   })
   if (error) throw error
+}
+
+// Postgres errors are written for whoever wrote the schema, not for the person
+// trying to share their dog with their sister.
+function friendly(message = '') {
+  if (/permission denied|row-level security|violates row-level/i.test(message)) {
+    return "You don't have permission to change who can see this pet — only its owner can."
+  }
+  if (/duplicate key|unique constraint/i.test(message)) {
+    return 'That email already has access to this pet.'
+  }
+  if (/does not exist|schema cache|column/i.test(message)) {
+    return 'Sharing isn\'t set up on this database yet. Run supabase/pet_members.sql in the Supabase SQL editor.'
+  }
+  return message
 }
 
 async function removeMember(memberId) {
@@ -55,7 +64,7 @@ export default function PetSharing({ pet, onClose }) {
     setLoading(true)
     getMembers(pet.id)
       .then(setMembers)
-      .catch(e => setError(e.message))
+      .catch(e => setError(friendly(e.message)))
       .finally(() => setLoading(false))
   }
   useEffect(load, [pet.id])
@@ -70,7 +79,7 @@ export default function PetSharing({ pet, onClose }) {
       setEmail('')
       load()
     } catch (err) {
-      setInviteErr(err.message)
+      setInviteErr(friendly(err.message))
     } finally {
       setInviting(false)
     }
@@ -78,7 +87,7 @@ export default function PetSharing({ pet, onClose }) {
 
   async function handleRemove(id) {
     if (!confirm('Remove this person from the pet?')) return
-    await removeMember(id).catch(e => alert(e.message))
+    await removeMember(id).catch(e => alert(friendly(e.message)))
     load()
   }
 

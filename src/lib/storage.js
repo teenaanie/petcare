@@ -14,6 +14,7 @@ const KEYS = {
   weightLogs:   'mypetcare_weight_logs',
   medicines:    'mypetcare_medicines',
   bills:        'mypetcare_bills',
+  boardingTrips:'mypetcare_boarding_trips',
 }
 
 function lsGet(key)       { try { return JSON.parse(localStorage.getItem(key) || '[]') } catch { return [] } }
@@ -60,7 +61,11 @@ export async function savePet(pet) {
   const pets = lsGet(KEYS.pets)
   if (pet.id) {
     const idx = pets.findIndex(p => p.id === pet.id)
-    if (idx >= 0) pets[idx] = pet; else pets.push(pet)
+    // Merge rather than replace: callers pass a fixed field whitelist (the edit
+    // form doesn't know about the boarding profile, for instance), so a
+    // wholesale swap would drop every field the caller didn't happen to carry.
+    // Empty strings still clear a field — only `undefined` is preserved.
+    if (idx >= 0) pets[idx] = { ...pets[idx], ...pet }; else pets.push(pet)
   } else {
     pet.id = uid(); pet.createdAt = new Date().toISOString(); pets.push(pet)
   }
@@ -551,6 +556,79 @@ export async function deleteProvider(id) {
   if (error) throw error
 }
 
+// ── Boarding trips ───────────────────────────────────────────────────────────
+// One planned stay at a boarder. `checklist` holds the parent's manual answers
+// keyed by requirement id, layered over whatever boarding.js can derive from
+// the pet's own records — same jsonb-blob approach as bills.line_items, since
+// the key set is fixed by the boarder's policy and is never queried across
+// trips.
+
+export async function getBoardingTrips(petId) {
+  if (isConfigured) {
+    let q = supabase.from('boarding_trips').select('*').order('start_date', { ascending: false, nullsFirst: false })
+    if (petId) q = q.eq('pet_id', petId)
+    const { data, error } = await q
+    if (error) throw error
+    return data.map(fromSnakeBoardingTrip)
+  }
+  const all = lsGet(KEYS.boardingTrips)
+  return petId ? all.filter(r => r.petId === petId) : all
+}
+
+export async function saveBoardingTrip(trip) {
+  if (isConfigured) {
+    const row = {
+      pet_id:        trip.petId,
+      provider_id:   trip.providerId || null,
+      provider_name: trip.providerName || null,
+      start_date:    trip.startDate || null,
+      start_slot:    trip.startSlot || null,
+      end_date:      trip.endDate   || null,
+      end_slot:      trip.endSlot   || null,
+      trial_date:    trip.trialDate || null,
+      is_first_stay: trip.isFirstStay ?? true,
+      checklist:     trip.checklist || {},
+      generated_reminder_ids: trip.generatedReminderIds || [],
+      notes:         trip.notes || null,
+    }
+    if (trip.id) {
+      const { data, error } = await supabase.from('boarding_trips').update(row).eq('id', trip.id).select().single()
+      if (error) throw error
+      return fromSnakeBoardingTrip(data)
+    }
+    const { data, error } = await supabase.from('boarding_trips').insert(row).select().single()
+    if (error) throw error
+    return fromSnakeBoardingTrip(data)
+  }
+  const all = lsGet(KEYS.boardingTrips)
+  if (trip.id) {
+    const idx = all.findIndex(r => r.id === trip.id)
+    if (idx >= 0) all[idx] = { ...all[idx], ...trip }; else all.push(trip)
+  } else {
+    trip.id = uid(); trip.createdAt = new Date().toISOString(); all.push(trip)
+  }
+  lsSet(KEYS.boardingTrips, all)
+  return trip
+}
+
+export async function deleteBoardingTrip(id) {
+  if (isConfigured) {
+    const { error } = await supabase.from('boarding_trips').delete().eq('id', id)
+    if (error) throw error
+    return
+  }
+  lsSet(KEYS.boardingTrips, lsGet(KEYS.boardingTrips).filter(r => r.id !== id))
+}
+
+// Every boarder, for the trip planner's search box. Fetched whole and ranked
+// in the browser: Postgres ILIKE can't find "unleesh", and the phonetic
+// matching that can is cheap over a few hundred rows held in memory.
+export async function getBoarders() {
+  if (!isConfigured) return []
+  const { rows } = await getProviders({ type: 'Boarder', limit: 500 })
+  return rows
+}
+
 // ── Snake ↔ camelCase helpers ─────────────────────────────────────────────────
 
 function toSnake(pet) {
@@ -569,6 +647,18 @@ function toSnake(pet) {
     vet_email:        pet.vetEmail,
     notes:            pet.notes,
     photo:            pet.photo     || null,
+    // Boarding profile — what a boarder, sitter or vet needs to know to look
+    // after this animal for a few days. Left `undefined` when the caller
+    // doesn't carry them, so JSON.stringify drops the keys and the PATCH
+    // omits the columns; that keeps saves working before boarding.sql is run.
+    food_preferences:      pet.foodPreferences,
+    feeding_schedule:      pet.feedingSchedule,
+    diet_notes:            pet.dietNotes,
+    temperament:           pet.temperament,
+    anxiety_notes:         pet.anxietyNotes,
+    triggers:              pet.triggers,
+    socialises_with_dogs:  pet.socialisesWithDogs,
+    handling_notes:        pet.handlingNotes,
   }
 }
 
@@ -591,6 +681,16 @@ function fromSnakePet(r) {
     notes:           r.notes,
     photo:           r.photo || null,
     createdAt:       r.created_at,
+    // Array columns are NULL for every pet created before boarding.sql ran,
+    // so default them here rather than making every consumer guard a .map().
+    foodPreferences:    r.food_preferences || [],
+    feedingSchedule:    r.feeding_schedule || '',
+    dietNotes:          r.diet_notes || '',
+    temperament:        r.temperament || '',
+    anxietyNotes:       r.anxiety_notes || '',
+    triggers:           r.triggers || [],
+    socialisesWithDogs: r.socialises_with_dogs ?? null,
+    handlingNotes:      r.handling_notes || '',
   }
 }
 
@@ -681,5 +781,19 @@ function fromSnakeWeightLog(r) {
     weight:    r.weight,
     notes:     r.notes,
     createdAt: r.created_at,
+  }
+}
+
+function fromSnakeBoardingTrip(r) {
+  return {
+    id: r.id, petId: r.pet_id,
+    providerId: r.provider_id, providerName: r.provider_name,
+    startDate: r.start_date, startSlot: r.start_slot,
+    endDate: r.end_date, endSlot: r.end_slot,
+    trialDate: r.trial_date,
+    isFirstStay: r.is_first_stay ?? true,
+    checklist: r.checklist || {},
+    generatedReminderIds: r.generated_reminder_ids || [],
+    notes: r.notes, createdAt: r.created_at,
   }
 }

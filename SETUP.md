@@ -69,9 +69,30 @@ For data that persists across devices and browsers:
    VITE_SUPABASE_URL=https://your-project.supabase.co
    VITE_SUPABASE_ANON_KEY=your-anon-key
    ```
-4. Replace `src/lib/storage.js` calls with the Supabase client from `src/lib/supabase.js`
+4. Restart `npm run dev` — `storage.js` switches from browser storage to Supabase automatically once those two variables are set
 
 ### Supabase schema
+
+This block is the **original** schema only. Several features were added after it
+was written, so it is no longer the whole picture — `src/lib/storage.js` is the
+source of truth for what the app actually reads and writes.
+
+After running the block below, run the scripts in `supabase/` in this order.
+Each one is idempotent, so re-running is safe:
+
+| Script | Adds |
+| --- | --- |
+| `security_hardening.sql` | RLS across the base tables |
+| `pet_members.sql` | Pet sharing, plus the `is_pet_member()` / `is_pet_editor()` helpers everything else builds on |
+| `providers_enrichment.sql` | The `providers` columns used by the directory and the Maps import |
+| `providers_search.sql` | The `search_providers()` and `provider_facets()` RPCs |
+| `push_notifications.sql` | Web push subscriptions |
+| `boarding.sql` | Boarding prep — the pet boarding profile, `providers.boarding_policy`, and `boarding_trips` |
+
+The base block below also predates the `medicines`, `bills` and `weight_logs`
+tables and the `is_done` columns on `vaccinations`, `medicines` and `reminders`.
+The app tells you which `ALTER` to run if it hits a column that isn't there yet.
+
 ```sql
 create table pets (
   id uuid primary key default gen_random_uuid(),
