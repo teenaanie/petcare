@@ -5,6 +5,25 @@ import { pushSupported, getPushSubscriptionStatus, subscribeToPush, unsubscribeF
 import { format } from 'date-fns'
 import { aiComplete, transcribeAudio } from '../lib/ai.js'
 
+// Whisper decodes better when told the language than when left to guess, and it
+// mis-detects Hinglish in particular. 'auto' stays the default because forcing
+// the wrong language is worse than detecting — this is a decode instruction,
+// not a hint.
+const VOICE_LANGS = [
+  { code: 'auto', label: 'Detect automatically' },
+  { code: 'en',   label: 'English' },
+  { code: 'hi',   label: 'हिन्दी / Hinglish' },
+  { code: 'mr',   label: 'मराठी' },
+  { code: 'ta',   label: 'தமிழ்' },
+  { code: 'te',   label: 'తెలుగు' },
+  { code: 'kn',   label: 'ಕನ್ನಡ' },
+  { code: 'ml',   label: 'മലയാളം' },
+  { code: 'bn',   label: 'বাংলা' },
+  { code: 'gu',   label: 'ગુજરાતી' },
+  { code: 'pa',   label: 'ਪੰਜਾਬੀ' },
+]
+const LANG_KEY = 'pippy_voice_lang'
+
 const TYPES = ['Vaccination', 'Grooming', 'Vet Checkup', 'Medication', 'Boarding', 'Other']
 const FREQ  = ['Once', 'Weekly', 'Monthly', 'Yearly']
 
@@ -49,7 +68,7 @@ const MIN_BYTES  = 1200        // a webm/mp4 header with no audio is smaller tha
 const MIN_MS     = 400         // a tap, not an utterance
 const MAX_MS     = 120_000     // stop before the upload hits the server's size cap
 
-function useVoiceRecorder(onTranscript) {
+function useVoiceRecorder(onTranscript, language) {
   const [listening, setListening]       = useState(false)
   const [transcript, setTranscript]     = useState('')
   const [transcribing, setTranscribing] = useState(false)
@@ -62,6 +81,8 @@ function useVoiceRecorder(onTranscript) {
   const readyRef                        = useRef(false)   // true once recorder is recording
   const tickRef                         = useRef(null)
   const autoStopRef                     = useRef(null)
+  const languageRef                     = useRef(language)
+  languageRef.current                   = language
 
   function clearTimers() {
     clearInterval(tickRef.current);   tickRef.current = null
@@ -134,7 +155,7 @@ function useVoiceRecorder(onTranscript) {
           // Goes to our own endpoint, which holds the key and calls Whisper.
           // No language lock there — Whisper auto-detects, which handles Indian
           // English and mixed speech.
-          const text = (await transcribeAudio(blob))?.trim()
+          const text = (await transcribeAudio(blob, undefined, languageRef.current))?.trim()
           setTranscript(text)
           if (text) onTranscript(text)
           else setError('No speech detected — please try again.')
@@ -200,6 +221,9 @@ export default function Reminders({ pet }) {
 
   // Voice AI state
   const [voiceMode, setVoiceMode]       = useState(false)  // is voice panel open
+  const [voiceLang, setVoiceLang]       = useState(() => {
+    try { return localStorage.getItem(LANG_KEY) || 'auto' } catch { return 'auto' }
+  })
   const [aiParsing, setAiParsing]       = useState(false)
   const [voiceError, setVoiceError]     = useState(null)
   const [parsedPreview, setParsedPreview] = useState(null) // AI-parsed form values
@@ -315,7 +339,7 @@ export default function Reminders({ pet }) {
     }
   }
 
-  const voice = useVoiceRecorder(handleTranscript)
+  const voice = useVoiceRecorder(handleTranscript, voiceLang)
   const emailConfigured = import.meta.env.VITE_EMAILJS_SERVICE_ID
 
   return (
@@ -372,6 +396,21 @@ export default function Reminders({ pet }) {
           <p className="text-sm text-primary-700 mb-4">
             Say something like: <span className="italic">"Remind me to groom {pet.name} next Saturday"</span> or <span className="italic">"Set a vaccination reminder for March 15"</span>
           </p>
+
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <label className="text-xs font-bold" style={{ color: '#73775b' }}>Language</label>
+            <select
+              className="input text-xs py-1 w-auto"
+              value={voiceLang}
+              onChange={e => {
+                setVoiceLang(e.target.value)
+                try { localStorage.setItem(LANG_KEY, e.target.value) } catch { /* private mode */ }
+              }}
+              disabled={voice.listening || voice.transcribing}
+            >
+              {VOICE_LANGS.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+            </select>
+          </div>
 
           {/* Mic button */}
           <div className="flex flex-col items-center gap-3">
@@ -431,12 +470,11 @@ export default function Reminders({ pet }) {
           <AlertCircle className="w-4 h-4 flex-shrink-0" /> {pushError}
         </div>
       )}
-
       {!emailConfigured && (
-        <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
-          <strong>Email reminders:</strong> Create a free account at{' '}
-          <a href="https://www.emailjs.com" target="_blank" className="underline">emailjs.com</a> and add <code>VITE_EMAILJS_*</code> keys to <code>.env</code>.
-          WhatsApp works without any setup.
+        <div className="mb-4 p-3 rounded-xl text-sm" style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
+          <strong>Email reminders are off.</strong> WhatsApp reminders work now — use the
+          WhatsApp button on any reminder. You'll also get a daily email each morning
+          for anything due that day.
         </div>
       )}
 
@@ -538,7 +576,7 @@ export default function Reminders({ pet }) {
 
             {!r.isDone && (
               <div className="flex gap-2 flex-wrap">
-                {r.email && (
+                {r.email && emailConfigured && (
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleSendEmail(r)}

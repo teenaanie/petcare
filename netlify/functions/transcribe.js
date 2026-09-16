@@ -21,6 +21,18 @@ const AI_LIMIT     = parseInt(process.env.MONTHLY_AI_LIMIT || '100')
 // platform body limits.
 const MAX_BASE64_CHARS = 4_000_000
 
+// ISO-639-1 codes Whisper supports that are plausible for this app's users.
+// Passing `language` stops Whisper guessing, which measurably helps Indic
+// speech and Hinglish — it otherwise mis-detects code-switched audio.
+//
+// This is a FORCED decode, not a hint: sending 'hi' for English audio makes
+// English worse. So it is never hardcoded. The client sends the user's own
+// choice, and 'auto' (the default) omits the field entirely and lets Whisper
+// detect, which is the right behaviour for anyone who has not chosen.
+const LANGUAGES = new Set([
+  'hi', 'en', 'mr', 'ta', 'te', 'kn', 'ml', 'bn', 'gu', 'pa', 'ur', 'or', 'as',
+])
+
 // Whisper accepts these. Anything else is rejected rather than forwarded.
 const AUDIO_TYPES = {
   'audio/webm': 'webm', 'audio/mp4': 'mp4', 'audio/mpeg': 'mp3',
@@ -77,7 +89,7 @@ export default async function handler(req) {
   let body
   try { body = await req.json() } catch { return json({ error: 'Invalid request body' }, 400) }
 
-  const { audio, mimeType } = body || {}
+  const { audio, mimeType, language } = body || {}
   if (!audio || typeof audio !== 'string') return json({ error: 'No audio supplied' }, 400)
   if (audio.length > MAX_BASE64_CHARS)     return json({ error: 'Recording is too long. Please keep it under a few minutes.' }, 413)
 
@@ -117,6 +129,8 @@ export default async function handler(req) {
     const form = new FormData()
     form.append('file', new Blob([bytes], { type: baseType }), `recording.${ext}`)
     form.append('model', 'whisper-1')
+    // Omitted unless the user picked a language, so auto-detect stays the default.
+    if (LANGUAGES.has(language)) form.append('language', language)
 
     const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
