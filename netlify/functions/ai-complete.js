@@ -153,6 +153,17 @@ const json = (obj, status = 200) => cors(JSON.stringify(obj), status)
 
 // ── Handler ──────────────────────────────────────────────────────────────────
 
+// createClient throws "supabaseUrl is required" when these are unset, which
+// surfaced as an opaque 500 FUNCTION_INVOCATION_FAILED on every authenticated
+// request — the deploy looked fine and every real user hit a server error.
+// Check first so a missing variable says so.
+function missingEnv() {
+  const missing = []
+  if (!SUPABASE_URL) missing.push('SUPABASE_URL')
+  if (!SERVICE_KEY)  missing.push('SUPABASE_SERVICE_KEY')
+  return missing
+}
+
 export default async function handler(req) {
   if (req.method === 'OPTIONS') return cors('', 204)
   if (req.method !== 'POST')    return json({ error: 'Method not allowed' }, 405)
@@ -160,6 +171,12 @@ export default async function handler(req) {
 
   // 1. Authenticate
   const token = (req.headers.get('authorization') || '').replace('Bearer ', '').trim()
+  const missing = missingEnv()
+  if (missing.length) {
+    console.error('Not configured — missing env: ' + missing.join(', '))
+    return json({ error: `Server is misconfigured (missing ${missing.join(', ')}). Set it in the host's environment variables and redeploy.` }, 503)
+  }
+
   if (!token) return json({ error: 'Missing auth token' }, 401)
 
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
