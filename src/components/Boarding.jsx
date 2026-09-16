@@ -828,7 +828,7 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
       )}
 
       {/* ── Cost ─────────────────────────────────────────────────────── */}
-      {trip.startDate && (cost.lines.length > 0 || cost.discussionFlags.length > 0) && (
+      {trip.startDate && (cost.lines.length > 0 || cost.discussionFlags.length > 0 || cost.unpriced) && (
         <div className="card">
           <h2 className="type-subhead mb-3 flex items-center gap-2" style={{ color: '#7a4900' }}>
             <IndianRupee className="w-4 h-4" /> {cost.hasPricing ? 'Rough cost' : 'What it might cost'}
@@ -845,6 +845,9 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
               <span className="font-black" style={{ color: '#7a4900' }}>Estimate</span>
               <span className="font-black text-lg" style={{ color: '#7a4900' }}>₹{cost.total.toLocaleString('en-IN')}</span>
             </div>
+          )}
+          {cost.unpriced && (
+            <p className="text-sm" style={{ color: '#7a4900' }}>{cost.unpriced}</p>
           )}
           <p className="text-xs mt-2" style={{ color: '#c0563d' }}>{cost.note}</p>
           {cost.discussionFlags.length > 0 && (

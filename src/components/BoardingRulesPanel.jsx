@@ -360,6 +360,31 @@ function PolicyEditor({ provider, onSaved }) {
                   onChange={e => set({ pricing: { ...pricing, last_minute_days: Number(e.target.value) } })} />
               </Field>
             </div>
+            <div className="mt-3 pt-3" style={{ borderTop: '1px solid #ebe3d3' }}>
+              <p className="text-xs font-bold mb-1" style={{ color: '#7a4900' }}>Price by size</p>
+              <p className="text-xs mb-2" style={{ color: '#878c6b' }}>
+                Only if they charge by weight. Leave empty when size makes no difference — the full-day
+                rate above is then used for every pet. The last band's weight can be left blank to mean
+                "and above".
+              </p>
+              {(pricing.size_bands || []).map((b, i) => (
+                <div key={i} className="flex gap-2 items-center mb-2">
+                  <span className="text-xs whitespace-nowrap" style={{ color: '#73775b' }}>up to</span>
+                  <input type="number" min="0" className="input w-24" placeholder="kg" value={b.max_kg ?? ''}
+                    onChange={e => set({ pricing: { ...pricing, size_bands: pricing.size_bands.map((x, j) =>
+                      j === i ? { ...x, max_kg: e.target.value === '' ? null : Number(e.target.value) } : x) } })} />
+                  <span className="text-xs" style={{ color: '#73775b' }}>kg · ₹</span>
+                  <input type="number" min="0" className="input flex-1" placeholder="per day" value={b.amount ?? ''}
+                    onChange={e => set({ pricing: { ...pricing, size_bands: pricing.size_bands.map((x, j) =>
+                      j === i ? { ...x, amount: Number(e.target.value) } : x) } })} />
+                  <button onClick={() => set({ pricing: { ...pricing, size_bands: pricing.size_bands.filter((_, j) => j !== i) } })}
+                    className="p-1.5 rounded-lg hover:bg-red-50"><Trash2 className="w-4 h-4 text-red-400" /></button>
+                </div>
+              ))}
+              <button onClick={() => set({ pricing: { ...pricing, size_bands: [...(pricing.size_bands || []), { max_kg: null, amount: 0 }] } })}
+                className="btn-secondary text-xs gap-1.5"><Plus className="w-3.5 h-3.5" /> Add a weight band</button>
+            </div>
+
             <Field label="Note shown under the estimate">
               <input className="input w-full" value={pricing.note || ''}
                 onChange={e => set({ pricing: { ...pricing, note: e.target.value } })}

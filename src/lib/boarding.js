@@ -753,26 +753,48 @@ export function activeAdvisories(policy = GENERIC_POLICY, startDate, endDate) {
 // charges are phrased as things the boarder *may ask about* — the app is in no
 // position to assert that a particular dog attracts a surcharge.
 
+// Some boarders price by weight band and some say size makes no difference, so
+// bands are optional and absent means absent. Bands override the full-day rate
+// only; day-only and night-only rates are left alone.
+function dayRate(pricing, pet) {
+  const bands = pricing.size_bands || []
+  if (!bands.length) return { amount: pricing.full_day, label: '' }
+
+  const kg = parseFloat(pet.weight)
+  if (!Number.isFinite(kg)) return { amount: null, label: '' }
+
+  const sorted = [...bands].sort((a, b) => (a.max_kg ?? Infinity) - (b.max_kg ?? Infinity))
+  const band = sorted.find(b => b.max_kg == null || kg <= b.max_kg) || sorted[sorted.length - 1]
+  const upTo = band.max_kg == null ? `over ${sorted[sorted.length - 2]?.max_kg ?? 0} kg` : `up to ${band.max_kg} kg`
+  return { amount: band.amount, label: ` (${upTo})` }
+}
+
 export function estimateCost(policy = GENERIC_POLICY, trip = {}, pet = {}) {
   const pricing = policy.pricing
   const start = d(trip.startDate), end = d(trip.endDate)
   const lines = []
   let total = 0
+  let unpriced = null
 
   if (start && pricing) {
     const nights = end ? Math.max(0, differenceInCalendarDays(end, start)) : 0
     if (nights === 0) {
       const dayOnly = trip.startSlot === 'morning' && trip.endSlot === 'evening'
-      const rate = dayOnly ? pricing.day : pricing.day
-      lines.push({ label: dayOnly ? 'Day boarding (morning to evening)' : 'Single-day boarding', amount: rate })
-      total += rate
+      lines.push({ label: dayOnly ? 'Day boarding (morning to evening)' : 'Single-day boarding', amount: pricing.day })
+      total += pricing.day
     } else if (nights === 1 && trip.startSlot === 'evening' && trip.endSlot === 'morning') {
       lines.push({ label: 'Night stay (evening to next morning)', amount: pricing.night })
       total += pricing.night
     } else {
-      const amount = nights * pricing.full_day
-      lines.push({ label: `${nights} × full-day boarding (24 hrs, incl. overnight)`, amount })
-      total += amount
+      const { amount: rate, label: bandLabel } = dayRate(pricing, pet)
+      if (rate == null) {
+        // Never silently pick the cheapest band — that quietly under-quotes.
+        unpriced = `This boarder prices by size, and we don't have ${pet.name || 'your pet'}'s weight. Add it and the estimate will fill in.`
+      } else {
+        const amount = nights * rate
+        lines.push({ label: `${nights} × full-day boarding${bandLabel}`, amount })
+        total += amount
+      }
     }
   }
 
@@ -803,6 +825,7 @@ export function estimateCost(policy = GENERIC_POLICY, trip = {}, pet = {}) {
   return {
     currency: pricing?.currency || 'INR',
     lines, total,
+    unpriced,
     isEstimate: true,
     // No rate card on file — say so rather than quoting someone else's.
     hasPricing: !!pricing,
