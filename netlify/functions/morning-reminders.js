@@ -4,9 +4,11 @@
 
 import { createClient } from '@supabase/supabase-js'
 import webPush from 'web-push'
+import { maskEmail, maskPhone, bodyShape } from './_redact.js'
 
 const SUPABASE_URL   = process.env.SUPABASE_URL
 const SERVICE_KEY    = process.env.SUPABASE_SERVICE_KEY
+const CRON_SECRET = process.env.CRON_SECRET   // set by Vercel on scheduled runs
 const TWILIO_SID     = process.env.TWILIO_ACCOUNT_SID
 const TWILIO_TOKEN   = process.env.TWILIO_AUTH_TOKEN
 const TWILIO_FROM    = process.env.TWILIO_PHONE_NUMBER
@@ -24,7 +26,7 @@ if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
 
 async function sendEmail(to, subject, html) {
   if (!RESEND_API_KEY) {
-    console.log(`[EMAIL SKIPPED] No RESEND_API_KEY. Would send to ${to}: ${subject}`)
+    console.log(`[EMAIL SKIPPED] No RESEND_API_KEY. Would send to ${maskEmail(to)}`)
     return
   }
   const res = await fetch('https://api.resend.com/emails', {
@@ -42,7 +44,7 @@ async function sendEmail(to, subject, html) {
 
 async function sendSMS(to, body) {
   if (!TWILIO_SID || !TWILIO_TOKEN || !TWILIO_FROM) {
-    console.log(`[SMS SKIPPED] Twilio not configured. Would send to ${to}: ${body}`)
+    console.log(`[SMS SKIPPED] Twilio not configured. Would send to ${maskPhone(to)} (${bodyShape(body)})`)
     return
   }
   const url = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`
@@ -133,6 +135,30 @@ function reminderSMSText(petName, reminders) {
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 export default async function handler(req) {
+  // This endpoint emails and texts every user with a reminder due, and reports
+  // on what it sent. It was reachable by anyone: a plain GET returned 200 and,
+  // on any day with reminders due, the response body listed each recipient.
+  //
+  // Vercel sends `Authorization: Bearer ${CRON_SECRET}` on scheduled runs when
+  // CRON_SECRET is set on the project. Require it when it is set. When it is
+  // not, run anyway rather than silently killing the morning reminders on
+  // deploy — but say so on every single run, because that is the open state.
+  if (CRON_SECRET) {
+    const auth = req.headers.get('authorization') || ''
+    if (auth !== `Bearer ${CRON_SECRET}`) {
+      console.warn('Rejected an unauthorised call to morning-reminders')
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { 'Content-Type': 'application/json' },
+      })
+    }
+  } else {
+    console.warn(
+      'CRON_SECRET is not set — this endpoint is callable by anyone, who can ' +
+      'trigger real emails and SMS to your users. Set CRON_SECRET in the ' +
+      'project environment variables to close it.'
+    )
+  }
+
   console.log('Morning reminders job started at', new Date().toISOString())
 
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
@@ -209,10 +235,10 @@ export default async function handler(req) {
           `🐾 ${petName} has ${rems.length} reminder${rems.length > 1 ? 's' : ''} today`,
           reminderEmailHtml(petName, rems)
         )
-        results.push({ pet: petName, channel: 'email', to: userEmail, status: 'sent' })
-        console.log(`Email sent to ${userEmail} for ${petName}`)
+        results.push({ pet: petName, channel: 'email', to: maskEmail(userEmail), status: 'sent' })
+        console.log(`Email sent to ${maskEmail(userEmail)} for ${petName}`)
       } catch (e) {
-        results.push({ pet: petName, channel: 'email', to: userEmail, status: 'failed', error: e.message })
+        results.push({ pet: petName, channel: 'email', to: maskEmail(userEmail), status: 'failed', error: e.message })
         console.error(`Email failed for ${petName}:`, e.message)
       }
     }
@@ -222,10 +248,10 @@ export default async function handler(req) {
       try {
         const phone = userPhone.replace(/\s/g, '')
         await sendSMS(phone, reminderSMSText(petName, rems))
-        results.push({ pet: petName, channel: 'sms', to: phone, status: 'sent' })
-        console.log(`SMS sent to ${phone} for ${petName}`)
+        results.push({ pet: petName, channel: 'sms', to: maskPhone(phone), status: 'sent' })
+        console.log(`SMS sent to ${maskPhone(phone)} for ${petName}`)
       } catch (e) {
-        results.push({ pet: petName, channel: 'sms', to: userPhone, status: 'failed', error: e.message })
+        results.push({ pet: petName, channel: 'sms', to: maskPhone(userPhone), status: 'failed', error: e.message })
         console.error(`SMS failed for ${petName}:`, e.message)
       }
     }
