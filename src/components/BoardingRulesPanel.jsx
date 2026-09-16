@@ -1,17 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Loader2, Check, Plus, Trash2, RotateCcw, AlertCircle, ClipboardCheck,
-  Clock, IndianRupee, Utensils, Package, CloudRain, Info,
+  Clock, IndianRupee, Utensils, Package, CloudRain, Info, PawPrint,
 } from 'lucide-react'
 import { getBoarders, saveProvider } from '../lib/storage.js'
 import {
   REQUIREMENT_CATALOG, GENERIC_POLICY, UNLEASH_POLICY, hasCustomPolicy,
+  SUPPORTED_SPECIES, appliesTo,
 } from '../lib/boarding.js'
 import BoarderSearch from './BoarderSearch.jsx'
 
 // Maps boarding criteria onto a specific boarder. Whatever is saved here lands
 // in providers.boarding_policy, which is what every pet parent's Boarding tab
 // reads. A boarder left alone keeps showing the generic list.
+
+// Criteria introduced after the first policies were saved. New ids are never
+// retro-added to a boarder's list — that would assert a requirement the
+// facility never stated — so the editor points them out instead.
+const NEW_CRITERIA = ['rabies', 'core_vaccine_dog', 'core_vaccine_cat']
 
 const SEASONS = [
   { id: 'summer',  label: 'Summer (Mar–May)',  months: [3, 4, 5] },
@@ -109,9 +115,21 @@ function PolicyEditor({ provider, onSaved }) {
             className="btn-primary text-sm gap-1.5">
             <Plus className="w-4 h-4" /> Set up its own rules
           </button>
-          <button onClick={() => set({ ...UNLEASH_POLICY, name: provider.name })}
+          <button
+            onClick={() => set({
+              // Structure only. Spreading UNLEASH_POLICY here would hand this
+              // boarder another facility's menu, rate card and refused-product
+              // list under its own name — the exact thing the generic fallback
+              // was split apart to stop.
+              name: provider.name,
+              required: [...GENERIC_POLICY.required],
+              trial_required: false,
+              slot_windows: [{ id: 'morning', label: 'Morning', from: '', to: '' }],
+              pricing: { currency: 'INR', full_day: 0, day: 0, night: 0, last_minute_days: 3 },
+              food_menu: [],
+            })}
             className="btn-secondary text-sm">
-            Start from a fully-filled example
+            Start with a blank rate card and hours
           </button>
         </div>
       </div>
@@ -128,11 +146,19 @@ function PolicyEditor({ provider, onSaved }) {
   const advisories = policy.advisories || []
   const pricing  = policy.pricing || null
 
-  const prepare = REQUIREMENT_CATALOG.filter(r => r.phase === 'prepare_before')
-  const atGate  = REQUIREMENT_CATALOG.filter(r => r.phase === 'at_drop_off')
+  // Once an admin says which animals a boarder takes, hide the criteria that
+  // can't apply — otherwise every dog kennel in the directory grows a cat
+  // vaccine row. While it's unstated, show everything.
+  const taken = (policy.species_accepted || []).length ? policy.species_accepted : SUPPORTED_SPECIES
+  const visible = REQUIREMENT_CATALOG.filter(r => taken.some(sp => appliesTo(r, sp)))
+  const prepare = visible.filter(r => r.phase === 'prepare_before')
+  const atGate  = visible.filter(r => r.phase === 'at_drop_off')
 
   const CheckRow = ({ r }) => {
     const on = required.includes(r.id)
+    // A criterion that only applies to one species needs saying so, or an
+    // admin configuring a dog kennel sees FVRCP with no explanation.
+    const only = r.species !== '*' && r.species.length === 1 ? r.species[0] : null
     return (
       <button onClick={() => toggle(r.id)}
         className="w-full flex items-start gap-2 p-2 rounded-xl text-left transition-colors"
@@ -142,7 +168,13 @@ function PolicyEditor({ provider, onSaved }) {
           {on && <Check className="w-3 h-3" />}
         </div>
         <div className="min-w-0">
-          <div className="text-xs font-bold" style={{ color: '#7a4900' }}>{r.label}</div>
+          <div className="text-xs font-bold flex items-center gap-1.5 flex-wrap" style={{ color: '#7a4900' }}>
+            {r.label}
+            {only && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                style={{ backgroundColor: '#dceff5', color: '#255d6e' }}>{only}s only</span>
+            )}
+          </div>
           <div className="text-xs" style={{ color: '#878c6b' }}>{r.help}</div>
         </div>
       </button>
@@ -151,6 +183,48 @@ function PolicyEditor({ provider, onSaved }) {
 
   return (
     <div className="space-y-3">
+
+      {NEW_CRITERIA.some(id => !required.includes(id)) && (
+        <div className="rounded-2xl p-3 flex items-start gap-2 text-xs"
+          style={{ backgroundColor: '#dceff5', color: '#255d6e' }}>
+          <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-bold">Some newer criteria aren’t ticked for this boarder.</p>
+            <p className="mt-0.5">
+              Rabies and the species core vaccines were added after this policy was saved. They aren’t
+              added automatically — that would put words in {provider.name}’s mouth. Tick them if they apply.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <Group icon={PawPrint} title="Which animals they board"
+        subtitle="Leave both off if you don't know — the app then tells cat owners that this boarder hasn't published anything about cats, rather than showing them a short list that looks like an all-clear.">
+        <div className="flex gap-2">
+          {SUPPORTED_SPECIES.map(sp => {
+            const on = (policy.species_accepted || []).includes(sp)
+            return (
+              <button key={sp}
+                onClick={() => {
+                  const cur = policy.species_accepted || []
+                  const next = on ? cur.filter(x => x !== sp) : [...cur, sp]
+                  set({ species_accepted: next.length ? next : undefined })
+                }}
+                className="px-3 py-1.5 rounded-full text-xs font-bold transition-all"
+                style={on ? { backgroundColor: '#ffde59', color: '#7a4900' }
+                          : { backgroundColor: '#f5f0e0', color: '#73775b' }}>
+                {sp}s
+              </button>
+            )
+          })}
+        </div>
+        {!(policy.species_accepted || []).length && (
+          <p className="text-xs mt-2" style={{ color: '#878c6b' }}>
+            Not stated — which is the honest default. Only about a third of the boarders we researched
+            published anything at all about cats.
+          </p>
+        )}
+      </Group>
 
       <Group icon={ClipboardCheck} title="What this boarder requires"
         subtitle="Ticked criteria appear on the pet parent's readiness checklist for this boarder.">
@@ -178,6 +252,27 @@ function PolicyEditor({ provider, onSaved }) {
           <Field label="Tick treatment, days before">
             <input type="number" min="0" className="input w-full" value={policy.tick?.lead_days ?? 2}
               onChange={e => set({ tick: { ...(policy.tick || {}), lead_days: Number(e.target.value) } })} />
+          </Field>
+        </div>
+      </Group>
+
+      <Group icon={ClipboardCheck} title="Tick and flea products"
+        subtitle="Only fill these in if this boarder actually says so. Left empty, the app names no products at all.">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Field label="Accepted" hint="One per line, e.g. Bravecto.">
+            <textarea className="input w-full" rows={3} value={lines(policy.tick?.accepted)}
+              onChange={e => set({ tick: { ...(policy.tick || {}), accepted: unlines(e.target.value) } })}
+              placeholder={'bravecto\nnexgard\nsimparica'} />
+          </Field>
+          <Field label="Not accepted" hint="One per line, matched inside the product name.">
+            <textarea className="input w-full" rows={3}
+              value={lines((policy.tick?.rejected || []).map(r => r.pattern))}
+              onChange={e => set({ tick: { ...(policy.tick || {}),
+                rejected: unlines(e.target.value).map(pattern => ({
+                  pattern,
+                  reason: `This boarder does not accept tick ${pattern.replace(/s$/, '')}s.`,
+                })) } })}
+              placeholder={'collar\nspray'} />
           </Field>
         </div>
       </Group>

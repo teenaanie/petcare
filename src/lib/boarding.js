@@ -330,6 +330,34 @@ export function resolvePolicy(provider) {
   }
 }
 
+// Which species a boarder takes. Deliberately TRI-STATE and never defaulted:
+// only 7 of 25 Indian boarders in the research published cat criteria at all,
+// so defaulting to ['Dog','Cat'] would assert cat acceptance right across the
+// directory. Unset means "they haven't said", which is the truth.
+export function speciesStance(policy, species) {
+  const accepted = policy?.species_accepted
+  if (!Array.isArray(accepted) || !accepted.length) return 'unknown'
+  return accepted.includes(species) ? 'accepted' : 'not_accepted'
+}
+
+// Which species a policy's criteria actually speak to. A list of dog-only
+// criteria viewed by a cat owner filters down to almost nothing, and an empty
+// checklist reads as "nothing required" — a false all-clear, and worse than
+// the kennel-cough-on-a-cat bug it replaced. This is how we tell the
+// difference between "not required for cats" and "nobody thought about cats".
+export function speciesCovered(policy) {
+  // Only criteria exclusive to ONE species discriminate. Rabies applies to dogs
+  // and cats alike, so its presence says nothing about whether this boarder
+  // ever considered cats; kennel cough or a feline core vaccine does.
+  const out = new Set()
+  for (const id of policy?.required || []) {
+    const r = requirement(id)
+    if (!r || r.species === '*' || r.species.length !== 1) continue
+    out.add(r.species[0])
+  }
+  return [...out]
+}
+
 export function hasCustomPolicy(provider) {
   const p = provider?.boarding_policy
   return !!(p && typeof p === 'object' && Object.keys(p).length)

@@ -11,7 +11,8 @@ import {
 import {
   GENERIC_POLICY, resolvePolicy, evaluateReadiness, readinessScore, prepTasks,
   estimateCost, validateSlot, slotOptions, hasSlotWindows, coerceSlot, activeAdvisories,
-  buildBoardingPack, speciesSupport, GENERIC_PROVENANCE, d, iso, today, OTHER_SLOT,
+  buildBoardingPack, speciesSupport, speciesStance, speciesCovered,
+  GENERIC_PROVENANCE, d, iso, today, OTHER_SLOT,
 } from '../lib/boarding.js'
 import BoarderSearch from './BoarderSearch.jsx'
 
@@ -431,6 +432,13 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
   const cost      = useMemo(() => estimateCost(policy, trip, pet), [policy, trip, pet])
   const advisories = useMemo(() => activeAdvisories(policy, trip.startDate, trip.endDate), [policy, trip.startDate, trip.endDate])
 
+  // Does this boarder's published list actually speak to this pet's species?
+  // A dog kennel's criteria filtered down for a cat can leave a near-empty
+  // checklist, which reads as "nothing required" — a false all-clear.
+  const stance  = speciesStance(policy, pet.species)
+  const covered = speciesCovered(policy)
+  const speciesGap = !policy.isGeneric && stance === 'unknown' && covered.length && !covered.includes(pet.species)
+
   const prepare  = evaluation.filter(e => e.phase === 'prepare_before')
   const atGate   = evaluation.filter(e => e.phase === 'at_drop_off')
   const slots    = slotOptions(policy)
@@ -672,6 +680,37 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
           </p>
         )}
       </div>
+
+      {stance === 'not_accepted' && (
+        <div className="rounded-2xl p-4 flex items-start gap-2 text-sm"
+          style={{ backgroundColor: '#fdeaea', color: '#c0392b' }}>
+          <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold">{trip.providerName} doesn’t take {pet.species.toLowerCase()}s.</p>
+            <p className="text-xs mt-0.5">
+              They’ve told us which animals they board, and {pet.species.toLowerCase()}s aren’t on it, so this
+              stay may not be possible. Anything below is what they ask of the animals they do take —
+              treat it as a rough guide, not their requirements for {pet.name}.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {speciesGap && (
+        <div className="rounded-2xl p-4 flex items-start gap-2 text-sm"
+          style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
+          <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold">
+              These are {trip.providerName}’s requirements for {covered.map(c => c.toLowerCase() + 's').join(' and ')}.
+            </p>
+            <p className="text-xs mt-0.5">
+              They haven’t published anything about {pet.species.toLowerCase()}s, so a short list here doesn’t mean
+              there’s nothing to do — ask them what they need for {pet.name}.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── Readiness ────────────────────────────────────────────────── */}
       <div className="card">
