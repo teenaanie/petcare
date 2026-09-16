@@ -34,8 +34,29 @@
     <script type="module" src="/src/main.jsx"></script>
     <script>
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(() => {})
+        // Registration used to be fire-and-forget: no update check and no
+        // reload, so a client that had cached an old build kept serving it
+        // indefinitely. The worker calls skipWaiting() on install, so a new one
+        // takes control as soon as it is found — this listens for that and
+        // reloads once so the page is not left running the previous bundle.
+        var hadController = !!navigator.serviceWorker.controller
+        var reloading = false
+        navigator.serviceWorker.addEventListener('controllerchange', function () {
+          // Not on first install, when there was nothing to replace.
+          if (!hadController || reloading) return
+          reloading = true
+          window.location.reload()
+        })
+
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('/sw.js').then(function (reg) {
+            reg.update()
+            // And whenever the user comes back to the tab, so a long-lived tab
+            // picks up a deploy without being closed.
+            document.addEventListener('visibilitychange', function () {
+              if (document.visibilityState === 'visible') reg.update()
+            })
+          }).catch(function () {})
         })
       }
     </script>
