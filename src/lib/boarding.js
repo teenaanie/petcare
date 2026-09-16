@@ -95,6 +95,42 @@ export const REQUIREMENT_CATALOG = [
     help: 'Core vaccines current, with the original record book ready to carry.',
   },
   {
+    // The one vaccine nearly every Indian boarder names, and the one city dog
+    // licences in Mumbai, Delhi, Chennai and Pune are tied to.
+    id: 'rabies', species: ['Dog', 'Cat'], phase: 'prepare_before', scope: 'pet',
+    derive: 'named_vaccine',
+    match: /rabies|rabisin|raksharab|defensor|rabvac|nobivac\s*r\b/i,
+    label: 'Rabies vaccination current', noun: 'rabies vaccination',
+    help: 'Asked for by almost every boarder. For dogs it is also what a city licence is tied to.',
+  },
+  {
+    id: 'core_vaccine_dog', species: ['Dog'], phase: 'prepare_before', scope: 'pet',
+    derive: 'named_vaccine',
+    match: /dhppi?l?|dhlpp|distemper|parvo|hepatitis|lepto|nobivac\s*dhp|megavac|vanguard|canigen/i,
+    label: 'Core dog vaccine (DHPPi / DHPPiL)', noun: 'DHPPi / DHPPiL vaccination',
+    help: 'Distemper, hepatitis, parvovirus and parainfluenza, usually with leptospirosis.',
+  },
+  {
+    id: 'core_vaccine_cat', species: ['Cat'], phase: 'prepare_before', scope: 'pet',
+    derive: 'named_vaccine',
+    match: /fvrcp|tricat|panleu|feline\s*(herpes|calici|rhino)|calici|rhinotrach|felocell|nobivac\s*tricat|purevax/i,
+    label: 'Core cat vaccine (Tricat / FVRCP)', noun: 'Tricat / FVRCP vaccination',
+    help: 'Panleukopenia, feline herpesvirus and calicivirus.',
+  },
+  {
+    // One boarder requires this, citing a Pune municipal mandate. Never in the
+    // generic list — an admin ticks it for the boarders that ask.
+    id: 'microchip', species: ['Cat'], phase: 'prepare_before', scope: 'pet',
+    derive: 'microchip',
+    label: 'Microchipped',
+    help: 'Some boarders require it — Pune has mandated it for cats since June 2021.',
+  },
+  {
+    id: 'collar_bell', species: ['Cat'], phase: 'at_drop_off', scope: 'owner', derive: 'manual',
+    label: 'Collar with a bell',
+    help: 'Some cat boarders ask for one so staff can hear where a cat is.',
+  },
+  {
     // Kennel cough is a dog disease — this must never be asked of a cat.
     id: 'kennel_cough', species: ['Dog'], phase: 'prepare_before', scope: 'pet', derive: 'kennel_cough',
     label: 'Kennel Cough (KC) nasal vaccine',
@@ -131,7 +167,7 @@ export const REQUIREMENT_CATALOG = [
   {
     id: 'bedding', species: '*', phase: 'prepare_before', scope: 'owner', derive: 'manual',
     label: 'Bedding packed',
-    help: 'A small rug, bedsheet or dari. Leave fancy leashes, expensive beds and favourite toys at home.',
+    help: 'Something familiar to sleep on. Check what this boarder wants you to bring, and what to leave at home.',
   },
   {
     id: 'original_records', species: '*', phase: 'at_drop_off', scope: 'owner', derive: 'manual',
@@ -140,13 +176,13 @@ export const REQUIREMENT_CATALOG = [
   },
   {
     id: 'govt_id', species: '*', phase: 'at_drop_off', scope: 'owner', derive: 'manual',
-    label: 'Two original govt photo IDs with address',
-    help: 'Carried by the pet parent. Usually asked for on a first stay.',
+    label: 'Photo ID and address proof',
+    help: 'Many boarders ask the pet parent for this on a first stay. Check what this one needs.',
   },
   {
     id: 'declaration', species: '*', phase: 'at_drop_off', scope: 'owner', derive: 'manual',
     label: 'Declaration & T&C signed',
-    help: 'Signed at the gate on arrival — nothing to do in advance.',
+    help: 'Some boarders have a form to sign at drop-off — nothing to do in advance.',
   },
 ]
 
@@ -186,8 +222,13 @@ export const GENERIC_POLICY = {
   // The requirements essentially every boarder asks for. Trial visits and a
   // vet's written confirmation are common but far from universal, so they are
   // left to the facility to declare rather than asserted here.
+  // One flat list; each pet sees the subset for its species, so the dog and cat
+  // core vaccines can both sit here. `vaccination_records` is deliberately out
+  // — rabies and the species core say the same thing more precisely, and
+  // `original_records` already covers carrying the book.
   required: [
-    'vaccination_records', 'kennel_cough', 'tick_protection', 'deworming',
+    'rabies', 'core_vaccine_dog', 'core_vaccine_cat',
+    'kennel_cough', 'tick_protection', 'deworming',
     'diet_brief', 'bedding', 'original_records', 'govt_id', 'declaration',
   ],
   trial_required: false,
@@ -254,6 +295,15 @@ export const UNLEASH_POLICY = {
   ],
   arrival_notes: 'Please do not honk on arrival — call or message from the gate.',
   extras_note: 'Pick-up and drop is available at extra cost, through a third-party vendor.',
+  // A boarder's own wording for a criterion, shown under the general help. The
+  // catalogue text stays deliberately non-committal so it is true everywhere;
+  // this is where a facility gets to be specific.
+  requirement_notes: {
+    govt_id: 'Two original government photo IDs with address, carried by the pet parent. Required for first-time boarders.',
+    bedding: 'A small rug, bedsheet or dari. Leave fancy leashes, expensive beds and favourite toys at home.',
+    kennel_cough: 'Available at your vet. Mandatory here.',
+    vet_confirmation: 'Written confirmation of tick protection and timely deworming.',
+  },
 }
 
 // Everything the generic fallback deliberately omits. Kept as one list so the
@@ -328,6 +378,10 @@ function coverUntil(record, startKey, fallbackDays) {
   if (!from) return { until: null, inferred: true }
   const guess = durationFor(record.name)
   const days = guess && guess.days > 0 ? guess.days : fallbackDays
+  // No fallback means we have no defensible validity period for this thing —
+  // say so rather than computing addDays(from, null), which yields an Invalid
+  // Date that slips past every comparison below and reads as `ready`.
+  if (!days) return { until: null, inferred: true }
   return { until: addDays(from, days), inferred: true }
 }
 
@@ -370,6 +424,8 @@ export function evaluateReadiness(pet, { vaccinations = [], medicines = [] } = {
       case 'tick':           result = deriveTick(medicines, policy, start); break
       case 'deworming':      result = deriveDeworming(medicines, policy, start); break
       case 'vaccination_any': result = deriveVaccinationRecords(vaccinations, start); break
+      case 'named_vaccine':  result = deriveNamedVaccine(vaccinations, req, start); break
+      case 'microchip':      result = deriveMicrochip(pet); break
       case 'diet':           result = deriveDiet(pet); break
       default:               result = { status: 'manual', reason: '' }
     }
@@ -446,6 +502,40 @@ function deriveDeworming(medicines, policy, start) {
   const { until, inferred } = coverUntil(latest, 'startDate', policy.deworm_valid_days ?? DEWORMER_DURATION_DAYS)
   const s = windowStatus(until, start, inferred)
   return { ...s, source: `${latest.name} — ${format(d(latest.startDate), 'd MMM yyyy')}` }
+}
+
+// Named vaccines carry NO invented validity window. Indian boarders publish
+// none, and product schedules differ (rabies is sold as both annual and
+// triennial), so a renewal date from the vet is the only thing we will trust.
+function deriveNamedVaccine(vaccinations, req, start) {
+  const hits = vaccinations.filter(v => req.match.test(v.name || '') || req.match.test(v.notes || ''))
+  const latest = latestBy(hits, 'dateGiven')
+  if (!latest) {
+    return { status: 'action_needed', reason: `No ${req.noun || req.label} on record.` }
+  }
+  const given = d(latest.dateGiven)
+  const source = `${latest.name} — given ${format(given, 'd MMM yyyy')}`
+  const due = d(latest.nextDue)
+
+  if (!due) {
+    return { status: 'found_unverified', source,
+             reason: 'No renewal date on the record, so we can’t tell whether it is still valid — check with your vet.' }
+  }
+  if (due < start) {
+    return { status: 'action_needed', source, validUntil: due,
+             reason: `Expired on ${format(due, 'd MMM yyyy')}.` }
+  }
+  if (due < addDays(start, 14)) {
+    return { status: 'expiring', source, validUntil: due,
+             reason: `Valid at drop-off but due again on ${format(due, 'd MMM yyyy')}.` }
+  }
+  return { status: 'ready', source, validUntil: due, reason: `Valid until ${format(due, 'd MMM yyyy')}.` }
+}
+
+function deriveMicrochip(pet) {
+  return pet?.microchipId
+    ? { status: 'ready', source: `Chip ${pet.microchipId}`, reason: 'On file.' }
+    : { status: 'action_needed', reason: 'No microchip number on file. Add it by editing the pet, or ask your vet.' }
 }
 
 function deriveVaccinationRecords(vaccinations, start) {

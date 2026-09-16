@@ -44,7 +44,7 @@ function StatusChip({ status }) {
   )
 }
 
-function RequirementRow({ item, override, onToggle, onNote }) {
+function RequirementRow({ item, override, onToggle, onNote, boarderNote }) {
   const [openNote, setOpenNote] = useState(false)
   const done = !!override?.done
   return (
@@ -75,6 +75,11 @@ function RequirementRow({ item, override, onToggle, onNote }) {
             <p className="text-xs mt-0.5" style={{ color: '#73775b' }}>From your records: {item.source}</p>
           )}
           <p className="text-xs mt-1" style={{ color: '#878c6b' }}>{item.help}</p>
+          {boarderNote && (
+            <p className="text-xs mt-1 rounded-lg px-2 py-1" style={{ backgroundColor: '#fff9e0', color: '#7a4900' }}>
+              {boarderNote}
+            </p>
+          )}
 
           {openNote || override?.note ? (
             <input
@@ -690,6 +695,7 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
 
         {prepare.map(item => (
           <RequirementRow key={item.id} item={item}
+            boarderNote={policy.requirement_notes?.[item.id]}
             override={trip.checklist?.[item.id]}
             onToggle={(id, done) => setChecklist(id, { done, date: done ? iso(today()) : null })}
             onNote={(id, note) => setChecklist(id, { note })} />
@@ -717,6 +723,7 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
         </p>
         {atGate.map(item => (
           <RequirementRow key={item.id} item={item}
+            boarderNote={policy.requirement_notes?.[item.id]}
             override={trip.checklist?.[item.id]}
             onToggle={(id, done) => setChecklist(id, { done, date: done ? iso(today()) : null })}
             onNote={(id, note) => setChecklist(id, { note })} />

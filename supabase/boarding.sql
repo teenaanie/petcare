@@ -96,11 +96,18 @@ UPDATE providers SET boarding_policy = '{
   "tick": {
     "lead_days": 2,
     "default_duration_days": 30,
+    "accepted": ["spot-on", "bravecto", "nexgard", "simparica"],
     "rejected": [
-      { "pattern": "collar", "reason": "Tick collars are not accepted — they do not work reliably." },
-      { "pattern": "spray",  "reason": "Tick sprays are not accepted — they do not work reliably." },
-      { "pattern": "powder", "reason": "Tick powders are not accepted — they do not work reliably." }
+      { "pattern": "collar", "reason": "This boarder does not accept tick collars." },
+      { "pattern": "spray",  "reason": "This boarder does not accept tick sprays." },
+      { "pattern": "powder", "reason": "This boarder does not accept tick powders." }
     ]
+  },
+  "requirement_notes": {
+    "govt_id": "Two original government photo IDs with address, carried by the pet parent. Required for first-time boarders.",
+    "bedding": "A small rug, bedsheet or dari. Leave fancy leashes, expensive beds and favourite toys at home.",
+    "kennel_cough": "Available at your vet. Mandatory here.",
+    "vet_confirmation": "Written confirmation of tick protection and timely deworming."
   },
   "slot_windows": [
     { "id": "morning", "label": "Morning", "from": "08:00", "to": "11:00" },
