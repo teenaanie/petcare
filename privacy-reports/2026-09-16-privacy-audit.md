@@ -70,7 +70,7 @@ probes inside `BEGIN … ROLLBACK`.
 | Stranger reads another user's pet or records | 0 rows |
 | Stranger updates or deletes another user's pet | blocked |
 | Stranger self-grants membership of a pet | blocked by RLS |
-| **Editor** rewrites `pets.user_id` to themselves | blocked |
+| **Editor** rewrites `pets.user_id` to themselves | **WRONG — see correction below** |
 | **Editor** deletes the shared pet, or adds members | blocked |
 | **Viewer** (read-only) inserts a medical record | blocked by RLS |
 | User inserts or defaces a provider | blocked |
@@ -81,6 +81,44 @@ probes inside `BEGIN … ROLLBACK`.
 user, which the linter flags — but it is gated internally
 (`WHERE is_admin() OR auth.role() = 'service_role'`) and returns nothing to a
 non-admin. All 5 `SECURITY DEFINER` functions pin `search_path`.
+
+## Correction — issued 2026-09-16, after this report was sent
+
+**The "editor cannot take ownership" result above was wrong, and so was the
+email built from it.**
+
+The test that produced it inserted a `pet_members` row carrying only an email
+address and set a matching JWT claim. But `is_pet_editor()` resolves the
+caller's email from `auth.users`, not from the claim — so the simulated attacker
+was never actually an editor. "Blocked" measured nothing at all.
+
+Re-tested with a real editor (membership keyed on `user_id`, and the fixture
+asserting `is_pet_editor()` returns true before attacking):
+
+```
+editor rewrites pets.user_id to self ......... ALLOWED
+...then deletes the pet and all its records .. ALLOWED
+```
+
+`"Editors can update shared pets"` is `UPDATE USING is_pet_editor(id)` with no
+`WITH CHECK`, so Postgres reuses `USING` as the check — and it stays true after
+the owner column changes, because membership is keyed on `pet_id`, not on who
+owns the pet.
+
+Found by the monthly audit agent, which flagged the policy independently.
+
+**Fixed the same day** by a `BEFORE UPDATE` trigger
+(`supabase/pet_owner_takeover.sql`), since RLS cannot see the row as it was and
+therefore cannot tell "edit this pet" from "take this pet". Verified after
+applying: attack blocked, editors still edit normally, owners can still transfer
+deliberately, service role unaffected, erasure cascade intact.
+
+Every other escalation in the table above was re-run with a valid fixture and
+does hold. This was the only one.
+
+**The lesson worth keeping:** a test of a permission boundary has to first prove
+the actor actually holds the permission being tested. A fixture that silently
+fails to grant it turns every subsequent "blocked" into a false pass.
 
 ## Data inventory
 
