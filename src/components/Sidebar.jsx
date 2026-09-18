@@ -237,6 +237,13 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
                 style={{ color: '#a08f7a' }}>
                 Delete my account
               </button>
+
+              {/* Which build is running. Without this, a stale cached bundle
+                  looks exactly like a bug that was never fixed. */}
+              <p className="text-[10px] px-2 mt-1 select-all" style={{ color: '#c4b8a6' }}
+                 title={`Built ${__BUILD_TIME__}`}>
+                build {__BUILD_ID__}
+              </p>
             </div>
           )}
         </>

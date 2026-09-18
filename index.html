@@ -16,7 +16,11 @@
     <!-- iOS ignores the manifest icons; without this the home screen icon is a
          screenshot of the page. -->
     <link rel="apple-touch-icon" href="/icon-192.png" />
+    <!-- Apple's original, still required by older iOS; and the standard one it
+         was superseded by, which Chrome warns about when it is missing. Both,
+         because dropping the Apple tag would break standalone mode on iOS. -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Pippy" />
     <meta name="theme-color" content="#F9D548" />
