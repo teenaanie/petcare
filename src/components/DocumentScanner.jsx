@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react'
-import { ChevronRight, Upload, Camera, FileText, Loader2, CheckCircle, AlertCircle, Wand2, Calendar, TriangleAlert, MessageSquare, Copy, Check, Syringe, Pill, Receipt, Weight, X, Plus } from 'lucide-react'
+import { useState, useRef , useEffect } from 'react'
+import { Share2, ChevronRight, Upload, Camera, FileText, Loader2, CheckCircle, AlertCircle, Wand2, Calendar, TriangleAlert, MessageSquare, Copy, Check, Syringe, Pill, Receipt, Weight, X, Plus } from 'lucide-react'
 import { saveMedicalRecord, saveVaccination, saveAllergy, saveReminder, saveMedicine, saveBill, saveWeightLog } from '../lib/storage.js'
 import { format, isPast, parseISO } from 'date-fns'
 import { aiComplete } from '../lib/ai.js'
+import { shareTargetLikelySupported } from '../lib/shareTarget.js'
 
 const MED_CATS = ['Deworming', 'Flea/Tick', 'Antibiotic', 'Anti-inflammatory', 'Supplement', 'Vaccination', 'Other']
 const CURRENCIES = ['INR', 'USD', 'GBP', 'AUD', 'EUR', 'SGD']
@@ -158,7 +159,7 @@ function Field({ label, value, onChange, type = 'text', options, rows }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function DocumentScanner({ pet, session }) {
+export default function DocumentScanner({ pet, session, initialFiles = null }) {
   // A share sheet or a multi-select sends several documents at once. Rather
   // than rebuild the review UI — which is per-item, editable and already the
   // contract for "the AI proposes, the human confirms" — a queue feeds that
@@ -256,6 +257,15 @@ export default function DocumentScanner({ pet, session }) {
       try { const b = await pdfToImageBase64(f); setPreview(`data:image/png;base64,${b}`) } catch { setPreview(null) }
     } else { setPreview(null) }
   }
+
+  // Files handed in from a share sheet. Loaded once — re-running would reset a
+  // review the user is part-way through.
+  const sharedLoaded = useRef(false)
+  useEffect(() => {
+    if (sharedLoaded.current || !initialFiles?.length) return
+    sharedLoaded.current = true
+    handleFiles(initialFiles)
+  }, [initialFiles])
 
   // ── Analysis ──────────────────────────────────────────────────────────────
 
@@ -405,6 +415,17 @@ export default function DocumentScanner({ pet, session }) {
         <input ref={uploadRef} type="file" accept="image/*,.pdf" multiple className="hidden"
           onChange={e => { handleFiles(e.target.files); e.target.value = '' }} />
       </div>
+
+      {/* Android only: iOS Safari has no Web Share Target, and pointing an
+          iPhone owner at a share sheet entry that cannot exist is worse than
+          saying nothing. */}
+      {shareTargetLikelySupported() && !file && (
+        <p className="text-xs mb-4 px-3 py-2 rounded-xl flex items-start gap-1.5"
+          style={{ backgroundColor: '#eef8fb', color: '#255d6e' }}>
+          <Share2 className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+          <span>Already have them in WhatsApp? Share the images straight to Pippy from there.</span>
+        </p>
+      )}
 
       {/* Queue — only when there is actually more than one document */}
       {queue.length > 1 && (

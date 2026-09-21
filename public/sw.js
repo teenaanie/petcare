@@ -3,7 +3,46 @@
 // Bump CACHE on any change to this file. The activate handler deletes every
 // cache whose name does not match, so a bump is what evicts stale entries.
 // It sat on v3 across a dozen deploys, which is half of why clients went stale.
-const CACHE = 'pippy-v4'
+const CACHE = 'pippy-v5'
+
+// ── Share target handoff ─────────────────────────────────────────────────────
+//
+// A shared file arrives as a POST navigation that never reaches the network:
+// the service worker has to intercept it, take the files out of the form data,
+// put them somewhere the page can reach, and redirect.
+//
+// IndexedDB, because it is the only option that works. postMessage is no good —
+// at redirect time the client may not exist yet, so the message is simply lost.
+// localStorage cannot hold binary at all.
+const SHARE_DB    = 'pippy-share'
+const SHARE_STORE = 'incoming'
+
+function shareDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(SHARE_DB, 1)
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(SHARE_STORE)) {
+        req.result.createObjectStore(SHARE_STORE, { keyPath: 'id', autoIncrement: true })
+      }
+    }
+    req.onsuccess = () => resolve(req.result)
+    req.onerror   = () => reject(req.error)
+  })
+}
+
+async function stashSharedFiles(files) {
+  if (!files?.length) return
+  const db = await shareDb()
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(SHARE_STORE, 'readwrite')
+    const store = tx.objectStore(SHARE_STORE)
+    // Blobs are structured-cloneable, so the File objects go in as they are.
+    for (const f of files) store.add({ file: f, name: f.name, type: f.type, at: Date.now() })
+    tx.oncomplete = resolve
+    tx.onerror    = () => reject(tx.error)
+  })
+  db.close()
+}
 
 // Assets to pre-cache (shell only — API calls are network-first)
 const SHELL = [
@@ -59,6 +98,26 @@ self.addEventListener('notificationclick', e => {
 self.addEventListener('fetch', e => {
   const { request } = e
   const url = new URL(request.url)
+
+  // Must come BEFORE the non-GET early return below: a share is a POST, so that
+  // return would drop it, and the failure would be silent — the share sheet
+  // shows success and nothing arrives.
+  if (request.method === 'POST' && url.pathname === '/share-target') {
+    e.respondWith((async () => {
+      try {
+        const form = await request.formData()
+        await stashSharedFiles(form.getAll('files'))
+      } catch (err) {
+        // Redirect regardless. Landing in the app with nothing is recoverable;
+        // an error page from a share sheet is not.
+        console.error('Share target failed:', err)
+      }
+      // 303 so the browser turns the POST into a GET — without it the redirect
+      // repeats the POST and the files are stashed twice.
+      return Response.redirect('/?shared=1', 303)
+    })())
+    return
+  }
 
   // Skip non-GET, chrome-extension, and supabase API calls — always network
   if (request.method !== 'GET') return
