@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react'
-import { PawPrint, Plus, Calendar, Weight, Store, ChevronRight } from 'lucide-react'
+import { PawPrint, Plus, Calendar, Weight, Store, ChevronRight, Sparkles } from 'lucide-react'
 import { getPets } from '../lib/storage.js'
 import { format } from 'date-fns'
 import PetAvatar from './PetAvatar.jsx'
+import VoiceIntake from './VoiceIntake.jsx'
 
 export default function PetList({ refresh, onSelectPet, onAddPet, onFindServices }) {
+  const [intake, setIntake] = useState(false)
   const [pets, setPets] = useState([])
+  const [reloads, setReloads] = useState(0)
 
   useEffect(() => {
     getPets().then(setPets).catch(console.error)
-  }, [refresh])
+  }, [refresh, reloads])
 
   if (pets.length === 0) {
     return (
@@ -25,6 +28,19 @@ export default function PetList({ refresh, onSelectPet, onAddPet, onFindServices
         <button onClick={onAddPet} className="btn-primary gap-2">
           <Plus className="w-4 h-4" /> Add my first pet
         </button>
+
+        {/* For someone arriving with a pet they have had for years and a folder
+            of vet papers. Filling a form twenty times is why they bounce. */}
+        <button onClick={() => setIntake(true)}
+          className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-xl"
+          style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
+          <Sparkles className="w-4 h-4" /> Already have a pet? Tell us about them
+        </button>
+
+        {intake && (
+          <VoiceIntake onClose={() => setIntake(false)}
+            onSaved={() => { setIntake(false); setReloads(n => n + 1) }} />
+        )}
 
         {/* Someone with no pets yet can still browse the directory */}
         {onFindServices && (

@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { X, CheckCircle, Circle, Bell, ChevronRight, Loader2 } from 'lucide-react'
+import { Sparkles, X, CheckCircle, Circle, Bell, ChevronRight, Loader2 } from 'lucide-react'
+import VoiceIntake from './VoiceIntake.jsx'
 import { savePet, saveReminder } from '../lib/storage.js'
 import PetAvatar from './PetAvatar.jsx'
 
@@ -98,6 +99,7 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
 
   // Reminders step: which suggestions are selected
   const suggestions = RECOMMENDATIONS[form.species] || RECOMMENDATIONS.Other
+  const [intake, setIntake] = useState(false)
   const [selected, setSelected] = useState(() => new Set(suggestions.map((_, i) => i)))
 
   function handleChange(e) {
@@ -108,6 +110,23 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
       setSelected(new Set(newSuggestions.map((_, i) => i)))
     }
   }
+
+  // Rendered inside the modal, above the form. Saving through intake returns
+  // the pet the same way the form does, so the species-based reminder step
+  // afterwards is unchanged either way.
+  const intakeOffer = !existing && (
+    <>
+      <button type="button" onClick={() => setIntake(true)}
+        className="w-full flex items-center justify-center gap-2 text-sm font-bold px-4 py-2.5 rounded-xl mb-4"
+        style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
+        <Sparkles className="w-4 h-4" /> Rather just tell us about them?
+      </button>
+      {intake && (
+        <VoiceIntake onClose={() => setIntake(false)}
+          onSaved={() => { setIntake(false); onSaved?.(null) }} />
+      )}
+    </>
+  )
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -173,6 +192,8 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-5">
+              {intakeOffer}
+
               {/* Photo + name */}
               <div className="flex items-center gap-4">
                 <PetAvatar pet={form} size="xl" editable onPhotoChange={photo => setForm(f => ({ ...f, photo }))} />
