@@ -521,11 +521,20 @@ function ProvidersPanel() {
   const [saving, setSaving]       = useState(false)
   const [search, setSearch]       = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  // is_approved=false means two different things in this table: "a business
+  // registered and is waiting for you" and "a breeder or fish shop the
+  // categorisation pass deliberately hid". Mixing them buries a real
+  // registration among eleven rows that must never be approved, so the review
+  // queue filters to self-registered only.
+  const [pendingOnly, setPendingOnly] = useState(false)
+  const [pendingCount, setPendingCount] = useState(0)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300)
     return () => clearTimeout(t)
   }, [search])
+
+  const isAwaitingReview = p => !p.is_approved && p.source === 'self_registered'
 
   function load() {
     setLoading(true)
@@ -535,6 +544,14 @@ function ProvidersPanel() {
       .finally(() => setLoading(false))
   }
   useEffect(load, [debouncedSearch])
+
+  // Counted separately from the page above, which only holds 50 rows — a badge
+  // that silently meant "on this page" would be worse than no badge.
+  useEffect(() => {
+    getProviders({ approvedOnly: false, search: '', limit: 200, offset: 0 })
+      .then(({ rows }) => setPendingCount(rows.filter(isAwaitingReview).length))
+      .catch(() => setPendingCount(0))
+  }, [saving])
 
   async function loadMore() {
     const { rows } = await getProviders({
@@ -592,7 +609,18 @@ function ProvidersPanel() {
       {error && <div className="flex gap-2 p-3 rounded-xl text-sm" style={{ backgroundColor: '#fdeaea', color: '#c0392b' }}><AlertCircle className="w-4 h-4 flex-shrink-0" />{error}</div>}
 
       <div className="space-y-3">
-        {providers.map(p => {
+        <button onClick={() => setPendingOnly(v => !v)}
+          className="text-xs font-bold px-3 py-1.5 rounded-full mb-3 flex items-center gap-1.5"
+          style={pendingOnly
+            ? { backgroundColor: '#f2b83d', color: '#7a4900' }
+            : { backgroundColor: '#ebe3d3', color: '#7a4900' }}>
+          {pendingOnly ? 'Showing review queue' : 'Pending review'}
+          {pendingCount > 0 && (
+            <span className="px-1.5 rounded-full" style={{ backgroundColor: '#c0392b', color: '#fff' }}>
+              {pendingCount}</span>
+          )}
+        </button>
+        {(pendingOnly ? providers.filter(isAwaitingReview) : providers).map(p => {
           const Icon = TYPE_ICONS[p.type] || ShoppingBag
           const color = TYPE_COLORS[p.type] || '#73775b'
           return editing === p.id ? (
