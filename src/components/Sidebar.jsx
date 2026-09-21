@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Heart, useEffect, useState } from 'react'
 import { PawPrint, Plus, Stethoscope, Syringe, AlertTriangle, FileText, Bell, ChevronLeft, GitBranch, Upload, TrendingUp, ChevronRight, Pill, Receipt, LogOut, ShieldCheck, Store, Home } from 'lucide-react'
 import { getPets } from '../lib/storage.js'
 import MigrateData from './MigrateData.jsx'
@@ -19,7 +19,7 @@ const tabs = [
   { id: 'boarding',      label: 'Boarding Prep',     icon: Home },
 ]
 
-export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab, onTabChange, refresh, onRefresh, isOpen, onClose, user, isAdmin, onSignOut, adminView, onToggleAdmin, servicesView, onToggleServices }) {
+export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab, onTabChange, refresh, onRefresh, isOpen, onClose, user, isAdmin, onSignOut, adminView, onToggleAdmin, servicesView, onToggleServices, myProvidersView, onToggleMyProviders }) {
   const [pets, setPets]               = useState([])
   const [showMigrate, setShowMigrate] = useState(false)
   const [showDelete, setShowDelete]   = useState(false)
@@ -96,6 +96,18 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
               <Store className="w-4 h-4 flex-shrink-0" />
               Find Services
             </button>
+            {onToggleMyProviders && (
+              <button
+                onClick={onToggleMyProviders}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold transition-all mt-2"
+                style={myProvidersView
+                  ? { backgroundColor: '#f2b83d', color: '#7a4900' }
+                  : { backgroundColor: '#eef3e2', color: '#44562a' }}
+              >
+                <Heart className="w-4 h-4 flex-shrink-0" />
+                My Providers
+              </button>
+            )}
           </div>
 
           {/* Migrate banner */}

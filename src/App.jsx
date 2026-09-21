@@ -11,6 +11,7 @@ import MobileAppNav from './components/MobileAppNav.jsx'
 import AdminDashboard from './components/AdminDashboard.jsx'
 import FeedbackButton from './components/FeedbackButton.jsx'
 import ProviderDirectory from './components/ProviderDirectory.jsx'
+import MyProviders from './components/MyProviders.jsx'
 import InstallPrompt from './components/InstallPrompt.jsx'
 import PippyLogo from './components/PippyLogo.jsx'
 import PetPickerModal from './components/PetPickerModal.jsx'
@@ -79,6 +80,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen]   = useState(false)
   const [adminView, setAdminView]       = useState(false)
   const [servicesView, setServicesView] = useState(false)
+  const [myProvidersView, setMyProvidersView] = useState(false)
   // "Prep for a stay here" in the directory: which boarder to preselect, and
   // which pet it's for. The directory clears the selected pet on entry, so the
   // pet has to be chosen again on the way back out.
@@ -141,7 +143,9 @@ export default function App() {
         adminView={adminView}
         onToggleAdmin={() => { setAdminView(v => !v); setServicesView(false); setSelectedPet(null); setSidebarOpen(false) }}
         servicesView={servicesView}
-        onToggleServices={() => { setServicesView(v => !v); setAdminView(false); setSelectedPet(null); setSidebarOpen(false) }}
+        myProvidersView={myProvidersView}
+        onToggleMyProviders={() => { setMyProvidersView(v => !v); setServicesView(false); setAdminView(false) }}
+        onToggleServices={() => { setMyProvidersView(false); setServicesView(v => !v); setAdminView(false); setSelectedPet(null); setSidebarOpen(false) }}
       />
 
       {prepProvider && (
@@ -169,6 +173,8 @@ export default function App() {
         <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
           {adminView ? (
             <AdminDashboard />
+          ) : myProvidersView ? (
+            <MyProviders />
           ) : servicesView ? (
             <ProviderDirectory onPrepForStay={startBoardingPrep} />
           ) : selectedPet ? (
@@ -196,7 +202,7 @@ export default function App() {
           isAdmin={isAdmin}
           onNavigate={(id) => {
             setSidebarOpen(false)
-            if (id === 'pets')     { setAdminView(false); setServicesView(false); setSelectedPet(null) }
+            if (id === 'pets')     { setAdminView(false); setServicesView(false); setMyProvidersView(false); setSelectedPet(null) }
             if (id === 'services') { setAdminView(false); setServicesView(true);  setSelectedPet(null) }
             if (id === 'admin')    { setServicesView(false); setAdminView(true);  setSelectedPet(null) }
           }}

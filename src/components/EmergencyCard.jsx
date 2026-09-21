@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { X, Share2, Download, ShieldAlert } from 'lucide-react'
 import { getMedicalHistory, getVaccinations, getAllergies } from '../lib/storage.js'
 import { format, parseISO, isValid } from 'date-fns'
+import { getMyProviders, telLink } from '../lib/myProviders.js'
 
 function fmt(str) {
   if (!str) return null
@@ -41,6 +42,30 @@ export default function EmergencyCard({ pet, onClose }) {
     }
   }
 
+  // Which vet to show. A pet-specific primary beats the household one; the old
+  // pets.vet_phone column is the last resort so a card that worked before this
+  // feature still works after it.
+  const [vet, setVet] = useState(null)
+  useEffect(() => {
+    let alive = true
+    getMyProviders()
+      .then(rows => {
+        if (!alive) return
+        const vets = rows.filter(r => r.category === 'Vet')
+        setVet(
+          vets.find(r => r.petId === pet.id && r.isPrimary) ||
+          vets.find(r => r.petId === pet.id) ||
+          vets.find(r => !r.petId && r.isPrimary) ||
+          vets.find(r => !r.petId) || null
+        )
+      })
+      .catch(() => { if (alive) setVet(null) })
+    return () => { alive = false }
+  }, [pet.id])
+
+  const vetName  = vet ? (vet.nickname || vet.name) : null
+  const vetPhone = vet?.phone || vet?.whatsapp || pet.vetPhone || null
+
   function buildText() {
     const lines = [
       `🐾 EMERGENCY PET CARD — ${pet.name.toUpperCase()}`,
@@ -48,7 +73,7 @@ export default function EmergencyCard({ pet, onClose }) {
       `Species: ${pet.species}  Breed: ${pet.breed || '—'}`,
       age !== null ? `Age: ${age} years` : '',
       pet.weight ? `Weight: ${pet.weight} kg` : '',
-      pet.vetPhone ? `Vet Phone: ${pet.vetPhone}` : '',
+      vetPhone ? `Vet: ${[vetName, vetPhone].filter(Boolean).join(' — ')}` : '',
       '',
       allergies.length ? `⚠️ ALLERGIES: ${allergies.map(a => a.allergen).join(', ')}` : '✅ No known allergies',
       '',
@@ -107,14 +132,17 @@ export default function EmergencyCard({ pet, onClose }) {
           </div>
 
           {/* Vet contact */}
-          {pet.vetPhone && (
+          {vetPhone && (
             <div className="rounded-2xl p-3 flex items-center gap-3"
               style={{ backgroundColor: '#eef8fb', border: '1.5px solid #bfe5ef' }}>
               <span className="text-xl">🏥</span>
               <div>
-                <p className="text-xs font-black uppercase tracking-wider" style={{ color: '#255d6e' }}>Vet Contact</p>
-                <a href={`tel:${pet.vetPhone}`} className="font-black text-base" style={{ color: '#255d6e' }}>
-                  {pet.vetPhone}
+                <p className="text-xs font-black uppercase tracking-wider" style={{ color: '#255d6e' }}>
+                  {vetName || 'Vet Contact'}
+                </p>
+                <a href={telLink({ phone: vetPhone }) || `tel:${vetPhone}`}
+                   className="font-black text-base" style={{ color: '#255d6e' }}>
+                  {vetPhone}
                 </a>
               </div>
             </div>
