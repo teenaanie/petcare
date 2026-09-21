@@ -5,6 +5,7 @@ import {
   getPets, getMedicalHistory, getVaccinations, getAllergies, getReminders,
   getWeightLogs, getMedicines, getBills, getBoardingTrips,
 } from '../lib/storage.js'
+import { getConditions, getNotes, signedUrls } from '../lib/conditions.js'
 
 // Deleting an account is the one action in this app that cannot be undone and
 // that destroys data the user may have spent years collecting — a pet's whole
@@ -23,6 +24,12 @@ const PER_PET = [
   ['boarding',   'Boarding trips',   getBoardingTrips],
 ]
 
+// Not fetched through PER_PET because a condition has notes underneath it.
+const EXTRA_ROWS = [
+  ['conditions', 'Condition threads'],
+  ['photos',     'Condition photos'],
+]
+
 // Gathers everything through the normal per-pet getters, which read only what
 // row-level security already allows this user to see.
 async function gatherEverything() {
@@ -38,6 +45,28 @@ async function gatherEverything() {
       entry[key] = rows
       totals[key] = (totals[key] || 0) + rows.length
     }
+
+    // Condition threads, with each observation's photos as signed links.
+    // The images themselves are files in storage, not JSON — embedding them
+    // would produce an export too large to open. The links work for an hour,
+    // which is stated in the UI so nobody discovers it a week later.
+    try {
+      const conditions = await getConditions(pet.id)
+      entry.conditions = []
+      for (const c of conditions) {
+        const notes = await getNotes(c.id)
+        const urls  = await signedUrls(notes.flatMap(n => n.photoPaths)).catch(() => ({}))
+        entry.conditions.push({
+          ...c,
+          notes: notes.map(n => ({ ...n, photoLinks: n.photoPaths.map(p => urls[p]).filter(Boolean) })),
+        })
+        totals.photos = (totals.photos || 0) + notes.reduce((a, n) => a + n.photoPaths.length, 0)
+      }
+      totals.conditions = (totals.conditions || 0) + conditions.length
+    } catch {
+      entry.conditions = []
+    }
+
     out.pets.push(entry)
   }
   return { data: out, totals }
@@ -109,7 +138,7 @@ export default function DeleteAccount({ user, onClose, onDeleted }) {
     }
   }
 
-  const rows  = totals ? PER_PET.filter(([k]) => totals[k] > 0) : []
+  const rows  = totals ? [...PER_PET, ...EXTRA_ROWS].filter(([k]) => totals[k] > 0) : []
   const armed = phrase.trim().toUpperCase() === 'DELETE' && !busy && !loading
 
   return (
@@ -175,6 +204,7 @@ export default function DeleteAccount({ user, onClose, onDeleted }) {
               </button>
               <p className="text-xs text-center" style={{ color: '#73775b' }}>
                 Saves everything above as a JSON file. Worth doing — this is your only copy afterwards.
+                {totals?.photos ? ' Condition photos are linked rather than embedded, and those links stop working after an hour, so save the images too.' : ''}
               </p>
 
               <div className="space-y-2 pt-1">

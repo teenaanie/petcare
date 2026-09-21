@@ -95,7 +95,35 @@ export default async function handler(req) {
     counts.sharing_records = memberCount || 0
   }
 
-  // 5. Delete the account. Everything above cascades from here.
+  // 5. Remove the condition photos. Postgres cascades ROWS; stored objects sit
+  //    outside that graph, and Supabase refuses deletes issued straight against
+  //    storage.objects — a trigger that tried it raised on every pet delete.
+  //    So the files come out here, through the Storage API, with the service
+  //    role. Erasure that leaves photographs of a pet's skin condition behind
+  //    is not erasure.
+  if (petIds.length) {
+    let photoPaths = []
+    for (const petId of petIds) {
+      // Objects live at <pet_id>/<condition_id>/<uuid>.jpg, so one listing per
+      // condition folder under the pet.
+      const { data: folders } = await supabase.storage.from('pet-photos').list(petId, { limit: 1000 })
+      for (const folder of folders || []) {
+        const { data: files } = await supabase.storage
+          .from('pet-photos').list(`${petId}/${folder.name}`, { limit: 1000 })
+        for (const f of files || []) photoPaths.push(`${petId}/${folder.name}/${f.name}`)
+      }
+    }
+    if (photoPaths.length) {
+      const { error: rmErr } = await supabase.storage.from('pet-photos').remove(photoPaths)
+      if (rmErr) {
+        console.error('Failed to remove condition photos:', rmErr)
+        return json({ error: 'Could not remove your photos. Nothing was deleted.' }, 500)
+      }
+    }
+    counts.photos = photoPaths.length
+  }
+
+  // 6. Delete the account. Everything above cascades from here.
   //    admin.deleteUser THROWS on a malformed id rather than returning an
   //    error, so an unguarded call turns any surprise into an opaque
   //    FUNCTION_INVOCATION_FAILED — the user would see a blank 500 and have no

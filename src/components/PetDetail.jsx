@@ -150,6 +150,7 @@ import EmergencyCard from './EmergencyCard.jsx'
 import PetSharing from './PetSharing.jsx'
 import BreedAlert from './BreedAlert.jsx'
 import Boarding from './Boarding.jsx'
+import ConditionJournal from './ConditionJournal.jsx'
 
 export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, onPetDeleted, prefillProviderId, onPrefillUsed }) {
   const [showEdit, setShowEdit]                   = useState(false)
@@ -268,6 +269,7 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
       {activeTab === 'weight'       && <WeightLog pet={pet} />}
       {activeTab === 'bills'        && <Bills pet={pet} />}
       {activeTab === 'allergies'    && <Allergies pet={pet} />}
+      {activeTab === 'journal'      && <ConditionJournal pet={pet} />}
       {activeTab === 'scanner'      && <DocumentScanner pet={pet} session={session} />}
       {activeTab === 'reminders'    && <Reminders pet={pet} />}
       {activeTab === 'boarding'     && <Boarding pet={pet} onPetUpdated={onPetUpdated}
