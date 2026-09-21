@@ -1,4 +1,4 @@
-import { Heart, useEffect, useState } from 'react'
+import { Camera, Heart, useEffect, useState } from 'react'
 import { PawPrint, Plus, Stethoscope, Syringe, AlertTriangle, FileText, Bell, ChevronLeft, GitBranch, Upload, TrendingUp, ChevronRight, Pill, Receipt, LogOut, ShieldCheck, Store, Home } from 'lucide-react'
 import { getPets } from '../lib/storage.js'
 import MigrateData from './MigrateData.jsx'
@@ -15,6 +15,7 @@ const tabs = [
   { id: 'medicines',     label: 'Medicines',         icon: Pill },
   { id: 'weight',        label: 'Weight Trend',      icon: TrendingUp },
   { id: 'allergies',     label: 'Allergies',         icon: AlertTriangle },
+  { id: 'journal',       label: 'Photo Journal',     icon: Camera },
   { id: 'bills',         label: 'Bills',             icon: Receipt },
   { id: 'boarding',      label: 'Boarding Prep',     icon: Home },
 ]

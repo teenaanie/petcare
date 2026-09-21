@@ -91,9 +91,6 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
     color: existing?.color || '',
     microchipId: existing?.microchipId || '',
     insurancePolicy: existing?.insurancePolicy || '',
-    vetName: existing?.vetName || '',
-    vetPhone: existing?.vetPhone || '',
-    vetEmail: existing?.vetEmail || '',
     notes: existing?.notes || '',
     photo: existing?.photo || null,
     ...(existing?.id ? { id: existing.id, createdAt: existing.createdAt } : {}),
@@ -226,24 +223,10 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
                 </div>
               </div>
 
-              {/* Vet info */}
-              <div>
-                <h3 className="text-sm font-black mb-3" style={{ color: '#7a4900' }}>Veterinarian</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="label">Vet Name</label>
-                    <input name="vetName" value={form.vetName} onChange={handleChange} className="input" placeholder="Dr. Smith" />
-                  </div>
-                  <div>
-                    <label className="label">Vet Phone</label>
-                    <input name="vetPhone" value={form.vetPhone} onChange={handleChange} className="input" placeholder="+91 98765 43210" />
-                  </div>
-                  <div>
-                    <label className="label">Vet Email</label>
-                    <input type="email" name="vetEmail" value={form.vetEmail} onChange={handleChange} className="input" placeholder="vet@clinic.com" />
-                  </div>
-                </div>
-              </div>
+              {/* Vets live in My Providers now — a household list with as many as
+                  you need, and a per-pet override. Keeping a second set of
+                  fields here would mean two places to enter the same thing and
+                  no way to tell which one the emergency card reads. */}
 
               <div>
                 <label className="label">Notes</label>
