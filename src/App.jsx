@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { drainSharedFiles, wasShared, clearSharedFlag } from './lib/shareTarget.js'
 import { PawPrint } from 'lucide-react'
 import { supabase, isConfigured } from './lib/supabase.js'
 import PhoneAuth from './components/PhoneAuth.jsx'
@@ -15,6 +16,7 @@ import MyProviders from './components/MyProviders.jsx'
 import InstallPrompt from './components/InstallPrompt.jsx'
 import PippyLogo from './components/PippyLogo.jsx'
 import PetPickerModal from './components/PetPickerModal.jsx'
+import SharedImport from './components/SharedImport.jsx'
 
 const ADMIN_EMAIL = 'teena.anie9@gmail.com'
 
@@ -81,6 +83,16 @@ export default function App() {
   const [adminView, setAdminView]       = useState(false)
   const [servicesView, setServicesView] = useState(false)
   const [myProvidersView, setMyProvidersView] = useState(false)
+  // Files shared in from another app. Drained on boot regardless of auth state:
+  // the login screen renders instead of the main UI but App stays mounted, so
+  // holding them here carries them across the sign-in round trip. Losing files
+  // somebody deliberately shared is the worst outcome available.
+  const [sharedFiles, setSharedFiles] = useState(null)
+  useEffect(() => {
+    if (!wasShared()) return
+    clearSharedFlag()          // so a reload is not mistaken for a new share
+    drainSharedFiles().then(fs => { if (fs.length) setSharedFiles(fs) })
+  }, [])
   // "Prep for a stay here" in the directory: which boarder to preselect, and
   // which pet it's for. The directory clears the selected pet on entry, so the
   // pet has to be chosen again on the way back out.
