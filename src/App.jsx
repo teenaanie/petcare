@@ -138,6 +138,14 @@ export default function App() {
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
 
+      {/* Files shared in from another app, waiting to be filed against a pet.
+          Rendered above everything: the user came here from a share sheet and
+          this is the only thing they are trying to do. */}
+      {sharedFiles && (
+        <SharedImport files={sharedFiles} session={session}
+          onClose={() => setSharedFiles(null)} />
+      )}
+
       {/* ── Sidebar ──────────────────────────────────────────────────── */}
       <Sidebar
         selectedPet={selectedPet}
