@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Upload, Camera, FileText, Loader2, CheckCircle, AlertCircle, Wand2, Calendar, TriangleAlert, MessageSquare, Copy, Check, Syringe, Pill, Receipt, Weight, X, Plus } from 'lucide-react'
+import { ChevronRight, Upload, Camera, FileText, Loader2, CheckCircle, AlertCircle, Wand2, Calendar, TriangleAlert, MessageSquare, Copy, Check, Syringe, Pill, Receipt, Weight, X, Plus } from 'lucide-react'
 import { saveMedicalRecord, saveVaccination, saveAllergy, saveReminder, saveMedicine, saveBill, saveWeightLog } from '../lib/storage.js'
 import { format, isPast, parseISO } from 'date-fns'
 import { aiComplete } from '../lib/ai.js'
@@ -159,6 +159,13 @@ function Field({ label, value, onChange, type = 'text', options, rows }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function DocumentScanner({ pet, session }) {
+  // A share sheet or a multi-select sends several documents at once. Rather
+  // than rebuild the review UI — which is per-item, editable and already the
+  // contract for "the AI proposes, the human confirms" — a queue feeds that
+  // same flow one document at a time, with an explicit position so nobody
+  // wonders which of six they are looking at.
+  const [queue, setQueue]         = useState([])   // [{ id, file, done }]
+  const [queueIndex, setQueueIndex] = useState(0)
   const [file, setFile]           = useState(null)
   const [preview, setPreview]     = useState(null)
   const [loading, setLoading]     = useState(false)
@@ -196,6 +203,40 @@ export default function DocumentScanner({ pet, session }) {
   const cameraRef = useRef()
 
   // ── File handling ──────────────────────────────────────────────────────────
+
+  /**
+   * Accepts one file or many. Each document is a separate AI call against the
+   * monthly allowance, so the count is shown before anything is processed and
+   * files can be dropped first — a thirty-image WhatsApp thread would otherwise
+   * burn a third of the month in one gesture.
+   */
+  function handleFiles(list) {
+    const files = Array.from(list || []).filter(Boolean)
+    if (!files.length) return
+    setQueue(files.map((f, i) => ({ id: `${Date.now()}-${i}`, file: f, done: false })))
+    setQueueIndex(0)
+    handleFile(files[0])
+  }
+
+  function dropFromQueue(id) {
+    const i = queue.findIndex(x => x.id === id)
+    if (i < 0 || i === queueIndex) return          // the open one is not removable
+    const next = queue.filter(x => x.id !== id)
+    setQueue(next)
+    // Removing something ABOVE the open document shifts every later index down
+    // by one, so the pointer has to follow or it silently lands on the wrong
+    // file. Removing something below it changes nothing.
+    if (i < queueIndex) setQueueIndex(n => n - 1)
+    if (!next.length) { setFile(null); setPreview(null); setParsed(null) }
+  }
+
+  function advanceQueue() {
+    const next = queueIndex + 1
+    if (next >= queue.length) return
+    setQueue(q => q.map((x, i) => i === queueIndex ? { ...x, done: true } : x))
+    setQueueIndex(next)
+    handleFile(queue[next].file)
+  }
 
   async function handleFile(f) {
     if (!f) return
@@ -351,7 +392,8 @@ export default function DocumentScanner({ pet, session }) {
           <Camera className="w-7 h-7" style={{ color: '#c99a2e' }} />
           <span className="text-sm font-bold" style={{ color: '#7a4900' }}>Scan with Camera</span>
         </button>
-        <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => handleFile(e.target.files[0])} />
+        <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
+          onChange={e => { handleFiles(e.target.files); e.target.value = '' }} />
 
         <button onClick={() => uploadRef.current?.click()}
           className="flex-1 flex flex-col items-center gap-2 py-5 rounded-xl border-2 border-dashed transition-all"
@@ -360,8 +402,44 @@ export default function DocumentScanner({ pet, session }) {
           <span className="text-sm font-bold" style={{ color: '#7a4900' }}>Upload File</span>
           <span className="text-xs" style={{ color: '#73775b' }}>JPG, PNG or PDF</span>
         </button>
-        <input ref={uploadRef} type="file" accept="image/*,.pdf" className="hidden" onChange={e => handleFile(e.target.files[0])} />
+        <input ref={uploadRef} type="file" accept="image/*,.pdf" multiple className="hidden"
+          onChange={e => { handleFiles(e.target.files); e.target.value = '' }} />
       </div>
+
+      {/* Queue — only when there is actually more than one document */}
+      {queue.length > 1 && (
+        <div className="rounded-xl p-3 mb-4" style={{ backgroundColor: '#fff3c0' }}>
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <p className="text-sm font-black" style={{ color: '#7a4900' }}>
+              Document {Math.min(queueIndex + 1, queue.length)} of {queue.length}
+            </p>
+            <p className="text-xs" style={{ color: '#7a4900' }}>
+              {queue.length} scan{queue.length === 1 ? '' : 's'} from your monthly allowance
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {queue.map((q, i) => (
+              <span key={q.id}
+                className="text-[11px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 max-w-[12rem]"
+                style={i === queueIndex
+                  ? { backgroundColor: '#f2b83d', color: '#7a4900' }
+                  : q.done ? { backgroundColor: '#eef3e2', color: '#44562a' }
+                  : { backgroundColor: '#fffdf2', color: '#a08f7a' }}>
+                <span className="truncate">{q.done ? '✓ ' : ''}{q.file.name}</span>
+                {i !== queueIndex && !q.done && (
+                  <button onClick={() => dropFromQueue(q.id)} title="Remove — it won't be scanned">
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </span>
+            ))}
+          </div>
+          <p className="text-[11px] mt-2" style={{ color: '#9a6b12' }}>
+            Each one is read separately and reviewed by you before anything is saved.
+            Remove any you don't need before starting.
+          </p>
+        </div>
+      )}
 
       {/* Preview */}
       {file && (
@@ -381,7 +459,14 @@ export default function DocumentScanner({ pet, session }) {
           <button onClick={handleAnalyze} className="btn-primary flex items-center gap-2">
             <Wand2 className="w-4 h-4" /> Analyze with AI
           </button>
-          <button onClick={() => { setFile(null); setPreview(null); setError(null) }}
+          {queueIndex + 1 < queue.length && (
+            <button onClick={advanceQueue}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-colors"
+              style={{ backgroundColor: '#ebe3d3', color: '#7a4900' }}>
+              <ChevronRight className="w-4 h-4" /> Skip this one
+            </button>
+          )}
+          <button onClick={() => { setQueue([]); setQueueIndex(0); setFile(null); setPreview(null); setError(null) }}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-colors"
             style={{ backgroundColor: '#ebe3d3', color: '#7a4900' }}>
             <X className="w-4 h-4" /> Cancel
@@ -744,12 +829,24 @@ export default function DocumentScanner({ pet, session }) {
             </div>
           )}
 
-          {/* Scan another */}
-          <button
-            onClick={() => { setFile(null); setPreview(null); setParsed(null) }}
-            className="btn-secondary w-full">
-            Scan Another Document
-          </button>
+          {/* Next in the queue, or start over */}
+          {queueIndex + 1 < queue.length ? (
+            <div className="space-y-2">
+              <button onClick={advanceQueue} className="btn-primary w-full gap-2">
+                <ChevronRight className="w-4 h-4" />
+                Next document ({queueIndex + 2} of {queue.length})
+              </button>
+              <p className="text-[11px] text-center" style={{ color: '#a08f7a' }}>
+                Anything you saved above is kept.
+              </p>
+            </div>
+          ) : (
+            <button
+              onClick={() => { setQueue([]); setQueueIndex(0); setFile(null); setPreview(null); setParsed(null) }}
+              className="btn-secondary w-full">
+              Scan Another Document
+            </button>
+          )}
         </div>
       )}
     </div>
