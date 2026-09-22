@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { Search, MapPin, Phone, Clock, ExternalLink, MessageCircle, Stethoscope, Scissors, ShoppingBag, Home, Camera, Flower2, Star, Loader2, AlertCircle, ClipboardCheck, ChevronDown, ChevronRight, Footprints, GraduationCap } from 'lucide-react'
+import { Search, MapPin, Phone, Clock, ExternalLink, MessageCircle, Stethoscope, Scissors, ShoppingBag, Home, Camera, Flower2, Loader2, AlertCircle, ClipboardCheck, ChevronDown, ChevronRight, Footprints, GraduationCap } from 'lucide-react'
 // MapPin used in ProviderCard address row
 import { getProviders, getProviderFacets } from '../lib/storage.js'
 import { resolvePolicy, hasCustomPolicy, REQUIREMENT_CATALOG, GENERIC_PROVENANCE } from '../lib/boarding.js'
@@ -166,7 +166,11 @@ function ProviderCard({ p, onPrepForStay }) {
     <div className="rounded-2xl overflow-hidden"
       style={{ backgroundColor: '#FFFEF8', border: '1.5px solid #ebe3d3' }}>
 
-      {/* Photo */}
+      {/* Photos survive only for providers who supplied their own — a business
+          that registered itself, or one an admin added. The scraped ones were
+          hotlinks into Google's CDN: somebody else's copyright, every visitor's
+          IP handed to Google on page load, and URLs that expire and leave the
+          directory full of broken images. Those have been cleared. */}
       {p.photo_url && (
         <img src={p.photo_url} alt={p.name} loading="lazy"
           className="w-full h-36 object-cover"
@@ -185,16 +189,12 @@ function ProviderCard({ p, onPrepForStay }) {
           <TypeBadge type={p.type} />
         </div>
 
-        {/* Google rating */}
-        {p.rating != null && (
-          <div className="flex items-center gap-1.5">
-            <Star className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#c9891f', fill: '#c9891f' }} />
-            <span className="text-sm font-black" style={{ color: '#7a4900' }}>{Number(p.rating).toFixed(1)}</span>
-            {p.reviews_count != null && (
-              <span className="text-xs" style={{ color: '#73775b' }}>({p.reviews_count.toLocaleString('en-IN')})</span>
-            )}
-          </div>
-        )}
+        {/* No star rating here on purpose. The numbers that used to sit here
+            were Google's, taken from a scrape rather than the Maps API, and
+            republishing them outside Google Maps is not ours to do — quite
+            apart from showing someone else's measurement as though Pippy had
+            made it. The maps link below sends people to the ratings instead of
+            copying them. */}
 
         {/* Description */}
         {p.description && (
@@ -345,7 +345,7 @@ export default function ProviderDirectory({ onPrepForStay }) {
     return counts
   }, [facets])
 
-  // Rows arrive already ordered by area then rating, so grouping is just a
+  // Rows arrive already ordered by area then name, so grouping is just a
   // matter of starting a new section each time the area changes.
   const groupedByArea = useMemo(() => {
     const groups = []

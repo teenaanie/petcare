@@ -101,11 +101,15 @@ function toProvider(record) {
     whatsapp:      clean(record.phoneUnformatted, 30),
     website:       clean(record.website, 500),
     hours:         formatHours(record),
-    photo_url:     clean(record.imageUrl, 800),
+    // photo_url, rating and reviews_count are deliberately NOT taken from the
+    // scrape. They are Google's content, collected without a licence to
+    // republish, and the image URLs are hotlinks into Google's CDN that expire.
+    // A provider photo now only comes from a business that supplied its own.
+    photo_url:     null,
     maps_url:      clean(record.url, 800),
     description:   clean(record.description, 500),
-    rating:        typeof record.totalScore === 'number' ? record.totalScore : null,
-    reviews_count: typeof record.reviewsCount === 'number' ? record.reviewsCount : null,
+    rating:        null,
+    reviews_count: null,
     lat:           record.location?.lat ?? null,
     lng:           record.location?.lng ?? null,
     categories:    Array.isArray(record.categories) ? record.categories.slice(0, 12) : null,
