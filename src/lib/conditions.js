@@ -148,6 +148,35 @@ export async function signedUrls(paths) {
   return out
 }
 
+/**
+ * Every photo belonging to a pet, across all of its condition threads.
+ *
+ * Deleting a pet cascades its `conditions` and `condition_notes` rows, but
+ * stored objects are outside that graph — Postgres cannot reach them and
+ * Supabase refuses deletes issued straight against storage.objects. So without
+ * this, deleting a pet left photographs of its skin condition in the bucket
+ * with nothing in the database pointing at them: unreachable, undeletable, and
+ * still there. Somebody who deletes a pet means the photos too.
+ *
+ * Objects live at <pet_id>/<condition_id>/<file>, so it is one listing per
+ * condition folder under the pet.
+ */
+export async function deletePetPhotos(petId) {
+  if (!isConfigured || !petId) return 0
+  const paths = []
+  const { data: folders, error } = await supabase.storage.from(BUCKET).list(petId, { limit: 1000 })
+  if (error) throw error
+  for (const folder of folders || []) {
+    const { data: files } = await supabase.storage
+      .from(BUCKET).list(`${petId}/${folder.name}`, { limit: 1000 })
+    for (const f of files || []) paths.push(`${petId}/${folder.name}/${f.name}`)
+  }
+  if (!paths.length) return 0
+  const { error: rmErr } = await supabase.storage.from(BUCKET).remove(paths)
+  if (rmErr) throw rmErr
+  return paths.length
+}
+
 export async function deletePhotos(paths) {
   requireCloud()
   if (!paths?.length) return

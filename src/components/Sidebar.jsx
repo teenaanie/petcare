@@ -20,7 +20,7 @@ const tabs = [
   { id: 'boarding',      label: 'Boarding Prep',     icon: Home },
 ]
 
-export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab, onTabChange, refresh, onRefresh, isOpen, onClose, user, isAdmin, onSignOut, adminView, onToggleAdmin, servicesView, onToggleServices, myProvidersView, onToggleMyProviders }) {
+export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab, onTabChange, refresh, onRefresh, isOpen, onClose, user, isAdmin, onSignOut, adminView, onToggleAdmin, servicesView, onToggleServices, myProvidersView, onToggleMyProviders, onShowPrivacy }) {
   const [pets, setPets]               = useState([])
   const [showMigrate, setShowMigrate] = useState(false)
   const [showDelete, setShowDelete]   = useState(false)
@@ -125,6 +125,13 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
             </div>
           )}
           {!hasLocalData && <div className="pb-3 flex-shrink-0" />}
+          {onShowPrivacy && (
+            <button type="button" onClick={onShowPrivacy}
+              className="px-5 pb-3 text-xs underline text-left flex-shrink-0"
+              style={{ color: '#73775b' }}>
+              Privacy &amp; Terms
+            </button>
+          )}
         </>
       ) : (
         /* ── No pet selected: full pets list ──────────────────────────── */
@@ -245,6 +252,14 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
           )}
 
           {/* User + sign out */}
+          {onShowPrivacy && (
+            <button type="button" onClick={onShowPrivacy}
+              className="px-5 pb-2 text-[11px] underline text-left flex-shrink-0"
+              style={{ color: '#a08f7a' }}>
+              Privacy &amp; Terms
+            </button>
+          )}
+
           {user && onSignOut && (
             <div className="px-3 py-3 flex-shrink-0" style={{ borderTop: hasLocalData ? 'none' : '1px solid #ebe3d3' }}>
               <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-xl"
@@ -266,7 +281,7 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
                 </button>
               </div>
 
-              <button onClick={() => setShowDelete(true)}
+              <button type="button" onClick={() => setShowDelete(true)}
                 className="w-full text-left text-[11px] mt-2 px-2 py-1 rounded-lg transition-colors hover:bg-red-50"
                 style={{ color: '#a08f7a' }}>
                 Delete my account

@@ -31,21 +31,26 @@ function ctor() {
     : null
 }
 
-// iOS is deliberately excluded even though Safari defines the constructor.
+// WebKit is deliberately excluded, on every platform, even though Safari
+// defines the constructor.
 //
-// On iOS there is effectively one microphone consumer at a time, and starting
-// recognition takes it from the MediaRecorder that is running alongside. The
-// recording comes back empty, recognition itself often returns nothing, and
-// the two failures together look exactly like "it is not capturing my voice".
+// On WebKit there is effectively one microphone consumer at a time, and
+// starting recognition takes it from the MediaRecorder running alongside. The
+// recording comes back empty AND recognition itself often returns nothing, so
+// both halves fail together and it looks like "it isn't capturing my voice".
 // Safari also does not support `continuous`, and frequently fires neither
-// `onend` nor `onerror` after stop() -- the bounded stop() below covers the
-// hang, but there is nothing to be gained by running recognition here at all.
+// `onend` nor `onerror` after stop().
 //
-// Whisper is the better path on iOS regardless: it gets the whole recording,
-// it actually detects the language, and it is already the fallback everywhere
-// else. So on iOS we simply always use it.
+// This first shipped as an iOS-only check, which was too narrow: Safari on a
+// Mac is the same engine with the same constraint, and the bug simply moved
+// from the phone to the laptop. Every browser on iOS is WebKit too, including
+// Chrome and Firefox there, so the iOS test stays alongside the Safari one.
 //
-// iPadOS 13+ reports itself as Macintosh, so the touch check is needed too.
+// Whisper is the better path on WebKit regardless: it gets the whole
+// recording, it genuinely detects the language, and it is already the fallback
+// everywhere else.
+//
+// iPadOS 13+ reports itself as Macintosh, hence the touch-points check.
 function isIOS() {
   if (typeof navigator === 'undefined') return false
   const ua = navigator.userAgent || ''
@@ -53,8 +58,32 @@ function isIOS() {
          (/Macintosh/.test(ua) && (navigator.maxTouchPoints || 0) > 1)
 }
 
+// Chrome, Edge, Opera and the iOS wrappers all carry "Safari" in their user
+// agent, so Safari is what remains once they are ruled out.
+function isSafari() {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  return /Safari/.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR|FxiOS|Android/.test(ua)
+}
+
+// Set when a recording came back empty while recognition was running: the
+// signature of the two competing for the microphone. It is remembered per
+// device because it is a property of that browser, not of that recording, and
+// because the alternative is letting it happen again on every attempt. Any
+// browser can land here — this is the net under the two checks above, for the
+// combinations nobody has tested.
+export const WEB_SPEECH_STARVED_KEY = 'pippy_web_speech_starved'
+
+export function noteWebSpeechStarvedRecording() {
+  try { localStorage.setItem(WEB_SPEECH_STARVED_KEY, '1') } catch { /* private mode */ }
+}
+
+export function webSpeechStarvedBefore() {
+  try { return localStorage.getItem(WEB_SPEECH_STARVED_KEY) === '1' } catch { return false }
+}
+
 export function webSpeechSupported() {
-  return !!ctor() && !isIOS()
+  return !!ctor() && !isIOS() && !isSafari() && !webSpeechStarvedBefore()
 }
 
 export function webSpeechEnabled() {

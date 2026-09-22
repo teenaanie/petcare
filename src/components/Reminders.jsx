@@ -4,7 +4,8 @@ import { getReminders, saveReminder, deleteReminder, markReminderDone } from '..
 import { pushSupported, getPushSubscriptionStatus, subscribeToPush, unsubscribeFromPush } from '../lib/push.js'
 import { format, parseISO, isValid } from 'date-fns'
 import { aiComplete, transcribeAudio } from '../lib/ai.js'
-import { startWebSpeech, webSpeechSupported, webSpeechEnabled, webSpeechLangFor, WEB_SPEECH_OPT_OUT_KEY } from '../lib/speech.js'
+import { startWebSpeech, webSpeechSupported, webSpeechEnabled, webSpeechLangFor,
+         noteWebSpeechStarvedRecording, WEB_SPEECH_OPT_OUT_KEY } from '../lib/speech.js'
 
 // Whisper decodes better when told the language than when left to guess, and it
 // mis-detects Hinglish in particular. 'auto' stays the default because forcing
@@ -93,6 +94,7 @@ function useVoiceRecorder(onTranscript, language) {
   const languageRef                     = useRef(language)
   languageRef.current                   = language
   const speechRef                       = useRef(null)   // live Web Speech handle
+  const usedRecognitionRef              = useRef(false)  // was it running this time?
   const [partial, setPartial]           = useState('')   // words as they are heard
   const [engine, setEngine]             = useState(null) // 'browser' | 'whisper'
 
@@ -197,9 +199,17 @@ function useVoiceRecorder(onTranscript, language) {
         if (!chunksRef.current.length || blob.size < MIN_BYTES) {
           // getUserMedia already succeeded, so permission is not the problem
           // and telling the user to check it sends them somewhere useless.
-          // An empty capture at this point means the selected input is not the
-          // one they are speaking into, or it is muted.
-          setError('That recording came through empty — check which microphone is selected, or that it is not muted, then try again.')
+          //
+          // Empty WHILE recognition was running means the two were competing
+          // for the microphone. This attempt's audio is gone, but the next one
+          // need not be: remember it, so the retry skips recognition entirely
+          // and goes straight to Whisper.
+          if (usedRecognitionRef.current) {
+            noteWebSpeechStarvedRecording()
+            setError('That did not record — your browser was using the microphone for its own speech recognition. Turned that off; tap the mic and try once more.')
+          } else {
+            setError('That recording came through empty — check which microphone is selected, or that it is not muted, then try again.')
+          }
           return
         }
         if (elapsed < MIN_MS) {
@@ -228,6 +238,8 @@ function useVoiceRecorder(onTranscript, language) {
       speechRef.current = (webSpeechSupported() && webSpeechEnabled() && bcp47)
         ? startWebSpeech({ lang: bcp47, onPartial: setPartial })
         : null
+      // Recorded now, because speechRef is cleared before onstop reads it.
+      usedRecognitionRef.current = !!speechRef.current
 
       recorder.start(250)   // collect data every 250 ms
       startTimeRef.current = Date.now()

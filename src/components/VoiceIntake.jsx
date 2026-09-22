@@ -266,6 +266,7 @@ export default function VoiceIntake({ onClose, onSaved }) {
 
   async function startRecording() {
     setError(null); setPartial('')
+    let usedRecognition = false
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
@@ -300,7 +301,17 @@ export default function VoiceIntake({ onClose, onSaved }) {
         if (web.text) { append(web.text); return }
 
         if (!chunksRef.current.length || blob.size < MIN_BYTES || elapsed < MIN_MS) {
-          setError('That recording came through empty — check which microphone is selected, or type it instead.')
+          // An empty recording while recognition was ALSO running is the
+          // signature of the two fighting over the microphone. The audio for
+          // this attempt is gone, but the next one need not be: remember it and
+          // stop using recognition on this device, so the retry goes straight
+          // to Whisper and works.
+          if (usedRecognition) {
+            noteWebSpeechStarvedRecording()
+            setError('That did not record — your browser was using the microphone for its own speech recognition. Turned that off; tap the mic and try once more.')
+          } else {
+            setError('That recording came through empty — check which microphone is selected, or type it instead.')
+          }
           return
         }
 
@@ -317,6 +328,8 @@ export default function VoiceIntake({ onClose, onSaved }) {
       speechRef.current = (webSpeechSupported() && webSpeechEnabled() && bcp47)
         ? startWebSpeech({ lang: bcp47, onPartial: setPartial })
         : null
+      // Captured now: speechRef is cleared by the time onstop inspects things.
+      usedRecognition = !!speechRef.current
 
       rec.start(250)
       startRef.current = Date.now()
