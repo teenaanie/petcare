@@ -132,7 +132,7 @@ export async function saveMedicalRecord(record) {
   const all = lsGet(KEYS.medical)
   if (record.id) {
     const idx = all.findIndex(r => r.id === record.id)
-    if (idx >= 0) all[idx] = record; else all.push(record)
+    if (idx >= 0) all[idx] = { ...all[idx], ...record }; else all.push(record)
   } else {
     record.id = uid(); record.createdAt = new Date().toISOString(); all.push(record)
   }
@@ -199,7 +199,7 @@ export async function saveVaccination(record) {
   const all = lsGet(KEYS.vaccinations)
   if (record.id) {
     const idx = all.findIndex(r => r.id === record.id)
-    if (idx >= 0) all[idx] = record; else all.push(record)
+    if (idx >= 0) all[idx] = { ...all[idx], ...record }; else all.push(record)
   } else {
     record.id = uid(); record.createdAt = new Date().toISOString(); all.push(record)
   }
@@ -254,7 +254,7 @@ export async function saveAllergy(record) {
   const all = lsGet(KEYS.allergies)
   if (record.id) {
     const idx = all.findIndex(r => r.id === record.id)
-    if (idx >= 0) all[idx] = record; else all.push(record)
+    if (idx >= 0) all[idx] = { ...all[idx], ...record }; else all.push(record)
   } else {
     record.id = uid(); record.createdAt = new Date().toISOString(); all.push(record)
   }
@@ -321,7 +321,7 @@ export async function saveReminder(record) {
   const all = lsGet(KEYS.reminders)
   if (record.id) {
     const idx = all.findIndex(r => r.id === record.id)
-    if (idx >= 0) all[idx] = record; else all.push(record)
+    if (idx >= 0) all[idx] = { ...all[idx], ...record }; else all.push(record)
   } else {
     record.id = uid(); record.createdAt = new Date().toISOString(); all.push(record)
   }
@@ -368,7 +368,7 @@ export async function saveWeightLog(log) {
   const all = lsGet(KEYS.weightLogs)
   if (log.id) {
     const idx = all.findIndex(r => r.id === log.id)
-    if (idx >= 0) all[idx] = log; else all.push(log)
+    if (idx >= 0) all[idx] = { ...all[idx], ...log }; else all.push(log)
   } else {
     log.id = uid(); log.createdAt = new Date().toISOString(); all.push(log)
   }
@@ -421,7 +421,7 @@ export async function saveMedicine(med) {
   const all = lsGet(KEYS.medicines)
   if (med.id) {
     const idx = all.findIndex(r => r.id === med.id)
-    if (idx >= 0) all[idx] = med; else all.push(med)
+    if (idx >= 0) all[idx] = { ...all[idx], ...med }; else all.push(med)
   } else {
     med.id = uid(); med.createdAt = new Date().toISOString(); all.push(med)
   }
@@ -480,7 +480,7 @@ export async function saveBill(bill) {
   const all = lsGet(KEYS.bills)
   if (bill.id) {
     const idx = all.findIndex(r => r.id === bill.id)
-    if (idx >= 0) all[idx] = bill; else all.push(bill)
+    if (idx >= 0) all[idx] = { ...all[idx], ...bill }; else all.push(bill)
   } else {
     bill.id = uid(); bill.createdAt = new Date().toISOString(); all.push(bill)
   }

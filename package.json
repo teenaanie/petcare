@@ -10,7 +10,8 @@
     "test:recurrence": "node scripts/test-recurrence.mjs",
     "check:exclusions": "node scripts/check-exclusions.mjs",
     "test:speech": "node scripts/test-speech.mjs",
-    "check:drift": "node scripts/check-drift.mjs"
+    "check:drift": "node scripts/check-drift.mjs",
+    "test:dates": "node scripts/test-dates.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

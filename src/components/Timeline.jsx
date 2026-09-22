@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { Stethoscope, Syringe, AlertTriangle, Bell, Calendar, CheckCircle, Clock, AlertCircle, TriangleAlert } from 'lucide-react'
 import { getMedicalHistory, getVaccinations, getAllergies, getReminders } from '../lib/storage.js'
 import { format, parseISO, isValid, isBefore, addDays } from 'date-fns'
+import { firstValidDate, isRealDate } from '../lib/dates.js'
+
+const UNDATED = 'Date not recorded'
 
 function parseDate(str) {
   if (!str) return null
@@ -38,7 +41,7 @@ function buildEvents(medicalRecords, vaccinations, allergies, reminders) {
     const date = parseDate(r.date)
     events.push({
       id: `med-${r.id}`, kind: 'medical',
-      date, sortDate: date || new Date(r.createdAt),
+      date, sortDate: date || firstValidDate(r.createdAt),
       title: r.title,
       subtitle: `${r.type}${r.vet ? ` · ${r.vet}` : ''}${r.cost ? ` · $${r.cost}` : ''}`,
       body: r.description,
@@ -52,11 +55,14 @@ function buildEvents(medicalRecords, vaccinations, allergies, reminders) {
     const date = parseDate(r.dateGiven)
     events.push({
       id: `vax-${r.id}`, kind: 'vaccination',
-      date, sortDate: date || new Date(r.createdAt),
+      date, sortDate: date || firstValidDate(r.createdAt),
       title: r.name,
       subtitle: `Given${r.vet ? ` by ${r.vet}` : ''}${r.batchNumber ? ` · Batch ${r.batchNumber}` : ''}`,
       body: r.notes,
-      extra: r.nextDue ? `Next due: ${format(parseDate(r.nextDue) || new Date(r.nextDue), 'MMM d, yyyy')}` : null,
+      extra: (() => {
+        const nd = firstValidDate(parseDate(r.nextDue), r.nextDue)
+        return nd ? `Next due: ${format(nd, 'MMM d, yyyy')}` : null
+      })(),
       nextDue: r.nextDue,
       isFuture: date ? date > today : false,
       raw: r,
@@ -82,7 +88,7 @@ function buildEvents(medicalRecords, vaccinations, allergies, reminders) {
     const date = parseDate(r.diagnosedDate)
     events.push({
       id: `alg-${r.id}`, kind: 'allergy',
-      date, sortDate: date || new Date(r.createdAt),
+      date, sortDate: date || firstValidDate(r.createdAt),
       title: `Allergy: ${r.allergen}`,
       subtitle: `${r.type} · ${r.severity}${r.reactions?.length ? ` · ${r.reactions.join(', ')}` : ''}`,
       body: r.notes,
@@ -95,7 +101,7 @@ function buildEvents(medicalRecords, vaccinations, allergies, reminders) {
     const date = parseDate(r.dueDate)
     events.push({
       id: `rem-${r.id}`, kind: 'reminder',
-      date, sortDate: date || new Date(r.createdAt),
+      date, sortDate: date || firstValidDate(r.createdAt),
       title: r.type,
       subtitle: `Reminder${r.notes ? ` · ${r.notes}` : ''}`,
       body: null,
@@ -152,7 +158,7 @@ function EventCard({ event }) {
               <span className="text-xs px-2 py-0.5 rounded-full font-medium"
                 style={{ backgroundColor: '#dceff5', color: '#2f7286' }}>Upcoming</span>
             )}
-            {event.date && (
+            {event.date && isRealDate(event.sortDate) && (
               <span className="text-xs px-2 py-0.5 rounded-full"
                 style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
                 {format(event.sortDate, 'MMM d, yyyy')}
@@ -195,10 +201,17 @@ function Section({ title, items }) {
   const groupOrder = []
   const groups = {}
   items.forEach(e => {
-    const key = format(e.sortDate, 'MMMM yyyy')
+    // A record can legitimately have no date: an allergy with no diagnosis
+    // date, or one whose createdAt was lost. It still belongs on the timeline —
+    // it just cannot be filed under a month, and formatting it threw.
+    const key = isRealDate(e.sortDate) ? format(e.sortDate, 'MMMM yyyy') : UNDATED
     if (!groups[key]) { groups[key] = []; groupOrder.push(key) }
     groups[key].push(e)
   })
+  // Undated entries sit at the end rather than jumping to the top, where a
+  // zero timestamp would otherwise sort them.
+  const undatedAt = groupOrder.indexOf(UNDATED)
+  if (undatedAt > -1) groupOrder.push(...groupOrder.splice(undatedAt, 1))
 
   return (
     <div className="mb-8">
