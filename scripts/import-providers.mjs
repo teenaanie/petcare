@@ -114,6 +114,9 @@ function toProvider(record) {
     place_id:      clean(record.placeId, 200),
     source:        'google_maps',
     is_approved:   true,
+    // When these categories were read from Google. Everything derived from
+    // them -- type, services, specializations -- is only as current as this.
+    categories_synced_at: new Date().toISOString(),
   }
 }
 
@@ -216,11 +219,22 @@ const SAME_PLACE_METRES = 400
 let existingRows = []
 for (let from = 0; ; from += 1000) {
   const { data, error } = await supabase
-    .from('providers').select('id, place_id, name, city, lat, lng').range(from, from + 999)
+    .from('providers')
+    .select('id, place_id, name, city, lat, lng, type, type_verified_at')
+    .range(from, from + 999)
   if (error) { console.error('Failed to read existing providers:', error.message); process.exit(1) }
   existingRows = existingRows.concat(data)
   if (data.length < 1000) break
 }
+
+// Rows whose type somebody checked against the live listing. A scrape must not
+// silently undo that: Google's stored primary category is exactly what was
+// found to be wrong, so re-deriving from it would put the error straight back.
+// Clear type_verified_at on a row to let the importer own its type again.
+const verifiedTypeByPlaceId = new Map(
+  existingRows.filter(r => r.type_verified_at && r.place_id).map(r => [r.place_id, r.type]))
+const verifiedTypeById = new Map(
+  existingRows.filter(r => r.type_verified_at).map(r => [r.id, r.type]))
 
 const byPlaceId = new Set(existingRows.filter(r => r.place_id).map(r => r.place_id))
 const unclaimed = new Map()   // normalised name → rows with no place_id
@@ -284,9 +298,13 @@ for (let i = 0; i < fresh.length; i += BATCH) {
   process.stdout.write(`\rInserted ${done}/${fresh.length}`)
 }
 
-let updated = 0
+let updated = 0, typePreserved = 0
 for (const row of updates) {
   const { place_id, ...fields } = row
+  if (verifiedTypeByPlaceId.has(place_id)) {
+    fields.type = verifiedTypeByPlaceId.get(place_id)
+    typePreserved++
+  }
   const { error } = await supabase.from('providers').update(fields).eq('place_id', place_id)
   if (error) { console.error(`\nUpdate failed for ${place_id}:`, error.message); process.exit(1) }
   updated++
@@ -297,10 +315,21 @@ for (const row of updates) {
 // place_id, so every later import matches it the fast, certain way.
 let claimed = 0
 for (const { row, target } of claims) {
-  const { error } = await supabase.from('providers').update(row).eq('id', target.id)
+  const fields = verifiedTypeById.has(target.id)
+    ? { ...row, type: verifiedTypeById.get(target.id) }
+    : row
+  if (fields !== row) typePreserved++
+  const { error } = await supabase.from('providers').update(fields).eq('id', target.id)
   if (error) { console.error(`\nClaim failed for ${row.name}:`, error.message); process.exit(1) }
   claimed++
   process.stdout.write(`\rClaimed ${claimed}/${claims.length}`)
 }
 
 console.log(`\nDone — ${done} inserted, ${updated} updated, ${claimed} matched by name.`)
+if (typePreserved) {
+  console.log(`${typePreserved} row(s) kept a verified type instead of the scraped one. ` +
+              `Their stored categories have just been refreshed, so run ` +
+              `\`npm run check:drift\` — a verified type that now AGREES with the new ` +
+              `categories no longer needs protecting, and one that still disagrees is ` +
+              `either a listing Google has not fixed or a verification worth revisiting.`)
+}

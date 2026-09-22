@@ -43,7 +43,8 @@ async function main() {
   for (let from = 0; ; from += 1000) {
     const { data, error } = await db
       .from('providers')
-      .select('id, name, type, categories, services, specializations, is_approved')
+      .select('id, name, type, categories, services, specializations, is_approved, ' +
+              'type_verified_at, categories_synced_at')
       .range(from, from + 999)
     if (error) throw error
     rows = rows.concat(data)
@@ -51,10 +52,26 @@ async function main() {
   }
   console.log(`${rows.length} providers loaded\n`)
 
-  const retype = [], tag = [], hide = [], keptAsIs = []
+  const retype = [], tag = [], hide = [], keptAsIs = [], protectedRows = []
 
   for (const p of rows) {
     const c = classify(p.categories || [], p.name || '')
+
+    // A type somebody verified against the live listing outranks anything
+    // re-derived from the stored categories -- because the stored categories
+    // are precisely what was found to be wrong. Without this, re-running the
+    // reclassifier silently reverts every correction: on 2026-09-22 that would
+    // have been eight clinics going straight back to Store and Groomer.
+    //
+    // The protection only holds while the verification is NEWER than the
+    // categories. Once a fresh scrape lands, the categories are the newer
+    // evidence and the row is re-derived normally.
+    const verifiedAfterSync = p.type_verified_at &&
+      (!p.categories_synced_at || new Date(p.type_verified_at) > new Date(p.categories_synced_at))
+    if (verifiedAfterSync && c.type && c.type !== p.type) {
+      protectedRows.push({ ...p, wouldBe: c.type })
+      continue
+    }
 
     if (c.excluded) {
       if (p.is_approved !== false) hide.push({ ...p, reason: c.excluded })
@@ -68,6 +85,14 @@ async function main() {
     if (!same(c.services, p.services || []) || !same(c.specializations, p.specializations || [])) {
       tag.push({ ...p, services: c.services, specializations: c.specializations })
     }
+  }
+
+  if (protectedRows.length) {
+    console.log('── Protected: verified type kept over the re-derived one ──')
+    for (const p of protectedRows) {
+      console.log(`  · ${p.name.slice(0, 52).padEnd(54)} ${p.type} (would re-derive as ${p.wouldBe})`)
+    }
+    console.log('  Clear type_verified_at on a row to let the reclassifier own its type again.\n')
   }
 
   const byMove = {}
