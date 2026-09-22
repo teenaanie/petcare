@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Plus, Trash2, Bell, BellOff, BellRing, Mail, MessageCircle, CheckCircle, AlertCircle, Loader2, Mic, MicOff, Wand2, X, Check } from 'lucide-react'
+import { Plus, Trash2, Bell, BellOff, BellRing, MessageCircle, CheckCircle, AlertCircle, Loader2, Mic, MicOff, Wand2, X, Check } from 'lucide-react'
 import { getReminders, saveReminder, deleteReminder, markReminderDone } from '../lib/storage.js'
 import { pushSupported, getPushSubscriptionStatus, subscribeToPush, unsubscribeFromPush } from '../lib/push.js'
 import { format, parseISO, isValid } from 'date-fns'
@@ -29,22 +29,15 @@ const LANG_KEY = 'pippy_voice_lang'
 const TYPES = ['Vaccination', 'Grooming', 'Vet Checkup', 'Medication', 'Boarding', 'Other']
 const FREQ  = ['Once', 'Weekly', 'Monthly', 'Yearly']
 
-// ── EmailJS ───────────────────────────────────────────────────────────────────
-async function sendEmail({ toEmail, toName, petName, reminderType, dueDate, notes }) {
-  const serviceId  = import.meta.env.VITE_EMAILJS_SERVICE_ID
-  const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID
-  const publicKey  = import.meta.env.VITE_EMAILJS_PUBLIC_KEY
-  if (!serviceId || !templateId || !publicKey) throw new Error('EmailJS not configured.')
-  const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      service_id: serviceId, template_id: templateId, user_id: publicKey,
-      template_params: { to_name: toName, to_email: toEmail, pet_name: petName, reminder_type: reminderType, due_date: dueDate, notes: notes || '' }
-    })
-  })
-  if (!res.ok) throw new Error('Failed to send email.')
-}
+// Reminder email is sent by the server, not from here.
+//
+// EmailJS used to live at this spot: a third-party service called straight
+// from the browser with its service, template and public keys compiled into
+// the bundle, sending a pet's name and its owner's email address. Anyone with
+// the bundle could call it, it was a processor nobody had been told about, and
+// netlify/functions/morning-reminders.js already sends the same reminders
+// through Resend with the key kept server-side. Two ways to send one email,
+// one of them public — so this one went.
 
 // ── Parse voice transcript ───────────────────────────────────────────────────
 // The extraction prompt is composed server-side, in
@@ -292,8 +285,6 @@ export default function Reminders({ pet }) {
   const [reminders, setReminders]   = useState([])
   const [showForm, setShowForm]     = useState(false)
   const [form, setForm]             = useState({ type: 'Vaccination', dueDate: '', frequency: 'Once', email: '', whatsapp: '', notes: '' })
-  const [sending, setSending]       = useState({})
-  const [sentStatus, setSentStatus] = useState({})
   const [togglingId, setTogglingId] = useState(null)
 
   // Voice AI state
@@ -367,24 +358,6 @@ export default function Reminders({ pet }) {
     }
   }
 
-  async function handleSendEmail(reminder) {
-    setSending(s => ({ ...s, [reminder.id]: true }))
-    setSentStatus(s => ({ ...s, [reminder.id]: null }))
-    try {
-      await sendEmail({
-        toEmail: reminder.email, toName: 'Pet Owner', petName: pet.name,
-        reminderType: reminder.type,
-        dueDate: reminder.dueDate ? format(new Date(reminder.dueDate), 'MMMM d, yyyy') : 'soon',
-        notes: reminder.notes,
-      })
-      setSentStatus(s => ({ ...s, [reminder.id]: 'success' }))
-    } catch (e) {
-      setSentStatus(s => ({ ...s, [reminder.id]: e.message }))
-    } finally {
-      setSending(s => ({ ...s, [reminder.id]: false }))
-    }
-  }
-
   function handleWhatsApp(reminder) {
     const text = encodeURIComponent(
       `🐾 *${pet.name}'s Reminder*\n\n*Type:* ${reminder.type}\n*Due:* ${reminder.dueDate ? format(new Date(reminder.dueDate), 'MMMM d, yyyy') : 'soon'}\n${reminder.notes ? `*Notes:* ${reminder.notes}` : ''}`
@@ -436,7 +409,6 @@ export default function Reminders({ pet }) {
   }
 
   const voice = useVoiceRecorder(handleTranscript, voiceLang)
-  const emailConfigured = import.meta.env.VITE_EMAILJS_SERVICE_ID
 
   return (
     <div>
@@ -623,13 +595,11 @@ export default function Reminders({ pet }) {
           <AlertCircle className="w-4 h-4 flex-shrink-0" /> {pushError}
         </div>
       )}
-      {!emailConfigured && (
-        <div className="mb-4 p-3 rounded-xl text-sm" style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
-          <strong>Email reminders are off.</strong> WhatsApp reminders work now — use the
-          WhatsApp button on any reminder. You'll also get a daily email each morning
-          for anything due that day.
-        </div>
-      )}
+      <div className="mb-4 p-3 rounded-xl text-sm" style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
+        <strong>How reminders reach you.</strong> Anything due gets an email each
+        morning, sent by Pippy's server. To send one to someone right now, use the
+        WhatsApp button on that reminder.
+      </div>
 
       {/* ── Manual form ─────────────────────────────────────────────────── */}
       {showForm && (
@@ -729,20 +699,9 @@ export default function Reminders({ pet }) {
 
             {!r.isDone && (
               <div className="flex gap-2 flex-wrap">
-                {r.email && emailConfigured && (
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleSendEmail(r)}
-                      disabled={sending[r.id]}
-                      className="flex items-center gap-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-                    >
-                      {sending[r.id] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
-                      Send Email
-                    </button>
-                    {sentStatus[r.id] === 'success' && <span className="flex items-center gap-1 text-xs text-green-600"><CheckCircle className="w-3.5 h-3.5" /> Sent!</span>}
-                    {sentStatus[r.id] && sentStatus[r.id] !== 'success' && <span className="flex items-center gap-1 text-xs text-red-600"><AlertCircle className="w-3.5 h-3.5" /> Failed</span>}
-                  </div>
-                )}
+                {/* No "send now" button. Reminders go out from the daily
+                    server job, which owns the sending key; a browser button
+                    needed a second, public one. */}
                 {r.whatsapp && (
                   <button onClick={() => handleWhatsApp(r)} className="flex items-center gap-1.5 text-sm bg-green-50 hover:bg-green-100 text-green-700 px-3 py-1.5 rounded-lg transition-colors">
                     <MessageCircle className="w-3.5 h-3.5" /> Send WhatsApp
