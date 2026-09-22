@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test:recurrence": "node scripts/test-recurrence.mjs",
     "check:exclusions": "node scripts/check-exclusions.mjs",
-    "test:speech": "node scripts/test-speech.mjs"
+    "test:speech": "node scripts/test-speech.mjs",
+    "check:drift": "node scripts/check-drift.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
