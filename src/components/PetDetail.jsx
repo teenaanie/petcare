@@ -34,6 +34,7 @@ const PET_TABS = [
   { id: 'medicines',    label: 'Medicines' },
   { id: 'weight',       label: 'Weight' },
   { id: 'allergies',    label: 'Allergies' },
+  { id: 'journal',      label: 'Photo Journal' },
   { id: 'bills',        label: 'Bills' },
   { id: 'boarding',     label: 'Boarding' },
 ]
