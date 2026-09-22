@@ -186,6 +186,40 @@ function humanDeathCare(cats, name) {
   return !PET_WORD.test(name || '')                          // generic, and the name never says pet
 }
 
+// The same shape of problem in a different trade, and the one that put four
+// Pune preschools in the boarding results. "Day care center" is the category
+// Google gives a children's nursery AND some pet day cares. Pet ones are
+// usually "Dog day care center", but not always: Styling Pet Paws, Supreme Cat
+// Hostel and a veterinary foundation all carry the plain form.
+//
+// Two tests, mirroring the death-care rule above:
+//
+//   1. A children's trade category means human, and there is no rescue. Nobody
+//      boards a dog at a kindergarten, and a preschool that also runs chess and
+//      dance classes is still a preschool -- Early World Of Learning carries
+//      both, which is how it survived the "does something else too" escape
+//      hatch and ended up listed as a Boarder.
+//
+//   2. A plain "Day care center" with no such category has to say pet, dog, cat
+//      or animal somewhere -- in a category or in the name. This is what keeps
+//      the three real businesses above: the vet foundation's name never says
+//      pet, but "Animal hospital" and "Veterinarian" do the work.
+//
+// Checked against all 64 providers in the directory carrying any childcare-ish
+// category: the four preschools are excluded and the other 60 are untouched.
+const HUMAN_CHILDCARE_TRADE =
+  /preschool|pre-school|kindergarten|nursery school|montessori|playgroup|primary school|creche|crèche/
+const GENERIC_CHILD_CARE = /^(day care center|child care|childcare)/
+const PET_SIGNAL =
+  /\bpets?\b|\banimals?\b|\bdogs?\b|\bcats?\b|\bpaws?\b|\bpupp|\bkitten|veterinar|cattery|kennel|aquarium|\bbird\b/i
+
+function humanChildcare(cats, name) {
+  const joined = cats.join(' | ')
+  if (HUMAN_CHILDCARE_TRADE.test(joined)) return true       // decisive, no rescue
+  if (!cats.some(c => GENERIC_CHILD_CARE.test(c))) return false
+  return !PET_SIGNAL.test(`${joined} ${name || ''}`)        // generic, and nothing says pet
+}
+
 const EXCLUDE = [
   [/dog breeder|cat breeder/, 'breeder'],
   [/training center/,         'training institute'],   // veterinary colleges, not pet services
@@ -205,6 +239,7 @@ export function exclusionReason(categories = [], name = '') {
   const joined = cats.join(' | ')
 
   if (humanDeathCare(cats, name)) return 'human funeral service'
+  if (humanChildcare(cats, name)) return "children's day care"
   for (const [re, reason] of EXCLUDE) {
     if (!re.test(joined)) continue
     // No rescue for human undertakers. The others are rescued when the business

@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:recurrence": "node scripts/test-recurrence.mjs"
+    "test:recurrence": "node scripts/test-recurrence.mjs",
+    "check:exclusions": "node scripts/check-exclusions.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
