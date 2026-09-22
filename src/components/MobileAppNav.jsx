@@ -1,12 +1,13 @@
-import { PawPrint, Store, ShieldCheck } from 'lucide-react'
+import { PawPrint, Store, ShieldCheck, Heart } from 'lucide-react'
 
 // App-level destinations. This bar is always present on mobile, so the
 // directory and admin panel are one tap from anywhere rather than buried in
 // the drawer. Section navigation within a pet lives in PetDetail's chip row.
 export default function MobileAppNav({ view, onNavigate, isAdmin }) {
   const items = [
-    { id: 'pets',     label: 'Pets',     icon: PawPrint },
-    { id: 'services', label: 'Services', icon: Store },
+    { id: 'pets',      label: 'Pets',      icon: PawPrint },
+    { id: 'providers', label: 'Providers', icon: Heart },
+    { id: 'services',  label: 'Services',  icon: Store },
     ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: ShieldCheck }] : []),
   ]
 
@@ -28,7 +29,7 @@ export default function MobileAppNav({ view, onNavigate, isAdmin }) {
                 style={{ backgroundColor: active ? '#ffde59' : 'transparent' }}>
                 <Icon className="w-5 h-5" />
               </span>
-              <span className="text-[11px] font-black leading-none">{label}</span>
+              <span className="text-[11px] font-black leading-none whitespace-nowrap">{label}</span>
             </button>
           )
         })}

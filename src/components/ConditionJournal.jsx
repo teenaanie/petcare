@@ -10,6 +10,14 @@ import {
   uploadPhoto, signedUrls, STATUSES,
 } from '../lib/conditions.js'
 
+// `capture` asks the operating system for its camera app. A laptop has no such
+// app, and desktop browsers handle the attribute inconsistently -- the picker
+// can open with nothing selectable, or not open at all -- so a "Camera" button
+// there is a dead control. Offer it only where it means something, and give
+// the desktop a single plain file picker instead.
+const IS_TOUCH = typeof window !== 'undefined' &&
+  (window.matchMedia?.('(pointer: coarse)')?.matches || 'ontouchstart' in window)
+
 const TODAY = () => new Date().toISOString().split('T')[0]
 
 const STATUS_META = {
@@ -127,14 +135,20 @@ function NoteForm({ condition, petId, existing, onSaved, onCancel }) {
         value={description} onChange={e => setDescription(e.target.value)} />
 
       <div className="flex gap-2">
-        <button onClick={() => cameraRef.current?.click()} className="btn-secondary flex-1 text-sm gap-1.5">
-          <Camera className="w-4 h-4" /> Camera
+        {IS_TOUCH && (
+          <button type="button" onClick={() => cameraRef.current?.click()}
+            className="btn-secondary flex-1 text-sm gap-1.5">
+            <Camera className="w-4 h-4" /> Camera
+          </button>
+        )}
+        <button type="button" onClick={() => fileRef.current?.click()}
+          className="btn-secondary flex-1 text-sm gap-1.5">
+          <Upload className="w-4 h-4" /> {IS_TOUCH ? 'Upload' : 'Choose photos'}
         </button>
-        <button onClick={() => fileRef.current?.click()} className="btn-secondary flex-1 text-sm gap-1.5">
-          <Upload className="w-4 h-4" /> Upload
-        </button>
-        <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
-          onChange={e => { handleFiles(e.target.files); e.target.value = '' }} />
+        {IS_TOUCH && (
+          <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
+            onChange={e => { handleFiles(e.target.files); e.target.value = '' }} />
+        )}
         <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
           onChange={e => { handleFiles(e.target.files); e.target.value = '' }} />
       </div>

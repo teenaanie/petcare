@@ -139,10 +139,18 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
             </div>
           </div>
 
-          {/* Find Services — a primary destination, so it sits above the pet
-              list instead of sinking below it as pets are added. */}
-          <div className="px-3 pt-3 flex-shrink-0">
+          {/* Find Services and My Providers — both primary destinations, so
+              they sit above the pet list instead of sinking below it as pets
+              are added.
+
+              My Providers used to appear only inside a pet, which meant that
+              from this screen -- the one the app opens on -- there was no way
+              to reach your own vet or groomer at all. It belongs here, next to
+              the directory it is the counterpart of: one is everybody's
+              providers, the other is yours. */}
+          <div className="px-3 pt-3 flex-shrink-0 space-y-2">
             <button
+              type="button"
               onClick={onToggleServices}
               className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold transition-all"
               style={servicesView
@@ -152,6 +160,19 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
               <Store className="w-4 h-4 flex-shrink-0" />
               Find Services
             </button>
+            {onToggleMyProviders && (
+              <button
+                type="button"
+                onClick={onToggleMyProviders}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold transition-all"
+                style={myProvidersView
+                  ? { backgroundColor: '#f2b83d', color: '#7a4900' }
+                  : { backgroundColor: '#eef3e2', color: '#44562a' }}
+              >
+                <Heart className="w-4 h-4 flex-shrink-0" />
+                My Providers
+              </button>
+            )}
           </div>
 
           {/* Pets list */}

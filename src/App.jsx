@@ -164,7 +164,7 @@ export default function App() {
         onToggleAdmin={() => { setAdminView(v => !v); setServicesView(false); setSelectedPet(null); setSidebarOpen(false) }}
         servicesView={servicesView}
         myProvidersView={myProvidersView}
-        onToggleMyProviders={() => { setMyProvidersView(v => !v); setServicesView(false); setAdminView(false) }}
+        onToggleMyProviders={() => { setMyProvidersView(v => !v); setServicesView(false); setAdminView(false); setSelectedPet(null); setSidebarOpen(false) }}
         onToggleServices={() => { setMyProvidersView(false); setServicesView(v => !v); setAdminView(false); setSelectedPet(null); setSidebarOpen(false) }}
       />
 
@@ -218,13 +218,14 @@ export default function App() {
         </main>
 
         <MobileAppNav
-          view={adminView ? 'admin' : servicesView ? 'services' : 'pets'}
+          view={adminView ? 'admin' : myProvidersView ? 'providers' : servicesView ? 'services' : 'pets'}
           isAdmin={isAdmin}
           onNavigate={(id) => {
             setSidebarOpen(false)
-            if (id === 'pets')     { setAdminView(false); setServicesView(false); setMyProvidersView(false); setSelectedPet(null) }
-            if (id === 'services') { setAdminView(false); setServicesView(true);  setSelectedPet(null) }
-            if (id === 'admin')    { setServicesView(false); setAdminView(true);  setSelectedPet(null) }
+            if (id === 'pets')      { setAdminView(false); setServicesView(false); setMyProvidersView(false); setSelectedPet(null) }
+            if (id === 'providers') { setAdminView(false); setServicesView(false); setMyProvidersView(true);  setSelectedPet(null) }
+            if (id === 'services')  { setAdminView(false); setMyProvidersView(false); setServicesView(true);  setSelectedPet(null) }
+            if (id === 'admin')     { setServicesView(false); setMyProvidersView(false); setAdminView(true);  setSelectedPet(null) }
           }}
         />
       </div>
