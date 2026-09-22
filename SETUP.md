@@ -40,23 +40,20 @@ The scanner uses **GPT-4o** (vision model) to read images and PDFs of vet report
 
 ---
 
-## Enable Email Reminders (EmailJS — free, 200 emails/month)
+## Email Reminders
 
-1. Sign up at [emailjs.com](https://www.emailjs.com)
-2. Add an **Email Service** (Gmail, Outlook, etc.)
-3. Create an **Email Template** with these variables:
-   - `{{to_name}}` — recipient name
-   - `{{to_email}}` — recipient email
-   - `{{pet_name}}` — pet's name
-   - `{{reminder_type}}` — e.g. Vaccination
-   - `{{due_date}}` — formatted date
-   - `{{notes}}` — additional notes
-4. Add to `.env`:
-   ```
-   VITE_EMAILJS_SERVICE_ID=service_xxx
-   VITE_EMAILJS_TEMPLATE_ID=template_xxx
-   VITE_EMAILJS_PUBLIC_KEY=xxx
-   ```
+Reminder email is sent by the server, from
+`netlify/functions/morning-reminders.js`, using [Resend](https://resend.com).
+Set `RESEND_API_KEY` and `FROM_EMAIL` in the project environment — no `VITE_`
+prefix, because the key must not reach the browser.
+
+**The sending domain has to be verified in Resend**, and `FROM_EMAIL` has to be
+an address on it. Until it is, every send fails and the reason is recorded in
+the `agent_runs` table rather than being silently dropped.
+
+> EmailJS used to do this from the browser. It was removed: it put a
+> third-party processor in front of users without telling them, and its keys
+> shipped in the bundle for anyone to send through.
 
 ---
 
