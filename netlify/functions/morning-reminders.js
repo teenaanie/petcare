@@ -125,6 +125,84 @@ async function sendPush(supabase, userId, petName, reminders) {
   }
 }
 
+// ── Recurrence ────────────────────────────────────────────────────────────────
+//
+// A recurring reminder used to fire once and never again: nothing here or in
+// the app advanced `due_date`, and marking one done only flips `is_done`. So
+// every "Monthly" and "Yearly" reminder in the database was, in practice, a
+// one-off. These are the frequency strings the app actually writes (the form,
+// the new-pet suggestions and the voice parser), lowercased.
+
+const RECURRENCE = {
+  'daily':          { days: 1 },
+  'weekly':         { days: 7 },
+  'fortnightly':    { days: 14 },
+  'every 2 weeks':  { days: 14 },
+  'monthly':        { months: 1 },
+  'every 3 months': { months: 3 },
+  'quarterly':      { months: 3 },
+  'every 6 months': { months: 6 },
+  'yearly':         { months: 12 },
+  'annually':       { months: 12 },
+}
+
+// Adding a month to the 31st must not land in the month after next. Clamp to
+// the last day instead: 31 Jan + 1 month is 28 Feb, not 3 March.
+function addMonthsClamped(date, months) {
+  const day  = date.getUTCDate()
+  const out  = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1))
+  const last = new Date(Date.UTC(out.getUTCFullYear(), out.getUTCMonth() + 1, 0)).getUTCDate()
+  out.setUTCDate(Math.min(day, last))
+  return out
+}
+
+/**
+ * The next occurrence strictly after `today`, or null when the reminder does
+ * not recur (frequency 'Once', missing, or a word we do not recognise).
+ *
+ * It steps forward until it passes today rather than adding a single interval,
+ * so a reminder that has been sitting overdue for a year lands on its next real
+ * occurrence instead of another date in the past.
+ */
+export function nextDueDate(dueDate, frequency, today) {
+  const step = RECURRENCE[String(frequency || '').trim().toLowerCase()]
+  if (!step) return null
+
+  let d = new Date(`${dueDate}T00:00:00Z`)
+  const limit = new Date(`${today}T00:00:00Z`)
+  if (isNaN(d.getTime()) || isNaN(limit.getTime())) return null
+
+  // Fixed-length intervals are computed in one step rather than walked. Walking
+  // needs a loop bound, and any bound low enough to catch a malformed date is
+  // also low enough to give up on a daily reminder a few years overdue --
+  // which is exactly the long-neglected case this is here to handle.
+  if (step.days) {
+    const stepMs = step.days * 86_400_000
+    if (d <= limit) {
+      const skipped = Math.floor((limit.getTime() - d.getTime()) / stepMs) + 1
+      d = new Date(d.getTime() + skipped * stepMs)
+    }
+    return d.toISOString().split('T')[0]
+  }
+
+  // Months have to be walked, because their length varies and each step clamps
+  // to the end of the month. Every iteration advances at least 28 days, so this
+  // bound is centuries of reminders and cannot spin.
+  for (let i = 0; i < 5000 && d <= limit; i++) {
+    d = addMonthsClamped(d, step.months)
+  }
+  return d > limit ? d.toISOString().split('T')[0] : null
+}
+
+// How far back to look for reminders that were due but never went out.
+//
+// The job used to match `due_date = today` exactly, so a morning it did not
+// run -- or a send that failed, as every send did while the Resend domain was
+// unverified -- lost that occurrence permanently. Seven days is long enough to
+// ride out a missed run or an outage, and short enough that deploying this does
+// not mail out months of backlog at once.
+const CATCH_UP_DAYS = 7
+
 // ── SMS text ──────────────────────────────────────────────────────────────────
 
 function reminderSMSText(petName, reminders) {
@@ -173,14 +251,23 @@ export default async function handler(req) {
 
   console.log('Checking reminders for date:', today)
 
-  // ── Fetch all reminders due today that are not done ───────────────────────
-  const { data: reminders, error: remErr } = await supabase
+  // ── Fetch reminders due today, plus anything recently missed ──────────────
+  //
+  // `notified_for_date` records the occurrence a notification actually went out
+  // for. Without it, widening this from a single day to a window would re-send
+  // every overdue reminder every morning for a week.
+  const windowStart = new Date(`${today}T00:00:00Z`)
+  windowStart.setUTCDate(windowStart.getUTCDate() - CATCH_UP_DAYS)
+  const from = windowStart.toISOString().split('T')[0]
+
+  const { data: pending, error: remErr } = await supabase
     .from('reminders')
     .select(`
-      id, type, notes, due_date, email, whatsapp, frequency,
+      id, type, notes, due_date, email, whatsapp, frequency, notified_for_date,
       pet:pets ( id, name, user_id )
     `)
-    .eq('due_date', today)
+    .gte('due_date', from)
+    .lte('due_date', today)
     .eq('is_done', false)
 
   if (remErr) {
@@ -188,9 +275,12 @@ export default async function handler(req) {
     return new Response(JSON.stringify({ error: remErr.message }), { status: 500 })
   }
 
-  if (!reminders || reminders.length === 0) {
-    console.log('No reminders due today.')
-    return new Response(JSON.stringify({ message: 'No reminders due today', date: today }), { status: 200 })
+  // Drop the ones already delivered for the occurrence they are sitting on.
+  const reminders = (pending || []).filter(r => r.notified_for_date !== r.due_date)
+
+  if (reminders.length === 0) {
+    console.log(`No reminders to send (${(pending || []).length} in window, all already notified).`)
+    return new Response(JSON.stringify({ message: 'No reminders due', date: today }), { status: 200 })
   }
 
   console.log(`Found ${reminders.length} reminder(s) due today`)
@@ -225,6 +315,7 @@ export default async function handler(req) {
   for (const group of Object.values(grouped)) {
     const { pet, userEmail, userPhone, reminders: rems } = group
     const petName = pet.name || 'your pet'
+    const firstResult = results.length   // where this pet's results start
     console.log(`Processing ${rems.length} reminder(s) for ${petName}`)
 
     // Email
@@ -265,6 +356,42 @@ export default async function handler(req) {
       await sendPush(supabase, pet.user_id, petName, rems)
     } catch (e) {
       console.error(`Push failed for ${petName}:`, e.message)
+    }
+
+    // ── Record what went out, and roll recurring reminders forward ──────────
+    //
+    // Only on a real delivery. If every channel failed -- as every channel did
+    // while the Resend sending domain was unverified -- we deliberately leave
+    // the reminder untouched so tomorrow's run retries it inside the catch-up
+    // window, rather than marking it done-with and losing the occurrence for
+    // good. A reminder with no contact details at all is marked, because
+    // retrying that cannot ever produce a different answer.
+    const mine      = results.slice(firstResult)
+    const delivered = mine.some(r => r.status === 'sent')
+    const nothingToSend = !userEmail && !userPhone
+
+    if (!delivered && !nothingToSend) {
+      console.warn(`Nothing delivered for ${petName} — leaving it for tomorrow's run`)
+      continue
+    }
+
+    for (const r of rems) {
+      const patch = { notified_for_date: r.due_date }
+
+      // A recurring reminder moves to its next occurrence. Because due_date
+      // changes, it no longer matches notified_for_date, so the next one will
+      // notify on its own with no further bookkeeping.
+      const next = nextDueDate(r.due_date, r.frequency, today)
+      if (next) patch.due_date = next
+
+      const { error: updErr } = await supabase.from('reminders').update(patch).eq('id', r.id)
+      if (updErr) {
+        // Worth shouting about: the notification went out and we failed to
+        // record it, so tomorrow's run would send the very same thing again.
+        console.error(`Failed to record delivery for reminder ${r.id}:`, updErr.message)
+      } else if (next) {
+        console.log(`${petName}: ${r.type} rolls ${r.frequency} from ${r.due_date} to ${next}`)
+      }
     }
   }
 

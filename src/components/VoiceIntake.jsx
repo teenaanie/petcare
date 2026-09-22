@@ -24,7 +24,10 @@ import { saveCondition } from '../lib/conditions.js'
 // Both paths therefore converge on one textarea, one parse call, one review
 // screen and one save path.
 
-const MIN_BYTES = 1200
+// See the note on the same constants in Reminders.jsx. 1200 bytes is roughly
+// four seconds of Opus-compressed SILENCE, not an empty container, so it was
+// rejecting short quiet recordings before Whisper could judge them.
+const MIN_BYTES = 200
 const MIN_MS    = 400
 
 const SPECIES  = ['Dog', 'Cat', 'Bird', 'Rabbit', 'Hamster', 'Fish', 'Reptile', 'Other']
@@ -151,7 +154,7 @@ function Review({ parsed, onBack, onSaved }) {
 
   return (
     <div className="space-y-3">
-      <button onClick={onBack} disabled={saving}
+      <button type="button" onClick={onBack} disabled={saving}
         className="flex items-center gap-1 text-sm font-bold" style={{ color: '#7a4900' }}>
         <ChevronLeft className="w-4 h-4" /> Back to the text
       </button>
@@ -220,7 +223,7 @@ function Review({ parsed, onBack, onSaved }) {
         </p>
       )}
 
-      <button onClick={save} disabled={saving || pets.length === 0}
+      <button type="button" onClick={save} disabled={saving || pets.length === 0}
         className="btn-primary w-full gap-2 text-sm">
         {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : <><Check className="w-4 h-4" /> Save these</>}
       </button>
@@ -287,15 +290,17 @@ export default function VoiceIntake({ onClose, onSaved }) {
         }
         setPartial('')
 
+        // Not treated as a denial: getUserMedia had already succeeded, so the
+        // microphone is allowed. Recognition says 'not-allowed' when the
+        // browser's speech service is blocked, which is Whisper's cue, not a
+        // reason to switch the user to typing and bin their recording.
         if (web.denied) {
-          setMicDenied(true); setMode('type')
-          setError('Microphone access was refused, so I switched to typing. Everything works the same from here.')
-          return
+          console.warn('Speech recognition reported not-allowed; using Whisper for this recording.')
         }
         if (web.text) { append(web.text); return }
 
         if (!chunksRef.current.length || blob.size < MIN_BYTES || elapsed < MIN_MS) {
-          setError("Didn't catch any audio. Try again, or switch to typing.")
+          setError('That recording came through empty — check which microphone is selected, or type it instead.')
           return
         }
 
@@ -354,7 +359,7 @@ export default function VoiceIntake({ onClose, onSaved }) {
             <Sparkles className="w-5 h-5" style={{ color: '#c9891f' }} />
             <span className="font-black" style={{ color: '#7a4900' }}>Tell us about your pets</span>
           </div>
-          <button onClick={onClose} disabled={busy}><X className="w-5 h-5" style={{ color: '#73775b' }} /></button>
+          <button type="button" onClick={onClose} disabled={busy}><X className="w-5 h-5" style={{ color: '#73775b' }} /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
@@ -372,7 +377,7 @@ export default function VoiceIntake({ onClose, onSaved }) {
                   are already in a WhatsApp message to paste. */}
               <div className="flex gap-2">
                 {[['speak', 'Speak', Mic], ['type', 'Type or paste', Keyboard]].map(([id, label, Icon]) => (
-                  <button key={id} onClick={() => setMode(id)} disabled={busy || (id === 'speak' && micDenied)}
+                  <button type="button" key={id} onClick={() => setMode(id)} disabled={busy || (id === 'speak' && micDenied)}
                     className="flex-1 text-sm font-bold px-3 py-2 rounded-xl flex items-center justify-center gap-1.5 disabled:opacity-50"
                     style={mode === id
                       ? { backgroundColor: '#f2b83d', color: '#7a4900' }
@@ -384,7 +389,7 @@ export default function VoiceIntake({ onClose, onSaved }) {
 
               {mode === 'speak' && !micDenied && (
                 <div className="flex flex-col items-center gap-2 py-2">
-                  <button onClick={listening ? stopRecording : startRecording} disabled={transcribing}
+                  <button type="button" onClick={listening ? stopRecording : startRecording} disabled={transcribing}
                     className={`w-16 h-16 rounded-full flex items-center justify-center shadow-lg ${listening ? 'animate-pulse' : ''}`}
                     style={{ backgroundColor: listening ? '#c0392b' : '#c9891f' }}>
                     {transcribing ? <Loader2 className="w-7 h-7 text-white animate-spin" />
@@ -415,7 +420,7 @@ export default function VoiceIntake({ onClose, onSaved }) {
                 </p>
               )}
 
-              <button onClick={parse} disabled={!text.trim() || busy} className="btn-primary w-full gap-2 text-sm">
+              <button type="button" onClick={parse} disabled={!text.trim() || busy} className="btn-primary w-full gap-2 text-sm">
                 {parsing ? <><Loader2 className="w-4 h-4 animate-spin" /> Reading it…</> : <><Sparkles className="w-4 h-4" /> Continue</>}
               </button>
               <p className="text-[11px] text-center" style={{ color: '#a08f7a' }}>

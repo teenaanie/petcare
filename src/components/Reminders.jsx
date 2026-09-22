@@ -65,7 +65,15 @@ async function parseVoiceReminder(transcript) {
 // the transcript comes back empty. All this needs to catch is a capture that is
 // genuinely empty — no chunks, or a bare container header with no audio in it.
 
-const MIN_BYTES  = 1200        // a webm/mp4 header with no audio is smaller than this
+// Measured in this browser, recording a synthetic stream: 2s of TONE is ~31,000
+// bytes, but 2s of digital SILENCE is only ~705, and 5s of silence ~1,565.
+// Opus compresses silence to almost nothing. The old floor of 1200 therefore
+// did not mean "empty container" at all -- it meant "under about four seconds
+// of quiet", and it rejected those recordings before Whisper ever saw them,
+// while blaming the microphone permission. Only a genuinely empty capture
+// should be stopped here; a 500ms silent clip already measures 275 bytes, so
+// anything below 200 is a bare container header and nothing else.
+const MIN_BYTES  = 200
 const MIN_MS     = 400         // a tap, not an utterance
 const MAX_MS     = 120_000     // stop before the upload hits the server's size cap
 
@@ -162,9 +170,16 @@ function useVoiceRecorder(onTranscript, language) {
           speechRef.current = null
         }
 
+        // Deliberately not acting on web.denied here. Recognition can report
+        // 'not-allowed' when the browser's SPEECH SERVICE is unavailable or
+        // blocked by policy, which has nothing to do with the microphone --
+        // and getUserMedia succeeded a moment ago, so the mic plainly is
+        // allowed. Treating that as a denial threw away a perfectly good
+        // recording and showed a permission error for a permission the user
+        // had already granted. Real denial is caught in start()'s catch,
+        // where getUserMedia itself throws NotAllowedError.
         if (web.denied) {
-          setError('Microphone access denied. Allow it for this site in your browser settings, then try again.')
-          return
+          console.warn('Speech recognition reported not-allowed; using Whisper for this recording.')
         }
         if (web.text) {
           setPartial('')
@@ -180,7 +195,11 @@ function useVoiceRecorder(onTranscript, language) {
         // audio in it goes to Whisper, which is better at judging it than a
         // byte count is.
         if (!chunksRef.current.length || blob.size < MIN_BYTES) {
-          setError("Didn't catch any audio — check the microphone permission in your browser's address bar, then try again.")
+          // getUserMedia already succeeded, so permission is not the problem
+          // and telling the user to check it sends them somewhere useless.
+          // An empty capture at this point means the selected input is not the
+          // one they are speaking into, or it is muted.
+          setError('That recording came through empty — check which microphone is selected, or that it is not muted, then try again.')
           return
         }
         if (elapsed < MIN_MS) {
