@@ -111,7 +111,7 @@ export default function PetAvatar({ pet, size = 'md', editable = false, onPhotoC
             <div className="flex items-center justify-between px-5 py-4"
               style={{ borderBottom: '1px solid #ebe3d3' }}>
               <span className="font-black" style={{ color: '#7a4900' }}>Update Photo</span>
-              <button onClick={() => setShowPhotoMenu(false)}>
+              <button type="button" onClick={() => setShowPhotoMenu(false)}>
                 <X className="w-5 h-5" style={{ color: '#73775b' }} />
               </button>
             </div>
