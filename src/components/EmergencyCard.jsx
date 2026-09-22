@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Share2, Download, ShieldAlert } from 'lucide-react'
+import { X, Share2, Download, ShieldAlert, MessageCircle } from 'lucide-react'
 import { getMedicalHistory, getVaccinations, getAllergies } from '../lib/storage.js'
 import { format, parseISO, isValid } from 'date-fns'
 import { getMyProviders, telLink } from '../lib/myProviders.js'
@@ -32,6 +32,8 @@ export default function EmergencyCard({ pet, onClose }) {
     ? Math.floor((Date.now() - new Date(pet.dob)) / (1000 * 60 * 60 * 24 * 365))
     : null
 
+  const canShare = typeof navigator !== 'undefined' && !!navigator.share
+
   async function handleShare() {
     const text = buildText()
     if (navigator.share) {
@@ -40,6 +42,20 @@ export default function EmergencyCard({ pet, onClose }) {
       await navigator.clipboard.writeText(text)
       alert('Emergency card copied to clipboard!')
     }
+  }
+
+  // WhatsApp gets its own button rather than living inside the OS share sheet.
+  // On a laptop there is usually no share sheet at all -- navigator.share is
+  // absent on desktop Chrome and Firefox, so "Share Card" silently degraded to
+  // a clipboard copy -- and on a phone WhatsApp is still several taps in. This
+  // is the one destination that matters in an emergency, so it is one tap.
+  //
+  // wa.me with no number opens WhatsApp's own contact picker: web, desktop app
+  // or phone, whichever the user has. Opening it in a new tab rather than
+  // navigating means the card stays on screen if they change their mind.
+  function handleWhatsApp() {
+    const url = `https://wa.me/?text=${encodeURIComponent(buildText())}`
+    window.open(url, '_blank', 'noopener,noreferrer')
   }
 
   // Which vet to show. A pet-specific primary beats the household one; the old
@@ -223,11 +239,17 @@ export default function EmergencyCard({ pet, onClose }) {
         {/* Actions */}
         <div className="px-5 py-4 flex gap-2 flex-shrink-0"
           style={{ borderTop: '1px solid #ebe3d3' }}>
-          <button onClick={handleShare}
+          <button type="button" onClick={handleWhatsApp}
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-sm transition-all"
+            style={{ backgroundColor: '#25D366', color: '#ffffff' }}>
+            <MessageCircle className="w-4 h-4" />
+            WhatsApp
+          </button>
+          <button type="button" onClick={handleShare}
             className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-sm transition-all"
             style={{ backgroundColor: '#f2b83d', color: '#7a4900' }}>
             <Share2 className="w-4 h-4" />
-            Share Card
+            {canShare ? 'Share Card' : 'Copy'}
           </button>
         </div>
       </div>
