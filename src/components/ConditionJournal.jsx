@@ -195,11 +195,15 @@ function NoteForm({ condition, petId, existing, onSaved, onCancel }) {
 
 // ── One thread, opened ───────────────────────────────────────────────────────
 
-function ConditionDetail({ condition, petId, onBack, onChanged }) {
+function ConditionDetail({ condition, petId, onBack, onChanged, startWithPhoto = false }) {
   const [notes, setNotes]   = useState([])
   const [urls, setUrls]     = useState({})
   const [loading, setLoading] = useState(true)
-  const [adding, setAdding] = useState(false)
+  // Opened straight from creating the thread. Naming a lump and photographing
+  // it is one act, not two, and the create form has no photo field of its own —
+  // so arriving here with the camera already waiting is what makes this a photo
+  // journal rather than a list of titles.
+  const [adding, setAdding] = useState(startWithPhoto)
   const [editing, setEditing] = useState(null)
   const [error, setError]   = useState(null)
 
@@ -369,7 +373,8 @@ function NewCondition({ petId, onSaved, onCancel }) {
       <div className="flex gap-2">
         <button onClick={onCancel} className="btn-secondary flex-1 text-sm">Cancel</button>
         <button onClick={save} disabled={saving || !title.trim()} className="btn-primary flex-1 text-sm gap-2">
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Start
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+          Start & add a photo
         </button>
       </div>
     </div>
@@ -385,6 +390,9 @@ export default function ConditionJournal({ pet }) {
   const [error, setError]     = useState(null)
   const [creating, setCreating] = useState(false)
   const [open, setOpen]       = useState(null)
+  // True only for a thread opened by creating it just now, so reopening an old
+  // one later does not shove a photo form in front of someone who came to read.
+  const [justCreated, setJustCreated] = useState(false)
 
   async function load(keepOpen) {
     setLoading(true)
@@ -417,7 +425,8 @@ export default function ConditionJournal({ pet }) {
   if (open) {
     return (
       <ConditionDetail condition={open} petId={pet.id}
-        onBack={() => { setOpen(null); load() }}
+        startWithPhoto={justCreated}
+        onBack={() => { setOpen(null); setJustCreated(false); load() }}
         onChanged={keep => load(keep)} />
     )
   }
@@ -447,7 +456,7 @@ export default function ConditionJournal({ pet }) {
 
       {creating && (
         <NewCondition petId={pet.id} onCancel={() => setCreating(false)}
-          onSaved={c => { setCreating(false); setOpen(c); }} />
+          onSaved={c => { setCreating(false); setOpen(c); setJustCreated(true) }} />
       )}
 
       {loading ? (
