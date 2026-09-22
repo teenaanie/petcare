@@ -2,6 +2,7 @@
 // This means all devices stay in sync automatically once Supabase is connected.
 
 import { supabase, isConfigured } from './supabase.js'
+import { deletePetPhotos } from './conditions.js'
 
 // ── localStorage helpers (fallback) ──────────────────────────────────────────
 
@@ -75,6 +76,12 @@ export async function savePet(pet) {
 
 export async function deletePet(id) {
   if (isConfigured) {
+    // Photos first, and the row only if they went. Deleting the row cascades
+    // the condition threads that name these files, so doing it the other way
+    // round would leave images in the bucket with nothing pointing at them —
+    // unreachable and permanently undeletable. Failing here leaves the pet
+    // intact and recoverable, which is the better of the two failures.
+    await deletePetPhotos(id)
     const { error } = await supabase.from('pets').delete().eq('id', id)
     if (error) throw error
     return

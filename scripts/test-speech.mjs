@@ -37,12 +37,17 @@ function install({ userAgent, maxTouchPoints = 0, Recognition = DeadRecognition 
   globalThis.localStorage = { getItem: () => null, setItem: () => {} }
 }
 
-const DESKTOP = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/131 Safari/537.36'
-const IPHONE  = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) Version/17.5 Mobile/15E148 Safari/604.1'
-const IPADOS  = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Version/17.5 Safari/605.1.15'
+const DESKTOP     = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/131 Safari/537.36'
+const IPHONE      = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) Version/17.5 Mobile/15E148 Safari/604.1'
+const IPADOS      = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Version/17.5 Safari/605.1.15'
+const MAC_SAFARI  = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15'
+const IOS_CHROME  = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) CriOS/126.0 Mobile/15E148 Safari/604.1'
+const WIN_EDGE    = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131 Safari/537.36 Edg/131'
+const ANDROID     = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131 Mobile Safari/537.36'
 
 install({ userAgent: DESKTOP })
-const { webSpeechSupported, startWebSpeech, webSpeechLangFor } =
+const { webSpeechSupported, startWebSpeech, webSpeechLangFor,
+        noteWebSpeechStarvedRecording, WEB_SPEECH_STARVED_KEY } =
   await import('../src/lib/speech.js')
 
 // ── Platform gating ──────────────────────────────────────────────────────────
@@ -53,6 +58,20 @@ check('iPhone: Web Speech is skipped, Whisper handles it', webSpeechSupported() 
 
 install({ userAgent: IPADOS, maxTouchPoints: 5 })
 check('iPadOS (reports as Macintosh): skipped via touch points', webSpeechSupported() === false)
+
+// The one that shipped broken: an iOS-only check left Safari on a Mac running
+// recognition, so the bug moved from the phone to the laptop instead of going.
+install({ userAgent: MAC_SAFARI })
+check('Safari on macOS: skipped (same WebKit constraint as iOS)', webSpeechSupported() === false)
+
+install({ userAgent: IOS_CHROME })
+check('Chrome on iOS is WebKit too: skipped', webSpeechSupported() === false)
+
+install({ userAgent: WIN_EDGE })
+check('Edge on Windows: Web Speech is used', webSpeechSupported() === true)
+
+install({ userAgent: ANDROID })
+check('Chrome on Android: Web Speech is used', webSpeechSupported() === true)
 
 install({ userAgent: DESKTOP, maxTouchPoints: 0 })
 check('desktop Mac is not mistaken for an iPad', webSpeechSupported() === true)
@@ -107,6 +126,42 @@ install({ userAgent: DESKTOP })
   await handle.result
   const ms = Date.now() - t
   check('a working browser is not slowed down by the timeout', ms < 500, `${ms}ms`)
+}
+
+// ── Remembering a starved recording ──────────────────────────────────────────
+// The net under the two platform checks: any browser where recognition and the
+// recorder turn out to fight, including ones nobody has tested.
+{
+  const store = {}
+  globalThis.window = { SpeechRecognition: DeadRecognition }
+  Object.defineProperty(globalThis, 'navigator', {
+    value: { userAgent: DESKTOP, maxTouchPoints: 0, language: 'en-IN' },
+    configurable: true, writable: true,
+  })
+  globalThis.localStorage = {
+    getItem: k => (k in store ? store[k] : null),
+    setItem: (k, v) => { store[k] = String(v) },
+  }
+  check('before any failure, Chrome desktop uses recognition', webSpeechSupported() === true)
+  noteWebSpeechStarvedRecording()
+  check('after a starved recording, it stops using recognition', webSpeechSupported() === false)
+  check('the reason is recorded under its own key', store[WEB_SPEECH_STARVED_KEY] === '1')
+}
+
+// localStorage throwing (private mode, blocked cookies) must not break voice.
+{
+  globalThis.window = { SpeechRecognition: DeadRecognition }
+  Object.defineProperty(globalThis, 'navigator', {
+    value: { userAgent: DESKTOP, maxTouchPoints: 0, language: 'en-IN' },
+    configurable: true, writable: true,
+  })
+  globalThis.localStorage = {
+    getItem() { throw new Error('denied') },
+    setItem() { throw new Error('denied') },
+  }
+  let threw = false
+  try { noteWebSpeechStarvedRecording(); webSpeechSupported() } catch { threw = true }
+  check('storage denied: nothing throws', threw === false)
 }
 
 // ── Language mapping ─────────────────────────────────────────────────────────

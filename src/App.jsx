@@ -13,6 +13,9 @@ import AdminDashboard from './components/AdminDashboard.jsx'
 import FeedbackButton from './components/FeedbackButton.jsx'
 import ProviderDirectory from './components/ProviderDirectory.jsx'
 import MyProviders from './components/MyProviders.jsx'
+import ConsentBanner from './components/ConsentBanner.jsx'
+import PrivacyNotice from './components/PrivacyNotice.jsx'
+import { startAnalyticsIfConsented } from './lib/analytics.js'
 import InstallPrompt from './components/InstallPrompt.jsx'
 import PippyLogo from './components/PippyLogo.jsx'
 import PetPickerModal from './components/PetPickerModal.jsx'
@@ -88,6 +91,11 @@ export default function App() {
   // holding them here carries them across the sign-in round trip. Losing files
   // somebody deliberately shared is the worst outcome available.
   const [sharedFiles, setSharedFiles] = useState(null)
+  const [showPrivacy, setShowPrivacy] = useState(false)
+  // Analytics is not in index.html any more. Someone who already agreed gets it
+  // loaded here; everyone else gets the banner and nothing loads until they say
+  // so. See src/lib/analytics.js for why it moved.
+  useEffect(() => { startAnalyticsIfConsented() }, [])
   useEffect(() => {
     if (!wasShared()) return
     clearSharedFlag()          // so a reload is not mistaken for a new share
@@ -132,11 +140,34 @@ export default function App() {
   // Still loading auth state
   if (authLoading) return <LoadingScreen />
 
-  // Not logged in (and Supabase is configured) — show login
-  if (isConfigured && !session) return <PhoneAuth />
+  // Not logged in (and Supabase is configured) — show login.
+  //
+  // The consent banner and the notice come too. Somebody deciding whether to
+  // hand over their email needs to be able to read what happens to it BEFORE
+  // they do, and analytics consent has nothing to do with having an account —
+  // leaving both behind the login wall would ask for the data first and explain
+  // afterwards.
+  if (isConfigured && !session) return (
+    <>
+      <PhoneAuth />
+      <ConsentBanner />
+      {showPrivacy && <PrivacyNotice onClose={() => setShowPrivacy(false)} />}
+      <button type="button" onClick={() => setShowPrivacy(true)}
+        className="fixed bottom-2 left-0 right-0 text-center text-[11px] underline z-30"
+        style={{ color: '#a08f7a' }}>
+        Privacy &amp; Terms
+      </button>
+    </>
+  )
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className="flex h-screen overflow-hidden bg-gray-50"
+      /* Clarity masks everything inside this. With analytics on, a session
+         replay shows layout and taps rather than anyone's pet records. */
+      data-clarity-mask="true">
+
+      <ConsentBanner />
+      {showPrivacy && <PrivacyNotice onClose={() => setShowPrivacy(false)} />}
 
       {/* Files shared in from another app, waiting to be filed against a pet.
           Rendered above everything: the user came here from a share sheet and
@@ -165,6 +196,7 @@ export default function App() {
         servicesView={servicesView}
         myProvidersView={myProvidersView}
         onToggleMyProviders={() => { setMyProvidersView(v => !v); setServicesView(false); setAdminView(false); setSelectedPet(null); setSidebarOpen(false) }}
+        onShowPrivacy={() => { setShowPrivacy(true); setSidebarOpen(false) }}
         onToggleServices={() => { setMyProvidersView(false); setServicesView(v => !v); setAdminView(false); setSelectedPet(null); setSidebarOpen(false) }}
       />
 
