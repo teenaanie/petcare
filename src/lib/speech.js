@@ -18,6 +18,11 @@ const BCP47 = {
   kn: 'kn-IN', ml: 'ml-IN', bn: 'bn-IN', gu: 'gu-IN', pa: 'pa-Guru-IN',
 }
 
+// How long to wait for recognition to settle after stop() before giving up on
+// it. Recognition has already been listening for the whole recording, so this
+// is only the tail-end flush, not thinking time.
+const SETTLE_MS = 1500
+
 export const WEB_SPEECH_OPT_OUT_KEY = 'pippy_web_speech_off'
 
 function ctor() {
@@ -26,8 +31,30 @@ function ctor() {
     : null
 }
 
+// iOS is deliberately excluded even though Safari defines the constructor.
+//
+// On iOS there is effectively one microphone consumer at a time, and starting
+// recognition takes it from the MediaRecorder that is running alongside. The
+// recording comes back empty, recognition itself often returns nothing, and
+// the two failures together look exactly like "it is not capturing my voice".
+// Safari also does not support `continuous`, and frequently fires neither
+// `onend` nor `onerror` after stop() -- the bounded stop() below covers the
+// hang, but there is nothing to be gained by running recognition here at all.
+//
+// Whisper is the better path on iOS regardless: it gets the whole recording,
+// it actually detects the language, and it is already the fallback everywhere
+// else. So on iOS we simply always use it.
+//
+// iPadOS 13+ reports itself as Macintosh, so the touch check is needed too.
+function isIOS() {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  return /iPad|iPhone|iPod/.test(ua) ||
+         (/Macintosh/.test(ua) && (navigator.maxTouchPoints || 0) > 1)
+}
+
 export function webSpeechSupported() {
-  return !!ctor()
+  return !!ctor() && !isIOS()
 }
 
 export function webSpeechEnabled() {
@@ -104,7 +131,22 @@ export function startWebSpeech({ lang, onPartial } = {}) {
   }
 
   return {
-    stop()  { try { rec.stop()  } catch { done({ text: finalText.trim() }) } },
+    stop() {
+      // Safari does not reliably fire `onend` after `stop()`, and on iOS it
+      // frequently fires neither `onend` nor `onerror` at all. Nothing else
+      // resolves this promise, so the caller -- which does
+      // `await handle.result` inside MediaRecorder's onstop -- waits forever:
+      // the recording is never transcribed, no error is shown, and the panel
+      // simply stops responding. That is the hang.
+      //
+      // So stop() is bounded. Whatever was heard by then is used, and an empty
+      // result is not a failure -- it means "fall through to Whisper", which
+      // the caller is already holding the audio for.
+      const bail = setTimeout(() => done({ text: finalText.trim() }), SETTLE_MS)
+      const clear = () => clearTimeout(bail)
+      result.then(clear, clear)
+      try { rec.stop() } catch { clear(); done({ text: finalText.trim() }) }
+    },
     abort() { try { rec.abort() } catch { /* ignore */ } done({ text: '' }) },
     result,
   }
