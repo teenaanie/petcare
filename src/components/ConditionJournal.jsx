@@ -4,6 +4,7 @@ import {
   CircleDot, Eye, CheckCircle2, CalendarDays, ImageOff,
 } from 'lucide-react'
 import { format, parseISO, isValid, differenceInCalendarDays } from 'date-fns'
+import { friendlyError } from '../lib/errors.js'
 import {
   getConditions, saveCondition, deleteCondition,
   getNotes, saveNote, deleteNote,
@@ -110,7 +111,7 @@ function NoteForm({ condition, petId, existing, onSaved, onCancel }) {
     try {
       await saveNote({ id: existing?.id, conditionId: condition.id, observedOn, description, photoPaths: paths })
       onSaved()
-    } catch (e) { setError(e.message); setSaving(false) }
+    } catch (e) { setError(friendlyError(e)); setSaving(false) }
   }
 
   return (
@@ -210,7 +211,7 @@ function ConditionDetail({ condition, petId, onBack, onChanged }) {
         const all = ns.flatMap(n => n.photoPaths)
         if (all.length) setUrls(await signedUrls(all).catch(() => ({})))
       })
-      .catch(e => setError(e.message))
+      .catch(e => setError(friendlyError(e)))
       .finally(() => setLoading(false))
   }
   useEffect(load, [condition.id])
@@ -218,12 +219,12 @@ function ConditionDetail({ condition, petId, onBack, onChanged }) {
   async function removeNote(n) {
     if (!confirm('Delete this observation and its photos? This cannot be undone.')) return
     try { await deleteNote(n); load(); onChanged?.() }
-    catch (e) { setError(e.message) }
+    catch (e) { setError(friendlyError(e)) }
   }
 
   async function setStatus(status) {
     try { await saveCondition({ ...condition, status }); onChanged?.(true) }
-    catch (e) { setError(e.message) }
+    catch (e) { setError(friendlyError(e)) }
   }
 
   const span = notes.length > 1
@@ -344,7 +345,7 @@ function NewCondition({ petId, onSaved, onCancel }) {
   async function save() {
     setSaving(true); setError(null)
     try { onSaved(await saveCondition({ petId, title, bodyPart, startedOn, status: 'active' })) }
-    catch (e) { setError(e.message); setSaving(false) }
+    catch (e) { setError(friendlyError(e)); setSaving(false) }
   }
 
   return (
@@ -402,7 +403,7 @@ export default function ConditionJournal({ pet }) {
       }
       const urls = await signedUrls(Object.values(latest)).catch(() => ({}))
       setCovers(Object.fromEntries(Object.entries(latest).map(([k, v]) => [k, urls[v]])))
-    } catch (e) { setError(e.message) }
+    } catch (e) { setError(friendlyError(e)) }
     finally { setLoading(false) }
   }
   useEffect(() => { load() }, [pet.id])
@@ -410,7 +411,7 @@ export default function ConditionJournal({ pet }) {
   async function remove(c) {
     if (!confirm(`Delete “${c.title}” and every photo in it? This cannot be undone.`)) return
     try { await deleteCondition(c); setOpen(null); load() }
-    catch (e) { setError(e.message) }
+    catch (e) { setError(friendlyError(e)) }
   }
 
   if (open) {
