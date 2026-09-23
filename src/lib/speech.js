@@ -31,24 +31,23 @@ function ctor() {
     : null
 }
 
-// WebKit is deliberately excluded, on every platform, even though Safari
-// defines the constructor.
+// WebKit can use recognition — but only on its own.
 //
-// On WebKit there is effectively one microphone consumer at a time, and
-// starting recognition takes it from the MediaRecorder running alongside. The
-// recording comes back empty AND recognition itself often returns nothing, so
-// both halves fail together and it looks like "it isn't capturing my voice".
-// Safari also does not support `continuous`, and frequently fires neither
-// `onend` nor `onerror` after stop().
+// The failure that started this was never "recognition is broken on WebKit".
+// It was that recognition and a MediaRecorder were running AT THE SAME TIME,
+// and on WebKit there is effectively one microphone consumer: the recording
+// came back empty and recognition returned nothing, both at once.
 //
-// This first shipped as an iOS-only check, which was too narrow: Safari on a
-// Mac is the same engine with the same constraint, and the bug simply moved
-// from the phone to the laptop. Every browser on iOS is WebKit too, including
-// Chrome and Firefox there, so the iOS test stays alongside the Safari one.
+// The first fix was to switch recognition off for all of WebKit and always use
+// Whisper there. That worked, and it put every iPhone and every Safari user on
+// the paid path — transcription is about three quarters of the AI bill, so
+// that was the most expensive line in the app made more expensive.
 //
-// Whisper is the better path on WebKit regardless: it gets the whole
-// recording, it genuinely detects the language, and it is already the fallback
-// everywhere else.
+// So WebKit runs recognition SOLO instead: no recorder alongside it, which
+// removes the contention by construction rather than by avoidance. Nothing is
+// competing, so nothing is starved. The cost is that there is no audio to fall
+// back on — if WebKit hears nothing, the caller asks for one more go and uses
+// the recorder that time.
 //
 // iPadOS 13+ reports itself as Macintosh, hence the touch-points check.
 function isIOS() {
@@ -63,15 +62,23 @@ function isIOS() {
 function isSafari() {
   if (typeof navigator === 'undefined') return false
   const ua = navigator.userAgent || ''
-  return /Safari/.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR|FxiOS|Android/.test(ua)
+  return /Safari/.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR|FxIOS|FxiOS|Android/.test(ua)
+}
+
+/**
+ * True where recognition must not share the microphone with a recorder.
+ *
+ * Every browser on iOS is WebKit, Chrome and Firefox there included, so the
+ * platform test and the browser test are both needed.
+ */
+export function webSpeechNeedsSolo() {
+  return isIOS() || isSafari()
 }
 
 // Set when a recording came back empty while recognition was running: the
-// signature of the two competing for the microphone. It is remembered per
-// device because it is a property of that browser, not of that recording, and
-// because the alternative is letting it happen again on every attempt. Any
-// browser can land here — this is the net under the two checks above, for the
-// combinations nobody has tested.
+// signature of the two competing for the microphone. Remembered per device
+// because it is a property of that browser, not of that recording. It is the
+// net under everything above — for the combinations nobody has tested.
 export const WEB_SPEECH_STARVED_KEY = 'pippy_web_speech_starved'
 
 export function noteWebSpeechStarvedRecording() {
@@ -83,7 +90,7 @@ export function webSpeechStarvedBefore() {
 }
 
 export function webSpeechSupported() {
-  return !!ctor() && !isIOS() && !isSafari() && !webSpeechStarvedBefore()
+  return !!ctor() && !webSpeechStarvedBefore()
 }
 
 export function webSpeechEnabled() {

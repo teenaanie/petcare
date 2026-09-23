@@ -46,35 +46,42 @@ const WIN_EDGE    = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.3
 const ANDROID     = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131 Mobile Safari/537.36'
 
 install({ userAgent: DESKTOP })
-const { webSpeechSupported, startWebSpeech, webSpeechLangFor,
+const { webSpeechSupported, webSpeechNeedsSolo, startWebSpeech, webSpeechLangFor,
         noteWebSpeechStarvedRecording, WEB_SPEECH_STARVED_KEY } =
   await import('../src/lib/speech.js')
 
 // ── Platform gating ──────────────────────────────────────────────────────────
-check('desktop with a constructor: Web Speech is used', webSpeechSupported() === true)
+//
+// Recognition is now used EVERYWHERE it exists; what varies is whether it may
+// share the microphone with a recorder. On WebKit it may not, so it runs solo
+// and there is no audio to fall back on. Excluding WebKit outright was the
+// earlier fix, and it put every iPhone on the paid Whisper path.
+install({ userAgent: DESKTOP })
+check('desktop Chrome: recognition used', webSpeechSupported() === true)
+check('desktop Chrome: may share the mic', webSpeechNeedsSolo() === false)
 
 install({ userAgent: IPHONE })
-check('iPhone: Web Speech is skipped, Whisper handles it', webSpeechSupported() === false)
+check('iPhone: recognition used (free path restored)', webSpeechSupported() === true)
+check('iPhone: must run solo', webSpeechNeedsSolo() === true)
 
 install({ userAgent: IPADOS, maxTouchPoints: 5 })
-check('iPadOS (reports as Macintosh): skipped via touch points', webSpeechSupported() === false)
+check('iPadOS (reports as Macintosh): solo, caught by touch points', webSpeechNeedsSolo() === true)
 
-// The one that shipped broken: an iOS-only check left Safari on a Mac running
-// recognition, so the bug moved from the phone to the laptop instead of going.
 install({ userAgent: MAC_SAFARI })
-check('Safari on macOS: skipped (same WebKit constraint as iOS)', webSpeechSupported() === false)
+check('Safari on macOS: recognition used', webSpeechSupported() === true)
+check('Safari on macOS: must run solo', webSpeechNeedsSolo() === true)
 
 install({ userAgent: IOS_CHROME })
-check('Chrome on iOS is WebKit too: skipped', webSpeechSupported() === false)
+check('Chrome on iOS is WebKit: must run solo', webSpeechNeedsSolo() === true)
 
 install({ userAgent: WIN_EDGE })
-check('Edge on Windows: Web Speech is used', webSpeechSupported() === true)
+check('Edge on Windows: may share the mic', webSpeechNeedsSolo() === false)
 
 install({ userAgent: ANDROID })
-check('Chrome on Android: Web Speech is used', webSpeechSupported() === true)
+check('Chrome on Android: may share the mic', webSpeechNeedsSolo() === false)
 
 install({ userAgent: DESKTOP, maxTouchPoints: 0 })
-check('desktop Mac is not mistaken for an iPad', webSpeechSupported() === true)
+check('desktop Mac is not mistaken for an iPad', webSpeechNeedsSolo() === false)
 
 globalThis.window = {}
 check('no constructor at all: not supported', webSpeechSupported() === false)
@@ -144,7 +151,7 @@ install({ userAgent: DESKTOP })
   }
   check('before any failure, Chrome desktop uses recognition', webSpeechSupported() === true)
   noteWebSpeechStarvedRecording()
-  check('after a starved recording, it stops using recognition', webSpeechSupported() === false)
+  check('after a starved recording, it stops using recognition anywhere', webSpeechSupported() === false)
   check('the reason is recorded under its own key', store[WEB_SPEECH_STARVED_KEY] === '1')
 }
 

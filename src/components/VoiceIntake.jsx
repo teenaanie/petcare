@@ -249,6 +249,8 @@ export default function VoiceIntake({ onClose, onSaved }) {
   const streamRef = useRef(null)
   const chunksRef = useRef([])
   const startRef  = useRef(0)
+  const soloRef   = useRef(false)   // this attempt is recognition-only
+  const fallbackRef = useRef(false) // a solo attempt heard nothing; record this time
 
   function release() {
     streamRef.current?.getTracks().forEach(t => t.stop())
@@ -267,6 +269,24 @@ export default function VoiceIntake({ onClose, onSaved }) {
   async function startRecording() {
     setError(null); setPartial('')
     let usedRecognition = false
+
+    // ── Free path: recognition on its own ────────────────────────────────
+    // No getUserMedia, no MediaRecorder, nothing to compete with. This is what
+    // makes WebKit usable without paying for Whisper. If it hears nothing the
+    // next tap records instead, so a miss costs one more tap, not the feature.
+    const bcp47Solo = webSpeechLangFor('auto')
+    if (!fallbackRef.current && webSpeechSupported() && webSpeechEnabled()
+        && bcp47Solo && webSpeechNeedsSolo()) {
+      const handle = startWebSpeech({ lang: bcp47Solo, onPartial: setPartial })
+      if (handle) {
+        speechRef.current = handle
+        soloRef.current = true
+        setListening(true)
+        return
+      }
+      // Constructor refused; fall through and record.
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
@@ -344,6 +364,25 @@ export default function VoiceIntake({ onClose, onSaved }) {
   }
 
   function stopRecording() {
+    // Solo: there is no recording to process, only what was heard.
+    if (soloRef.current) {
+      soloRef.current = false
+      setListening(false)
+      const handle = speechRef.current
+      speechRef.current = null
+      if (!handle) return
+      handle.stop()
+      handle.result.then(web => {
+        setPartial('')
+        if (web.text) { append(web.text); return }
+        // Heard nothing. Nothing was recorded either, so there is nothing to
+        // send to Whisper — ask for one more go, and record that one.
+        fallbackRef.current = true
+        setError("Didn't catch that. Tap the mic and try again — Pippy will listen a different way this time.")
+      })
+      return
+    }
+
     if (recRef.current?.state === 'recording') recRef.current.stop()
     else { speechRef.current?.abort(); speechRef.current = null; release() }
     setListening(false)

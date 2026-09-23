@@ -5,7 +5,7 @@ import { pushSupported, getPushSubscriptionStatus, subscribeToPush, unsubscribeF
 import { format, parseISO, isValid } from 'date-fns'
 import { aiComplete, transcribeAudio } from '../lib/ai.js'
 import { startWebSpeech, webSpeechSupported, webSpeechEnabled, webSpeechLangFor,
-         noteWebSpeechStarvedRecording, WEB_SPEECH_OPT_OUT_KEY } from '../lib/speech.js'
+         webSpeechNeedsSolo, noteWebSpeechStarvedRecording, WEB_SPEECH_OPT_OUT_KEY } from '../lib/speech.js'
 
 // Whisper decodes better when told the language than when left to guess, and it
 // mis-detects Hinglish in particular. 'auto' stays the default because forcing
@@ -88,6 +88,8 @@ function useVoiceRecorder(onTranscript, language) {
   languageRef.current                   = language
   const speechRef                       = useRef(null)   // live Web Speech handle
   const usedRecognitionRef              = useRef(false)  // was it running this time?
+  const soloRef                         = useRef(false)  // recognition-only attempt
+  const fallbackRef                     = useRef(false)  // solo heard nothing; record next time
   const [partial, setPartial]           = useState('')   // words as they are heard
   const [engine, setEngine]             = useState(null) // 'browser' | 'whisper'
 
@@ -122,6 +124,32 @@ function useVoiceRecorder(onTranscript, language) {
     setEngine(null)
     chunksRef.current = []
     readyRef.current  = false
+
+    // ── Free path: recognition on its own ────────────────────────────────
+    // WebKit has one microphone consumer, so running the recorder alongside
+    // starved both. Running recognition alone removes the contention instead
+    // of avoiding it, and keeps these users off the paid Whisper path — which
+    // is roughly three quarters of what the AI costs.
+    const soloLang = webSpeechLangFor(languageRef.current)
+    if (!fallbackRef.current && webSpeechSupported() && webSpeechEnabled()
+        && soloLang && webSpeechNeedsSolo()) {
+      const handle = startWebSpeech({ lang: soloLang, onPartial: setPartial })
+      if (handle) {
+        speechRef.current = handle
+        soloRef.current   = true
+        startTimeRef.current = Date.now()
+        setListening(true)
+        setEngine('browser')
+        tickRef.current = setInterval(() => {
+          setElapsedMs(Date.now() - (startTimeRef.current || 0))
+        }, 200)
+        autoStopRef.current = setTimeout(() => {
+          setError('Stopped after 2 minutes — that is the longest note we can send.')
+          stop()
+        }, MAX_MS)
+        return
+      }
+    }
 
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -267,6 +295,27 @@ function useVoiceRecorder(onTranscript, language) {
 
   function stop() {
     clearTimers()
+
+    // Solo: nothing was recorded, so there is only what was heard.
+    if (soloRef.current) {
+      soloRef.current = false
+      setListening(false)
+      const handle = speechRef.current
+      speechRef.current = null
+      if (!handle) return
+      handle.stop()
+      handle.result.then(web => {
+        setPartial('')
+        if (web.text) { setTranscript(web.text); onTranscript(web.text); return }
+        // Nothing heard and nothing recorded — ask for one more go, and record
+        // that one so Whisper can take it.
+        fallbackRef.current = true
+        setEngine(null)
+        setError("Didn't catch that. Tap the mic and try again — Pippy will listen a different way this time.")
+      })
+      return
+    }
+
     if (readyRef.current && mediaRecorderRef.current?.state === 'recording') {
       mediaRecorderRef.current.stop()   // onstop releases the mic
     } else {
