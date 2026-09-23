@@ -10,6 +10,7 @@
     "test:recurrence": "node scripts/test-recurrence.mjs",
     "check:exclusions": "node scripts/check-exclusions.mjs",
     "test:speech": "node scripts/test-speech.mjs",
+    "test:notify": "node scripts/test-notify.mjs",
     "check:drift": "node scripts/check-drift.mjs",
     "test:dates": "node scripts/test-dates.mjs"
   },

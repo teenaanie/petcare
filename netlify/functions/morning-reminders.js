@@ -3,64 +3,12 @@
 // Checks all reminders due today, sends email + SMS to each user
 
 import { createClient } from '@supabase/supabase-js'
-import webPush from 'web-push'
-import { maskEmail, maskPhone, bodyShape } from './_redact.js'
+import { maskEmail, maskPhone } from './_redact.js'
+import { sendEmail, sendSMS, sendPush, fromDomain, emailConfigured } from './_notify.js'
 
 const SUPABASE_URL   = process.env.SUPABASE_URL
 const SERVICE_KEY    = process.env.SUPABASE_SERVICE_KEY
 const CRON_SECRET = process.env.CRON_SECRET   // set by Vercel on scheduled runs
-const TWILIO_SID     = process.env.TWILIO_ACCOUNT_SID
-const TWILIO_TOKEN   = process.env.TWILIO_AUTH_TOKEN
-const TWILIO_FROM    = process.env.TWILIO_PHONE_NUMBER
-const RESEND_API_KEY = process.env.RESEND_API_KEY        // free at resend.com
-const FROM_EMAIL     = process.env.FROM_EMAIL || 'reminders@teenaspetcare.com'
-const VAPID_PUBLIC_KEY  = process.env.VAPID_PUBLIC_KEY
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY
-const VAPID_SUBJECT     = process.env.VAPID_SUBJECT || 'mailto:teena.anie9@gmail.com'
-
-if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-  webPush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
-}
-
-// ── Email via Resend ──────────────────────────────────────────────────────────
-
-async function sendEmail(to, subject, html) {
-  if (!RESEND_API_KEY) {
-    console.log(`[EMAIL SKIPPED] No RESEND_API_KEY. Would send to ${maskEmail(to)}`)
-    return
-  }
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: FROM_EMAIL, to, subject, html }),
-  })
-  if (!res.ok) {
-    const err = await res.json()
-    throw new Error(`Email failed: ${err.message}`)
-  }
-}
-
-// ── SMS via Twilio ────────────────────────────────────────────────────────────
-
-async function sendSMS(to, body) {
-  if (!TWILIO_SID || !TWILIO_TOKEN || !TWILIO_FROM) {
-    console.log(`[SMS SKIPPED] Twilio not configured. Would send to ${maskPhone(to)} (${bodyShape(body)})`)
-    return
-  }
-  const url = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Basic ' + Buffer.from(`${TWILIO_SID}:${TWILIO_TOKEN}`).toString('base64'),
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({ To: to, From: TWILIO_FROM, Body: body }).toString(),
-  })
-  if (!res.ok) {
-    const err = await res.json()
-    throw new Error(`SMS failed: ${err.message}`)
-  }
-}
 
 // ── Email HTML template ───────────────────────────────────────────────────────
 
@@ -87,42 +35,6 @@ function reminderEmailHtml(petName, reminders) {
         <p style="color:#B8A080;font-size:12px;margin-top:16px">Open Pippy to mark these as done or view more details.</p>
       </div>
     </div>`
-}
-
-// ── Web Push ──────────────────────────────────────────────────────────────────
-
-async function sendPush(supabase, userId, petName, reminders) {
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-    console.log('[PUSH SKIPPED] VAPID keys not configured.')
-    return
-  }
-  const { data: subs, error } = await supabase
-    .from('push_subscriptions')
-    .select('id, endpoint, p256dh, auth')
-    .eq('user_id', userId)
-  if (error || !subs || subs.length === 0) return
-
-  const payload = JSON.stringify({
-    title: `🐾 ${petName} has ${reminders.length} reminder${reminders.length > 1 ? 's' : ''} today`,
-    body: reminders.map(r => r.type).join(', '),
-    url: '/',
-  })
-
-  for (const sub of subs) {
-    try {
-      await webPush.sendNotification(
-        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-        payload
-      )
-    } catch (e) {
-      // 404/410 means the subscription is no longer valid — clean it up
-      if (e.statusCode === 404 || e.statusCode === 410) {
-        await supabase.from('push_subscriptions').delete().eq('id', sub.id)
-      } else {
-        console.error('Push send failed:', e.message)
-      }
-    }
-  }
 }
 
 // ── Recurrence ────────────────────────────────────────────────────────────────
@@ -243,10 +155,10 @@ export default async function handler(req) {
   // dashboard does not reach a running deployment until it is redeployed, so
   // "I fixed it" and "the job sees the fix" are different facts. The domain is
   // not personal data; the local part is, and is not logged.
-  const fromDomain = (FROM_EMAIL.split('@')[1] || 'unset').trim()
+  const senderDomain = fromDomain()
   console.log('Morning reminders job started at', new Date().toISOString(),
-              `· sending from @${fromDomain}`)
-  if (!RESEND_API_KEY) console.warn('RESEND_API_KEY is not set — no email can be sent.')
+              `· sending from @${senderDomain}`)
+  if (!emailConfigured()) console.warn('RESEND_API_KEY is not set — no email can be sent.')
 
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -362,7 +274,11 @@ export default async function handler(req) {
 
     // Push
     try {
-      await sendPush(supabase, pet.user_id, petName, rems)
+      await sendPush(supabase, pet.user_id, {
+        title: `🐾 ${petName} has ${rems.length} reminder${rems.length > 1 ? 's' : ''} today`,
+        body:  rems.map(r => r.type).join(', '),
+        url:   '/',
+      })
     } catch (e) {
       console.error(`Push failed for ${petName}:`, e.message)
     }
@@ -407,7 +323,7 @@ export default async function handler(req) {
   // ── Log the run ────────────────────────────────────────────────────────────
   // The sender goes on the run itself: every failure so far has been a sender
   // problem, and this is the field that says which sender failed.
-  results.push({ channel: 'config', from_domain: fromDomain, resend_key: RESEND_API_KEY ? 'set' : 'MISSING' })
+  results.push({ channel: 'config', from_domain: senderDomain, resend_key: emailConfigured() ? 'set' : 'MISSING' })
 
   await supabase.from('agent_runs').insert({
     type: 'morning_reminders',
