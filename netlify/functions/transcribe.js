@@ -10,6 +10,7 @@
 // multipart form here, where OpenAI wants it.
 
 import { createClient } from '@supabase/supabase-js'
+import { audioCost } from './_pricing.js'
 
 const OPENAI_KEY   = process.env.OPENAI_API_KEY        // never VITE_ — server only
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -147,7 +148,14 @@ export default async function handler(req) {
   if (!text) return json({ error: "Couldn't hear anything. Please try again." }, 422)
 
   // 5. Record usage. A failure here must not fail the call the user already got.
-  const { error: logErr } = await supabase.from('api_usage').insert({ user_id: user.id, type: 'transcribe' })
+  // Whisper bills by audio duration, not tokens, and the response does not
+  //    report it — so this is estimated from the encoded size and stored in the
+  //    cost column like everything else. Without it a transcription showed up
+  //    in api_usage as a free call, which it is not.
+  const { costUsd } = audioCost(bytes.length)
+  const { error: logErr } = await supabase.from('api_usage').insert({
+    user_id: user.id, type: 'transcribe', estimated_cost_usd: costUsd,
+  })
   if (logErr) console.error('Usage logging failed:', logErr)
 
   return json({ text })

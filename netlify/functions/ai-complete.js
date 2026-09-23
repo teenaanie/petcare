@@ -13,6 +13,7 @@
 // liked at our expense. The client sends structured data; we compose the words.
 
 import { createClient } from '@supabase/supabase-js'
+import { chatCost } from './_pricing.js'
 
 const OPENAI_KEY   = process.env.OPENAI_API_KEY        // never VITE_ — server only
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -331,8 +332,21 @@ export default async function handler(req) {
     return json({ error: 'Could not parse the AI response. Please try again.' }, 502)
   }
 
-  // 5. Record usage. A failure here must not fail the call the user already got.
-  const { error: logErr } = await supabase.from('api_usage').insert({ user_id: user.id, type: body.task })
+  // 5. Record usage, INCLUDING what it cost. A failure here must not fail the
+  //    call the user already got.
+  //
+  //    This used to write only { user_id, type }, so api_usage had a row per
+  //    call and zero in every token column — the table looked like cost
+  //    tracking and was not. OpenAI returns the exact counts in `usage`; there
+  //    was never a reason to guess.
+  const { promptTokens, completionTokens, costUsd } = chatCost(out.usage)
+  const { error: logErr } = await supabase.from('api_usage').insert({
+    user_id: user.id,
+    type: body.task,
+    prompt_tokens: promptTokens,
+    completion_tokens: completionTokens,
+    estimated_cost_usd: costUsd,
+  })
   if (logErr) console.error('Usage logging failed:', logErr)
 
   return json({ result })

@@ -237,7 +237,16 @@ export default async function handler(req) {
     )
   }
 
-  console.log('Morning reminders job started at', new Date().toISOString())
+  // Which sender this run will use. Diagnosing a bounce previously meant
+  // querying agent_runs and reading a provider error that names a domain
+  // without saying where it came from — and a FROM_EMAIL corrected in the
+  // dashboard does not reach a running deployment until it is redeployed, so
+  // "I fixed it" and "the job sees the fix" are different facts. The domain is
+  // not personal data; the local part is, and is not logged.
+  const fromDomain = (FROM_EMAIL.split('@')[1] || 'unset').trim()
+  console.log('Morning reminders job started at', new Date().toISOString(),
+              `· sending from @${fromDomain}`)
+  if (!RESEND_API_KEY) console.warn('RESEND_API_KEY is not set — no email can be sent.')
 
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -396,6 +405,10 @@ export default async function handler(req) {
   }
 
   // ── Log the run ────────────────────────────────────────────────────────────
+  // The sender goes on the run itself: every failure so far has been a sender
+  // problem, and this is the field that says which sender failed.
+  results.push({ channel: 'config', from_domain: fromDomain, resend_key: RESEND_API_KEY ? 'set' : 'MISSING' })
+
   await supabase.from('agent_runs').insert({
     type: 'morning_reminders',
     date: today,
