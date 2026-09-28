@@ -31,6 +31,21 @@ function friendlyAuthError(err) {
   return err?.message || 'Could not send code. Please try again.'
 }
 
+// Phone sign-in is switched off: sending an SMS code needs an SMS provider,
+// and one is not configured. Showing the tab would offer a way in that cannot
+// work — a code that never arrives reads as the app being broken, not as a
+// setting being off.
+//
+// The phone flow itself is LEFT IN PLACE rather than deleted, because this is
+// a configuration state and not a decision about the product. Turning it back
+// on is this one line, plus an SMS provider in the Supabase dashboard.
+//
+// One account signs in by phone and has no email address on it (checked
+// 2026-09-28: 1 of 15 users, last seen 25 August, one pet, no records). While
+// this is false, that account cannot get in. Giving it an email address in the
+// Supabase dashboard is the way to bring it across.
+const PHONE_LOGIN_ENABLED = false
+
 export default function PhoneAuth() {
   const [method, setMethod]           = useState('email')
   const [step, setStep]               = useState('entry')
@@ -48,7 +63,10 @@ export default function PhoneAuth() {
       const saved = sessionStorage.getItem(SESSION_KEY)
       if (saved) {
         const { method: m, sentTo: s, step: st } = JSON.parse(saved)
-        if (st === 'otp' && s) {
+        // A half-finished phone flow in sessionStorage would otherwise come
+        // back after a refresh and strand the user on a code that can never
+        // arrive.
+        if (st === 'otp' && s && (m !== 'phone' || PHONE_LOGIN_ENABLED)) {
           setMethod(m); setSentTo(s); setStep('otp')
         }
       }
@@ -170,7 +188,9 @@ export default function PhoneAuth() {
         <div className="card">
 
           {/* ── Method toggle ──────────────────────────────────────────── */}
-          {step === 'entry' && (
+          {/* Hidden while there is only one way in: a toggle with a single
+              option is furniture, not a choice. */}
+          {step === 'entry' && PHONE_LOGIN_ENABLED && (
             <div className="flex rounded-xl p-1 mb-6" style={{ backgroundColor: '#ebe3d3' }}>
               <button
                 onClick={() => switchMethod('phone')}
