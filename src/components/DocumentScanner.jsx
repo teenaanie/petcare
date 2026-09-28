@@ -4,6 +4,7 @@ import { saveMedicalRecord, saveVaccination, saveAllergy, saveReminder, saveMedi
 import { format, isPast, parseISO } from 'date-fns'
 import { aiComplete } from '../lib/ai.js'
 import { shareTargetLikelySupported } from '../lib/shareTarget.js'
+import { copyText, COPY_FAILED } from '../lib/clipboard.js'
 
 const MED_CATS = ['Deworming', 'Flea/Tick', 'Antibiotic', 'Anti-inflammatory', 'Supplement', 'Vaccination', 'Other']
 const CURRENCIES = ['INR', 'USD', 'GBP', 'AUD', 'EUR', 'SGD']
@@ -368,9 +369,10 @@ export default function DocumentScanner({ pet, session, initialFiles = null }) {
     setSavedTimelines(s => new Set([...s, idx]))
   })
 
-  function handleCopyQuestions() {
+  async function handleCopyQuestions() {
     const text = vetQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')
-    navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2500) })
+    if (await copyText(text)) { setCopied(true); setTimeout(() => setCopied(false), 2500) }
+    else alert(COPY_FAILED)
   }
 
   // ── Update helpers ────────────────────────────────────────────────────────
