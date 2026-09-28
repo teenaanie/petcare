@@ -35,6 +35,10 @@ const LANGUAGES = new Set([
 ])
 
 // Whisper accepts these. Anything else is rejected rather than forwarded.
+// Whisper caps the prompt at 224 tokens and truncates silently past that.
+// ~4 characters a token, so this stays comfortably inside it.
+const MAX_PROMPT_CHARS = 900
+
 const AUDIO_TYPES = {
   'audio/webm': 'webm', 'audio/mp4': 'mp4', 'audio/mpeg': 'mp3',
   'audio/mpga': 'mp3',  'audio/m4a': 'm4a', 'audio/x-m4a': 'm4a',
@@ -90,7 +94,7 @@ export default async function handler(req) {
   let body
   try { body = await req.json() } catch { return json({ error: 'Invalid request body' }, 400) }
 
-  const { audio, mimeType, language } = body || {}
+  const { audio, mimeType, language, vocabulary } = body || {}
   if (!audio || typeof audio !== 'string') return json({ error: 'No audio supplied' }, 400)
   if (audio.length > MAX_BASE64_CHARS)     return json({ error: 'Recording is too long. Please keep it under a few minutes.' }, 413)
 
@@ -132,6 +136,20 @@ export default async function handler(req) {
     form.append('model', 'whisper-1')
     // Omitted unless the user picked a language, so auto-detect stays the default.
     if (LANGUAGES.has(language)) form.append('language', language)
+
+    // Drug and vaccine names are exactly what transcription gets wrong, and
+    // exactly what must not be wrong in a record a vet reads: "Nobivac" comes
+    // back as "no bee back", "Felocell" as "fellow cell". Whisper's `prompt`
+    // biases the spelling toward terms it is told to expect.
+    //
+    // It BIASES, it does not constrain — a product not in the list still comes
+    // through as whatever was heard, which is the behaviour we want. The client
+    // builds the list (src/lib/petMeds.js); it is bounded here as well because
+    // an over-long prompt is silently truncated by the API rather than
+    // rejected, and because this endpoint must not trust what it is sent.
+    const vocab = String(vocabulary || '').trim()
+    if (vocab && vocab.length <= MAX_PROMPT_CHARS) form.append('prompt', vocab)
+    else if (vocab) form.append('prompt', vocab.slice(0, MAX_PROMPT_CHARS))
 
     const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
