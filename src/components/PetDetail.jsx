@@ -154,7 +154,7 @@ import Boarding from './Boarding.jsx'
 import ConditionJournal from './ConditionJournal.jsx'
 import VoiceUpdate from './VoiceUpdate.jsx'
 
-export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, onPetDeleted, prefillProviderId, onPrefillUsed }) {
+export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, onPetDeleted, prefillProviderId, onPrefillUsed, dataRefresh = 0 }) {
   const [showEdit, setShowEdit]                   = useState(false)
   const [showHealthSummary, setShowHealthSummary] = useState(false)
   const [showEmergencyCard, setShowEmergencyCard] = useState(false)
@@ -164,7 +164,11 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
   // of them, so bumping this remounts whichever tab is open and it reloads —
   // otherwise the user adds a weight by voice and the Weight tab behind the
   // modal still shows the old list, which reads as the save having failed.
+  //
+  // `dataRefresh` folds in the same signal from outside: marking a reminder
+  // done in the notification bell changes a row this screen may be displaying.
   const [dataVersion, setDataVersion]             = useState(0)
+  const tabKey = `${dataVersion}-${dataRefresh}`
   const [session, setSession]             = useState(null)
 
   useEffect(() => {
@@ -282,16 +286,16 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
       {pet.breed && activeTab === 'timeline' && <BreedAlert pet={pet} />}
 
       {/* Tab content */}
-      {activeTab === 'timeline'     && <Timeline       key={dataVersion} pet={pet} />}
-      {activeTab === 'medical'      && <MedicalHistory key={dataVersion} pet={pet} />}
-      {activeTab === 'vaccinations' && <Vaccinations   key={dataVersion} pet={pet} />}
-      {activeTab === 'medicines'    && <Medicines      key={dataVersion} pet={pet} />}
-      {activeTab === 'weight'       && <WeightLog      key={dataVersion} pet={pet} />}
-      {activeTab === 'bills'        && <Bills          key={dataVersion} pet={pet} />}
-      {activeTab === 'allergies'    && <Allergies      key={dataVersion} pet={pet} />}
+      {activeTab === 'timeline'     && <Timeline       key={tabKey} pet={pet} />}
+      {activeTab === 'medical'      && <MedicalHistory key={tabKey} pet={pet} />}
+      {activeTab === 'vaccinations' && <Vaccinations   key={tabKey} pet={pet} />}
+      {activeTab === 'medicines'    && <Medicines      key={tabKey} pet={pet} />}
+      {activeTab === 'weight'       && <WeightLog      key={tabKey} pet={pet} />}
+      {activeTab === 'bills'        && <Bills          key={tabKey} pet={pet} />}
+      {activeTab === 'allergies'    && <Allergies      key={tabKey} pet={pet} />}
       {activeTab === 'journal'      && <ConditionJournal pet={pet} />}
       {activeTab === 'scanner'      && <DocumentScanner pet={pet} session={session} />}
-      {activeTab === 'reminders'    && <Reminders      key={dataVersion} pet={pet} />}
+      {activeTab === 'reminders'    && <Reminders      key={tabKey} pet={pet} />}
       {activeTab === 'boarding'     && <Boarding pet={pet} onPetUpdated={onPetUpdated}
                                           prefillProviderId={prefillProviderId} onPrefillUsed={onPrefillUsed} />}
 

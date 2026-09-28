@@ -12,7 +12,8 @@
     "test:speech": "node scripts/test-speech.mjs",
     "check:drift": "node scripts/check-drift.mjs",
     "test:dates": "node scripts/test-dates.mjs",
-    "test:voice-update": "node scripts/test-voice-update.mjs"
+    "test:voice-update": "node scripts/test-voice-update.mjs",
+    "test:reminder-feed": "node scripts/test-reminder-feed.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

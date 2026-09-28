@@ -8,12 +8,11 @@
 // at all, and what payload the matching storage.js function wants. The icons
 // live with the component, because they are the only part of this that is JSX.
 
-// A weight with no date plots at NaN and breaks the whole chart, so this is the
-// one field filled in on the client rather than left empty. The prompt already
-// says a weight is measured when it is spoken; this is the guard for when it
-// forgets. IST, to match the date the prompt was anchored to.
-export const todayIST = (now = Date.now()) =>
-  new Date(now + 5.5 * 60 * 60 * 1000).toISOString().split('T')[0]
+// A weight with no date plots at NaN and breaks the whole chart, so a dateless
+// weight is dated here rather than left empty. The prompt already says a weight
+// is measured when it is spoken; this is the guard for when it forgets.
+import { todayIST } from './dates.js'
+export { todayIST }
 
 const num = v => (v === null || v === undefined || v === '' ? '' : v)
 

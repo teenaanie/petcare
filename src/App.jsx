@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { drainSharedFiles, wasShared, clearSharedFlag } from './lib/shareTarget.js'
 import { PawPrint } from 'lucide-react'
 import { supabase, isConfigured } from './lib/supabase.js'
+import { getPets } from './lib/storage.js'
 import PhoneAuth from './components/PhoneAuth.jsx'
 import Sidebar from './components/Sidebar.jsx'
 import PetList from './components/PetList.jsx'
@@ -125,6 +126,26 @@ export default function App() {
     setActiveTab('boarding')
   }
 
+  // Tapping a reminder in the bell goes where it can be acted on: that pet's
+  // Reminders tab. The bell carries the pet it belongs to, but only as the
+  // shallow copy the feed built, so the real pet is looked up by id — editing
+  // a stale object would write back a stale pet.
+  async function openReminder(reminder) {
+    setAdminView(false); setServicesView(false); setMyProvidersView(false)
+    setSidebarOpen(false)
+    try {
+      const pets = await getPets()
+      const pet  = pets.find(p => p.id === reminder.petId)
+      // A reminder whose pet has been deleted has nowhere to go. Leave the user
+      // where they are rather than throwing them at a blank screen.
+      if (!pet) return
+      setSelectedPet(pet)
+      setActiveTab('reminders')
+    } catch (e) {
+      console.error('Could not open that reminder:', e)
+    }
+  }
+
   function selectPet(pet) {
     setSelectedPet(pet)
     if (pet) {
@@ -198,6 +219,8 @@ export default function App() {
         onToggleMyProviders={() => { setMyProvidersView(v => !v); setServicesView(false); setAdminView(false); setSelectedPet(null); setSidebarOpen(false) }}
         onShowPrivacy={() => { setShowPrivacy(true); setSidebarOpen(false) }}
         onToggleServices={() => { setMyProvidersView(false); setServicesView(v => !v); setAdminView(false); setSelectedPet(null); setSidebarOpen(false) }}
+        onOpenReminder={openReminder}
+        onRemindersChanged={() => setRefresh(r => r + 1)}
       />
 
       {prepProvider && (
@@ -220,6 +243,9 @@ export default function App() {
           onBack={() => setSelectedPet(null)}
           onMenuOpen={() => setSidebarOpen(true)}
           onAddPet={() => setShowAddPet(true)}
+          refresh={refresh}
+          onOpenReminder={openReminder}
+          onRemindersChanged={() => setRefresh(r => r + 1)}
         />
 
         <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
@@ -236,6 +262,7 @@ export default function App() {
               prefillProviderId={boardingPrefill}
               onPrefillUsed={() => setBoardingPrefill(null)}
               onTabChange={setActiveTab}
+              dataRefresh={refresh}
               onPetUpdated={(updated) => { setSelectedPet(updated); setRefresh(r => r + 1) }}
               onPetDeleted={() => { setSelectedPet(null); setRefresh(r => r + 1) }}
             />
