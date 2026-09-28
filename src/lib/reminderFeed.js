@@ -4,7 +4,7 @@
 // be tested in plain node — see scripts/test-reminder-feed.mjs.
 //
 // SOURCE OF TRUTH: the `reminders` table, and only that. The nightly email job
-// (netlify/functions/morning-reminders.js) reads the same table and nothing
+// (api/_lib/morning-reminders.js) reads the same table and nothing
 // else, so the bell and the email always agree about what is due. A vaccination
 // with a `nextDue` date is NOT counted here even though the timeline draws one,
 // because a bell that says 5 when the email sends 3 teaches people to distrust

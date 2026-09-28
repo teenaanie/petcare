@@ -8,7 +8,7 @@
 // with nothing in the logs. Month-end clamping and long-overdue reminders are
 // the two cases that bite.
 
-import { nextDueDate } from '../netlify/functions/morning-reminders.js'
+import { nextDueDate } from '../api/_lib/morning-reminders.js'
 
 const T = '2026-09-22'
 let failed = 0

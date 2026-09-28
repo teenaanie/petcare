@@ -1,4 +1,4 @@
-// netlify/functions/_pricing.js
+// api/_lib/_pricing.js
 //
 // One place for what the AI costs, so `api_usage.estimated_cost_usd` means the
 // same thing on every row and a price change is one edit rather than a search.

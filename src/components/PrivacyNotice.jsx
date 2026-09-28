@@ -76,6 +76,7 @@ export default function PrivacyNotice({ onClose, initialTab = 'privacy' }) {
                 <Row who="Resend" what="Your email address" why="Reminder emails" />
                 <Row who="Twilio" what="Your phone number" why="Reminder SMS, when enabled" />
                 <Row who="Google" what="Voice audio, on some browsers" why="Speech recognition. Off on Apple devices" />
+                <Row who="Google" what="Which screens are used and when — only if you agree" why="Google Analytics. Off unless you opt in" />
                 <Row who="Microsoft" what="Session recordings — only if you agree" why="Clarity analytics. Off unless you opt in" />
               </tbody>
             </table>
@@ -87,10 +88,22 @@ export default function PrivacyNotice({ onClose, initialTab = 'privacy' }) {
 
           <Section title="Analytics">
             <p>
-              Analytics is off until you turn it on, and you are asked once. If you agree,
-              Microsoft Clarity records how the app is used. Even then the app tells
-              Clarity to mask page content, so a recording shows layout and taps rather
-              than your pet's records. You can decline and never be asked again.
+              Analytics is off until you turn it on, and you are asked once. You can
+              decline and never be asked again.
+            </p>
+            <p>
+              If you agree, two things run. <strong>Microsoft Clarity</strong> records how
+              the app is used — and even then the app tells Clarity to mask page content,
+              so a recording shows layout and taps rather than your pet's records.
+              <strong> Google Analytics</strong> counts which screens are opened and which
+              features are used.
+            </p>
+            <p>
+              Google Analytics is only ever told that something happened, never what it
+              was about. The app sends a fixed list of event names — "a pet was added",
+              "a document was scanned" — and refuses to pass on free text, so a pet's
+              name, a medicine, a note or a condition cannot reach it. Pippy also turns
+              off Google's advertising features, so none of this builds an ad profile.
             </p>
           </Section>
 

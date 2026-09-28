@@ -43,7 +43,7 @@ The scanner uses **GPT-4o** (vision model) to read images and PDFs of vet report
 ## Email Reminders
 
 Reminder email is sent by the server, from
-`netlify/functions/morning-reminders.js`, using [Resend](https://resend.com).
+`api/_lib/morning-reminders.js`, using [Resend](https://resend.com).
 Set `RESEND_API_KEY` and `FROM_EMAIL` in the project environment — no `VITE_`
 prefix, because the key must not reach the browser.
 
@@ -189,7 +189,7 @@ create table reminders (
 ### Netlify
 ```bash
 npm run build
-# Drag the `dist/` folder to netlify.com/drop
+# Or deploy the built `dist/` folder to any static host
 ```
 
 ### Vercel

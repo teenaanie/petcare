@@ -3,6 +3,7 @@ import { drainSharedFiles, wasShared, clearSharedFlag } from './lib/shareTarget.
 import { PawPrint } from 'lucide-react'
 import { supabase, isConfigured } from './lib/supabase.js'
 import { getPets } from './lib/storage.js'
+import { announceSignupOnce } from './lib/notify.js'
 import PhoneAuth from './components/PhoneAuth.jsx'
 import Sidebar from './components/Sidebar.jsx'
 import PetList from './components/PetList.jsx'
@@ -51,12 +52,17 @@ export default function App() {
       setSession(session)
       checkAdmin(session)
       setAuthLoading(false)
+      if (session?.user) announceSignupOnce(session.user)
     })
 
     // Listen for auth changes (login / logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
       checkAdmin(session)
+      // Announces genuinely NEW accounts only — the helper skips a browser that
+      // has already reported this user, and the server independently refuses
+      // anything but an account created minutes ago.
+      if (session?.user) announceSignupOnce(session.user)
     })
 
     return () => subscription.unsubscribe()

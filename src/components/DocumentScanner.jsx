@@ -72,7 +72,7 @@ async function analyzeDocument(file, session) {
   const base64 = isPdf ? await pdfToImageBase64(file) : await fileToBase64(file)
   const mimeType = isPdf ? 'image/png' : (file.type || 'image/jpeg')
 
-  // The parsing prompt lives in netlify/functions/analyze-document.js along with
+  // The parsing prompt lives in api/_lib/analyze-document.js along with
   // the API key. This used to have a second branch that called api.openai.com
   // directly whenever VITE_OPENAI_API_KEY was set — which, once that variable
   // was set in production, silently bypassed this authenticated, rate-limited

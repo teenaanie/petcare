@@ -35,13 +35,13 @@ const FREQ  = ['Once', 'Weekly', 'Monthly', 'Yearly']
 // from the browser with its service, template and public keys compiled into
 // the bundle, sending a pet's name and its owner's email address. Anyone with
 // the bundle could call it, it was a processor nobody had been told about, and
-// netlify/functions/morning-reminders.js already sends the same reminders
+// api/_lib/morning-reminders.js already sends the same reminders
 // through Resend with the key kept server-side. Two ways to send one email,
 // one of them public — so this one went.
 
 // ── Parse voice transcript ───────────────────────────────────────────────────
 // The extraction prompt is composed server-side, in
-// netlify/functions/ai-complete.js, next to the API key.
+// api/_lib/ai-complete.js, next to the API key.
 async function parseVoiceReminder(transcript) {
   return aiComplete('voice_reminder', { transcript })
 }

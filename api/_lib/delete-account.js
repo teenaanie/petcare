@@ -1,4 +1,4 @@
-// netlify/functions/delete-account.js
+// api/_lib/delete-account.js
 // Permanently deletes the calling user's account and everything it owns.
 //
 // This has to run server-side: removing a row from auth.users needs the service

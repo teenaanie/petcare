@@ -1,4 +1,4 @@
-// netlify/functions/_redact.js
+// api/_lib/_redact.js
 // Masking for anything that reaches a log line, an HTTP response, or a stored
 // run record.
 //
