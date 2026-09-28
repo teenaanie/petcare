@@ -5,6 +5,7 @@ import { format, isPast, parseISO } from 'date-fns'
 import { aiComplete } from '../lib/ai.js'
 import { shareTargetLikelySupported } from '../lib/shareTarget.js'
 import { copyText, COPY_FAILED } from '../lib/clipboard.js'
+import { trackEvent } from '../lib/analytics.js'
 
 const MED_CATS = ['Deworming', 'Flea/Tick', 'Antibiotic', 'Anti-inflammatory', 'Supplement', 'Vaccination', 'Other']
 const CURRENCIES = ['INR', 'USD', 'GBP', 'AUD', 'EUR', 'SGD']
@@ -285,6 +286,12 @@ export default function DocumentScanner({ pet, session, initialFiles = null }) {
       result.vaccinations = result.vaccinations || []
 
       setParsed(result)
+      // Counts of what the scan found — never any of the text it read.
+      trackEvent('document_scanned', {
+        vaccinations: (result.vaccinations || []).length,
+        medicines: (result.medicines || []).length,
+        has_bill: !!(result.bill?.clinic || result.bill?.totalAmount),
+      })
       setVaxItems(result.vaccinations.map(v => ({ ...v })))
       setMedItems((result.medicines || []).map(m => ({ ...m })))
       setBillItem(result.bill?.clinic || result.bill?.totalAmount ? { ...result.bill } : null)

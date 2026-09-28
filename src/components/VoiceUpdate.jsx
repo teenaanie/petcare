@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { aiComplete } from '../lib/ai.js'
 import { useVoiceRecorder } from '../lib/useVoiceRecorder.js'
+import { voiceLikelyAvailable } from '../lib/speech.js'
 import VoicePanel from './VoicePanel.jsx'
 import {
   saveMedicalRecord, saveVaccination, saveMedicine, saveAllergy,
@@ -14,6 +15,7 @@ import { groupParsed } from '../lib/voiceUpdateRecords.js'
 import { withRetry, isNetworkError } from '../lib/net.js'
 import { suggestName, rememberName } from '../lib/petMeds.js'
 import { friendlyError } from '../lib/errors.js'
+import { trackEvent } from '../lib/analytics.js'
 
 // Which storage function each kind writes through, named in the pure module so
 // that module can stay free of imports and be tested in plain node.
@@ -155,6 +157,9 @@ function Review({ parsed, pet, onBack, onSaved }) {
       }
       const counts = justSaved.reduce((m, l) => ({ ...m, [l]: (m[l] || 0) + 1 }), {})
       setDone(counts)
+      // How many records one spoken sentence produced — a number, never what
+      // any of them said.
+      trackEvent('voice_update_used', { records: justSaved.length })
       onSaved?.(counts)
     } catch (e) {
       setSavedKeys(nowSaved)
@@ -250,7 +255,11 @@ function Review({ parsed, pet, onBack, onSaved }) {
 // ── The screen ───────────────────────────────────────────────────────────────
 
 export default function VoiceUpdate({ pet, onClose, onSaved }) {
-  const [mode, setMode]   = useState('type')   // 'speak' | 'type'
+  // Opens on Speak. This screen exists because talking is faster than typing,
+  // so making the user pick "Speak" first was a tap spent asking whether they
+  // meant what they had just opened. Typing is one tap away and still a
+  // first-class mode; a device that cannot record opens on it instead.
+  const [mode, setMode] = useState(() => (voiceLikelyAvailable() ? 'speak' : 'type'))
   const [text, setText]   = useState('')
   const [parsing, setParsing] = useState(false)
   const [parsed, setParsed]   = useState(null)

@@ -66,6 +66,25 @@ console.log('\nFree text never reaches Google')
      Object.keys(p).sort().join() === 'count,first,species', p)
 }
 
+console.log('\nVocabulary values with spaces')
+{
+  sent.length = 0
+  // The reminder vocabulary contains "Vet Checkup". The filter rejects spaces
+  // ON PURPOSE — a free-text note is letters and spaces too — so call sites
+  // slugify known enums before sending. This proves both halves.
+  trackEvent('reminder_created', { type: 'Vet Checkup' })
+  ok('a raw value with a space is dropped', !('type' in (sent[0]?.params || {})), sent[0])
+
+  sent.length = 0
+  trackEvent('reminder_created', { type: 'Vet_Checkup' })
+  ok('the slugified value goes through', sent[0]?.params?.type === 'Vet_Checkup', sent[0])
+
+  sent.length = 0
+  trackEvent('reminder_created', { note: 'has a skin infection' })
+  ok('and free text is still dropped, spaces or not',
+     !('note' in (sent[0]?.params || {})), sent[0])
+}
+
 console.log('\nThe filter is shape-based — which is a limit worth stating')
 {
   sent.length = 0

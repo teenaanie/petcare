@@ -6,6 +6,7 @@ import { format, parseISO, isValid } from 'date-fns'
 import { aiComplete } from '../lib/ai.js'
 import { webSpeechSupported, webSpeechEnabled, WEB_SPEECH_OPT_OUT_KEY } from '../lib/speech.js'
 import { useVoiceRecorder } from '../lib/useVoiceRecorder.js'
+import { trackEvent } from '../lib/analytics.js'
 
 // Whisper decodes better when told the language than when left to guess, and it
 // mis-detects Hinglish in particular. 'auto' stays the default because forcing
@@ -99,6 +100,14 @@ export default function Reminders({ pet }) {
   async function handleSubmit(e) {
     e.preventDefault()
     await saveReminder({ ...form, petId: pet.id })
+    // The TYPE is a fixed vocabulary ('Vaccination', 'Grooming'); the notes
+    // are free text and are not sent.
+    trackEvent('reminder_created', {
+      // 'Vet Checkup' -> 'Vet_Checkup'. The filter rejects spaces on purpose,
+      // because free text is letters and spaces too; this is a fixed list.
+      type: (form.type || '').replace(/\s+/g, '_'),
+      frequency: form.frequency,
+    })
     setForm({ type: 'Vaccination', dueDate: '', frequency: 'Once', email: '', whatsapp: '', notes: '' })
     setShowForm(false)
     load()

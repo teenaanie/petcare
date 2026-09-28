@@ -5,10 +5,12 @@ import {
 } from 'lucide-react'
 import { aiComplete } from '../lib/ai.js'
 import { useVoiceRecorder } from '../lib/useVoiceRecorder.js'
+import { voiceLikelyAvailable } from '../lib/speech.js'
 import VoicePanel from './VoicePanel.jsx'
 import { savePet, saveVaccination, saveMedicine, saveAllergy } from '../lib/storage.js'
 import { announcePetAdded } from '../lib/notify.js'
 import { saveCondition } from '../lib/conditions.js'
+import { trackEvent } from '../lib/analytics.js'
 
 // Onboarding someone who already has a pet and a folder of vet papers. They
 // will not scan twenty documents to get started, but many of them know the
@@ -92,6 +94,7 @@ function Review({ parsed, onBack, onSaved }) {
         // This screen creates pets too, so it announces them as well —
         // otherwise a pet added by voice would never be reported.
         announcePetAdded(saved?.id)
+        trackEvent('pet_added', { species: saved?.species || '', method: 'voice' })
 
         for (let j = 0; j < (p.vaccinations || []).length; j++) {
           if (!picked[`vac-${i}-${j}`]) continue
@@ -237,7 +240,11 @@ function Review({ parsed, onBack, onSaved }) {
 // ── The screen ───────────────────────────────────────────────────────────────
 
 export default function VoiceIntake({ onClose, onSaved }) {
-  const [mode, setMode]     = useState('type')   // 'speak' | 'type'
+  // Opens on Speak. This screen exists because talking is faster than typing,
+  // so making the user pick "Speak" first was a tap spent asking whether they
+  // meant what they had just opened. Typing is one tap away and still a
+  // first-class mode; a device that cannot record opens on it instead.
+  const [mode, setMode] = useState(() => (voiceLikelyAvailable() ? 'speak' : 'type'))
   const [text, setText]     = useState('')
   const [parsing, setParsing] = useState(false)
   const [parsed, setParsed] = useState(null)
@@ -261,6 +268,8 @@ export default function VoiceIntake({ onClose, onSaved }) {
     setParsing(true); setError(null)
     try {
       setParsed(await aiComplete('voice_intake', { transcript: text.trim() }))
+      // That the screen was used, and by which route. Never the transcript.
+      trackEvent('voice_intake_used', { mode })
     } catch (e) { setError(e.message) }
     finally { setParsing(false) }
   }

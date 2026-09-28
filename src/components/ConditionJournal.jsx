@@ -10,6 +10,7 @@ import {
   getNotes, saveNote, deleteNote,
   uploadPhoto, signedUrls, STATUSES,
 } from '../lib/conditions.js'
+import { trackEvent } from '../lib/analytics.js'
 
 // `capture` asks the operating system for its camera app. A laptop has no such
 // app, and desktop browsers handle the attribute inconsistently -- the picker
@@ -92,6 +93,7 @@ function NoteForm({ condition, petId, existing, onSaved, onCancel }) {
     for (const f of files) {
       try {
         const path = await uploadPhoto(petId, condition.id, f)
+        trackEvent('photo_added', {})
         setPaths(p => [...p, path])
       } catch (e) {
         setError(`Could not upload ${f.name}: ${e.message}`)

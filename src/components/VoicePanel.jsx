@@ -53,13 +53,17 @@ export default function VoicePanel({
               : <Mic className="w-7 h-7 text-white" />}
           </button>
           <p className="text-xs font-bold" style={{ color: '#7a4900' }}>
-            {transcribing ? 'Writing it down…' : listening ? 'Listening — tap to stop' : 'Tap and start talking'}
+            {transcribing ? 'Writing it down…'
+              : listening ? 'Listening — stop talking when you’re done'
+              : 'Tap once and start talking'}
           </p>
           {partial && (
             <p className="text-xs italic text-center px-3" style={{ color: '#a08f7a' }}>“{partial}”</p>
           )}
           <p className="text-[11px] text-center" style={{ color: '#a08f7a' }}>
-            What you say lands in the box below — read it over and fix anything misheard before continuing.
+            {listening
+              ? 'Pippy stops on its own after a short pause — or tap the mic to stop now.'
+              : 'What you say lands in the box below — read it over and fix anything misheard before continuing.'}
           </p>
         </div>
       )}
