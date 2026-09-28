@@ -42,10 +42,10 @@ console.log('\nEvents outside the closed list are refused')
 console.log('\nFree text never reaches Google')
 {
   sent.length = 0
-  trackEvent('pet_added', {
+  trackEvent('document_scanned', {
     species: 'Dog',                   // safe enum   → allowed
-    count: 3,                         // number      → allowed
-    first: true,                      // boolean     → allowed
+    medicines: 3,                     // number      → allowed
+    has_bill: true,                   // boolean     → allowed
     pet_name: 'Bruno the Beagle',     // a NAME      → dropped
     note: 'has a skin infection',     // free text   → dropped
     medicine: 'Otibact 3 drops',      // a drug      → dropped
@@ -55,15 +55,15 @@ console.log('\nFree text never reaches Google')
   const p = sent[0]?.params || {}
   ok('the event itself went', sent.length === 1, sent)
   ok('safe enum kept', p.species === 'Dog', p)
-  ok('number kept',    p.count === 3, p)
-  ok('boolean kept',   p.first === true, p)
+  ok('number kept',    p.medicines === 3, p)
+  ok('boolean kept',   p.has_bill === true, p)
   ok('a pet name is dropped',       !('pet_name' in p), p)
   ok('a free-text note is dropped', !('note' in p), p)
   ok('a medicine is dropped',       !('medicine' in p), p)
   ok('an email address is dropped', !('email' in p), p)
   ok('a health condition is dropped', !('condition' in p), p)
   ok('ONLY the three safe keys survived',
-     Object.keys(p).sort().join() === 'count,first,species', p)
+     Object.keys(p).sort().join() === 'has_bill,medicines,species', p)
 }
 
 console.log('\nVocabulary values with spaces')
@@ -85,15 +85,34 @@ console.log('\nVocabulary values with spaces')
      !('note' in (sent[0]?.params || {})), sent[0])
 }
 
-console.log('\nThe filter is shape-based — which is a limit worth stating')
+console.log('\nA name under an unexpected key — the bug this list exists for')
+{
+  // Caught by watching a real event reach gtag, not by reading the code.
+  // "Bruno" is one short word of letters, indistinguishable BY SHAPE from the
+  // enum "Dog", so a shape-only filter passed { pet_name: 'Bruno' } straight
+  // through — while the privacy notice says a pet's name cannot reach Google.
+  sent.length = 0
+  trackEvent('pet_added', { species: 'Dog', method: 'form', pet_name: 'Bruno', note: 'skin infection' })
+  const p = sent[0]?.params || {}
+  ok('a pet NAME under pet_name is dropped', !('pet_name' in p), p)
+  ok('the legitimate params still go', p.species === 'Dog' && p.method === 'form', p)
+
+  for (const key of ['pet_name', 'name', 'label', 'note', 'notes', 'email',
+                     'phone', 'condition', 'medicine', 'title', 'query', 'search']) {
+    sent.length = 0
+    trackEvent('pet_added', { [key]: 'Bruno' })
+    ok(`"${key}" is not an allowed parameter`, !(key in (sent[0]?.params || {})), sent[0])
+  }
+}
+
+console.log('\nShape filtering still applies to allowed keys')
 {
   sent.length = 0
-  // "Bruno" is one word with no punctuation, so it is indistinguishable from a
-  // safe enum BY SHAPE. The filter cannot catch this, which is exactly why the
-  // rule for callers is "never pass a name", not "the filter will handle it".
-  trackEvent('pet_added', { species: 'Bruno' })
-  ok('a single bare word does pass — callers must not send names',
-     sent[0]?.params?.species === 'Bruno', sent[0])
+  // `type` IS on the list, so the key gate passes it — the shape gate is what
+  // stops it carrying free text if it ever came from a text field.
+  trackEvent('reminder_created', { type: 'whatever the owner typed here' })
+  ok('an allowed key handed free text is still dropped',
+     !('type' in (sent[0]?.params || {})), sent[0])
 }
 
 console.log('\nNothing is sent without consent')

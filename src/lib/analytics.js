@@ -18,10 +18,21 @@
 
 const CLARITY_ID = 'y24xaz7ubd'
 
-// Google Analytics 4. Env-driven rather than hard-coded, so a deployment
-// without a measurement ID simply has no Google on it — which is the right
-// default for a fork, a preview build, or local development.
-const GA_ID = import.meta.env?.VITE_GA_MEASUREMENT_ID || ''
+// Google Analytics 4.
+//
+// A measurement ID is NOT a secret — it is readable in the page source of any
+// site that uses one, and it grants nothing. It is written here rather than
+// left to an env var so that the property is configured in one place, in the
+// repository, instead of in a dashboard where a missed redeploy silently turns
+// measurement off. VITE_* is inlined at BUILD time, so an env var set after a
+// deploy does nothing until the next one — that has already caught FROM_EMAIL
+// out once on this project.
+//
+// VITE_GA_MEASUREMENT_ID still overrides it, and setting that to a different
+// property is how a fork avoids reporting into this one.
+//
+// None of this loads until the visitor accepts the consent banner.
+const GA_ID = import.meta.env?.VITE_GA_MEASUREMENT_ID || 'G-XLY5YRFZ8Y'
 export const CONSENT_KEY = 'pippy_analytics_consent'   // 'granted' | 'denied'
 
 export function consentState() {
@@ -98,11 +109,40 @@ const EVENTS = new Set([
   'photo_added', 'pet_shared',
 ])
 
+// Parameter KEYS that may be sent. Also a closed list, and the one that
+// actually makes the promise in the privacy notice true.
+//
+// Filtering by the SHAPE of the value is not enough, and this was caught by
+// watching a real event reach gtag rather than by reading the code: a pet
+// called "Bruno" is one short word of letters, indistinguishable from the enum
+// "Dog". `{ pet_name: 'Bruno' }` sailed through a shape-only filter, while the
+// notice tells people a pet's name cannot reach Google.
+//
+// A key cannot be mistaken for another key, so this is a guarantee rather than
+// a heuristic. Adding a key here is a deliberate act; passing a new one by
+// accident does nothing.
+const PARAMS = new Set([
+  'species',      // Dog, Cat, … — a fixed list from AddPetModal
+  'method',       // form | voice
+  'mode',         // speak | type
+  'type',         // reminder type, slugified: Vet_Checkup
+  'frequency',    // Once | Weekly | Monthly | Yearly
+  'role',         // viewer | editor
+  'via',          // sheet | clipboard | link
+  'from',         // where in the UI an action was taken, e.g. bell
+  'records',      // how many records one voice note produced
+  'vaccinations', // counts from a scan
+  'medicines',
+  'results',      // how many providers a search returned
+  'has_bill',     // booleans
+  'searched',
+])
+
 /**
  * Record that something happened. Never what it was about.
  *
  * @param {string} name  one of EVENTS
- * @param {object} [params] numbers and short enums only — see the filter below
+ * @param {object} [params] keys from PARAMS; numbers, booleans and short enums
  */
 export function trackEvent(name, params = {}) {
   if (!EVENTS.has(name)) {
@@ -112,11 +152,17 @@ export function trackEvent(name, params = {}) {
   if (typeof window === 'undefined' || !window.gtag) return
   if (consentState() !== 'granted') return
 
-  // Numbers pass. Strings pass ONLY if short and drawn from a safe shape —
-  // no spaces, no punctuation — which lets through 'Dog' or 'Vaccination' and
-  // stops a pet's name, a note, or a drug name.
   const safe = {}
   for (const [k, v] of Object.entries(params)) {
+    // The key gate first. Whatever `pet_name` or `note` happens to contain,
+    // it is not going anywhere.
+    if (!PARAMS.has(k)) {
+      console.warn(`analytics: dropping unexpected parameter "${k}"`)
+      continue
+    }
+    // Then the shape gate, still worth having: it stops a key on the list
+    // being handed free text by mistake, e.g. a `type` that came from a
+    // text field rather than a dropdown.
     if (typeof v === 'number' && Number.isFinite(v)) safe[k] = v
     else if (typeof v === 'boolean') safe[k] = v
     else if (typeof v === 'string' && /^[A-Za-z][A-Za-z/_-]{0,24}$/.test(v)) safe[k] = v
