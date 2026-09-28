@@ -11,6 +11,7 @@ import {
   uploadPhoto, signedUrls, STATUSES,
 } from '../lib/conditions.js'
 import { trackEvent } from '../lib/analytics.js'
+import { withRetry } from '../lib/net.js'
 
 // `capture` asks the operating system for its camera app. A laptop has no such
 // app, and desktop browsers handle the attribute inconsistently -- the picker
@@ -86,17 +87,29 @@ function NoteForm({ condition, petId, existing, onSaved, onCancel }) {
   }, [paths])
 
   async function handleFiles(list) {
-    const files = Array.from(list || []).filter(f => f.type.startsWith('image/'))
+    const all = Array.from(list || [])
+    // Some pickers — notably iOS sharing a HEIC, and a few Android file
+    // managers — hand over a File with an EMPTY type. The old filter dropped
+    // those silently: you chose a photo and nothing happened, with no error.
+    // A file with no declared type is now given to the compressor, which knows
+    // how to fail properly if it really is not an image.
+    const files = all.filter(f => !f.type || f.type.startsWith('image/'))
+    const skipped = all.length - files.length
+    if (skipped) {
+      setError(`${skipped} file${skipped === 1 ? ' was' : 's were'} not a photo and ${skipped === 1 ? 'was' : 'were'} skipped.`)
+    }
     if (!files.length) return
     setError(null)
     setUploading(u => u + files.length)
     for (const f of files) {
       try {
-        const path = await uploadPhoto(petId, condition.id, f)
+        // Retried on a dropped request. The upload names its own file with a
+        // fresh uuid, so a repeat cannot overwrite or duplicate an earlier one.
+        const path = await withRetry(() => uploadPhoto(petId, condition.id, f))
         trackEvent('photo_added', {})
         setPaths(p => [...p, path])
       } catch (e) {
-        setError(`Could not upload ${f.name}: ${e.message}`)
+        setError(`Could not upload ${f.name || 'that photo'}: ${friendlyError(e)}`)
       } finally {
         setUploading(u => u - 1)
       }

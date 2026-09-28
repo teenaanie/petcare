@@ -154,6 +154,7 @@ import Boarding from './Boarding.jsx'
 import ConditionJournal from './ConditionJournal.jsx'
 import VoiceUpdate from './VoiceUpdate.jsx'
 import { trackEvent } from '../lib/analytics.js'
+import { withRetry } from '../lib/net.js'
 
 export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, onPetDeleted, prefillProviderId, onPrefillUsed, dataRefresh = 0 }) {
   const [showEdit, setShowEdit]                   = useState(false)
@@ -188,7 +189,11 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
 
   async function handlePhotoChange(photoDataUrl) {
     const updated = { ...pet, photo: photoDataUrl }
-    await savePet(updated)
+    // Retried on a dropped request, like every other write — see src/lib/net.js.
+    // Saving the same photo twice is the same as saving it once, so repeating
+    // it is safe. Errors are NOT swallowed here: PetAvatar shows them, and a
+    // photo that did not save must not look as though it did.
+    await withRetry(() => savePet(updated))
     onPetUpdated(updated)
   }
 
