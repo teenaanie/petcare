@@ -33,3 +33,26 @@ export function firstValidDate(...candidates) {
 export function isRealDate(d) {
   return d instanceof Date && !Number.isNaN(d.getTime())
 }
+
+/**
+ * Today's date in India, as YYYY-MM-DD.
+ *
+ * Every date the app stores is a plain calendar date with no timezone, and the
+ * people using it are in IST. Between 18:30 and 00:00 UTC it is already
+ * tomorrow in India, so a browser asked for "today" in UTC would answer
+ * yesterday — which would show a reminder due tomorrow as due today, and a
+ * weight logged at 00:30 as logged yesterday.
+ *
+ * The same anchor is used by the prompts in netlify/functions/ai-complete.js
+ * and by the nightly reminder job, so all three agree on which day it is.
+ */
+export const todayIST = (now = Date.now()) =>
+  new Date(now + 5.5 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+/** `days` after (or before, if negative) the YYYY-MM-DD date `iso`. */
+export function addDaysISO(iso, days) {
+  const d = new Date(`${iso}T00:00:00Z`)
+  if (Number.isNaN(d.getTime())) return null
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().split('T')[0]
+}

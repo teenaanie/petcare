@@ -1,8 +1,9 @@
 import { Menu, ChevronLeft, Plus, PawPrint } from 'lucide-react'
 import PetAvatar from './PetAvatar.jsx'
 import PippyLogo from './PippyLogo.jsx'
+import NotificationBell from './NotificationBell.jsx'
 
-export default function MobileHeader({ selectedPet, onBack, onMenuOpen, onAddPet }) {
+export default function MobileHeader({ selectedPet, onBack, onMenuOpen, onAddPet, refresh, onOpenReminder, onRemindersChanged }) {
   return (
     <header className="md:hidden flex items-center justify-between px-4 py-3 flex-shrink-0"
       style={{ backgroundColor: '#FFFEF8', borderBottom: '1px solid #ebe3d3' }}>
@@ -15,7 +16,9 @@ export default function MobileHeader({ selectedPet, onBack, onMenuOpen, onAddPet
             <PetAvatar pet={selectedPet} size="xs" />
             <span className="font-bold text-sm" style={{ color: '#7a4900' }}>{selectedPet.name}</span>
           </div>
-          <div className="w-10" />
+          {/* This was an empty spacer. The bell balances the header and, more
+              to the point, stays reachable while you are inside a pet. */}
+          <NotificationBell refresh={refresh} onOpenReminder={onOpenReminder} onChanged={onRemindersChanged} />
         </>
       ) : (
         <>
@@ -28,9 +31,12 @@ export default function MobileHeader({ selectedPet, onBack, onMenuOpen, onAddPet
               pip<span style={{ color: '#f2b83d', WebkitTextStroke: '1px #7a4900' }}>py</span>
             </span>
           </div>
-          <button onClick={onAddPet} className="p-1" style={{ color: '#7a4900' }}>
-            <Plus className="w-6 h-6" />
-          </button>
+          <div className="flex items-center gap-0.5">
+            <NotificationBell refresh={refresh} onOpenReminder={onOpenReminder} onChanged={onRemindersChanged} />
+            <button onClick={onAddPet} className="p-1" style={{ color: '#7a4900' }}>
+              <Plus className="w-6 h-6" />
+            </button>
+          </div>
         </>
       )}
     </header>
