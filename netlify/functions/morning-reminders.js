@@ -13,7 +13,7 @@ const TWILIO_SID     = process.env.TWILIO_ACCOUNT_SID
 const TWILIO_TOKEN   = process.env.TWILIO_AUTH_TOKEN
 const TWILIO_FROM    = process.env.TWILIO_PHONE_NUMBER
 const RESEND_API_KEY = process.env.RESEND_API_KEY        // free at resend.com
-const FROM_EMAIL     = process.env.FROM_EMAIL || 'reminders@teenaspetcare.com'
+const FROM_EMAIL     = process.env.FROM_EMAIL || 'Pippy <reminders@pippypets.com>'
 const VAPID_PUBLIC_KEY  = process.env.VAPID_PUBLIC_KEY
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY
 const VAPID_SUBJECT     = process.env.VAPID_SUBJECT || 'mailto:teena.anie9@gmail.com'
@@ -243,7 +243,7 @@ export default async function handler(req) {
   // dashboard does not reach a running deployment until it is redeployed, so
   // "I fixed it" and "the job sees the fix" are different facts. The domain is
   // not personal data; the local part is, and is not logged.
-  const fromDomain = (FROM_EMAIL.split('@')[1] || 'unset').trim()
+  const fromDomain = (FROM_EMAIL.split('@')[1] || 'unset').replace('>', '').trim()
   console.log('Morning reminders job started at', new Date().toISOString(),
               `· sending from @${fromDomain}`)
   if (!RESEND_API_KEY) console.warn('RESEND_API_KEY is not set — no email can be sent.')

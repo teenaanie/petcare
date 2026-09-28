@@ -8,7 +8,7 @@ import { maskEmail } from './_redact.js'
 const SUPABASE_URL   = process.env.SUPABASE_URL
 const SERVICE_KEY    = process.env.SUPABASE_SERVICE_KEY
 const RESEND_API_KEY = process.env.RESEND_API_KEY
-const FROM_EMAIL     = process.env.FROM_EMAIL || 'reminders@teenaspetcare.com'
+const FROM_EMAIL     = process.env.FROM_EMAIL || 'Pippy <reminders@pippypets.com>'
 const ADMIN_EMAIL    = 'teena.anie9@gmail.com'
 
 const PROVIDER_TYPES = ['Vet', 'Groomer', 'Store', 'Boarder', 'Special Services', 'Pet Loss & Memorial Services']
