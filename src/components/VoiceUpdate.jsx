@@ -12,6 +12,7 @@ import {
 } from '../lib/storage.js'
 import { groupParsed } from '../lib/voiceUpdateRecords.js'
 import { withRetry, isNetworkError } from '../lib/net.js'
+import { suggestName, rememberName } from '../lib/petMeds.js'
 import { friendlyError } from '../lib/errors.js'
 
 // Which storage function each kind writes through, named in the pure module so
@@ -49,7 +50,7 @@ const LOOK = {
 // proposes, the human confirms, and nothing is written until the button is
 // pressed.
 
-function Row({ checked, onToggle, icon: Icon, label, title, detail, color, saved }) {
+function Row({ checked, onToggle, icon: Icon, label, title, detail, color, saved, suggestion, onAccept }) {
   // A row that is already in the database is shown ticked off and locked, not
   // just described in an error message — so it is obvious at a glance that
   // pressing Save again will not write it twice.
@@ -66,6 +67,17 @@ function Row({ checked, onToggle, icon: Icon, label, title, detail, color, saved
         </p>
         <p className="text-sm font-bold" style={{ color: saved ? '#44562a' : '#7a4900' }}>{title}</p>
         {detail && <p className="text-xs" style={{ color: '#73775b' }}>{detail}</p>}
+        {/* Offered, never applied. Drug names are what transcription gets
+            wrong most, and a wrong one in a vet's record is the worst kind of
+            mistake this app can make — so a human taps to accept it. */}
+        {suggestion && !saved && (
+          <button type="button"
+            onClick={e => { e.preventDefault(); e.stopPropagation(); onAccept(suggestion) }}
+            className="text-xs font-bold mt-1 px-2 py-1 rounded-lg"
+            style={{ backgroundColor: '#fff3c0', color: '#9a6b12' }}>
+            Did you mean <span style={{ textDecoration: 'underline' }}>{suggestion}</span>?
+          </button>
+        )}
       </div>
     </label>
   )
@@ -97,6 +109,20 @@ function Review({ parsed, pet, onBack, onSaved }) {
   // So what saved is remembered and never sent twice. Pressing Save again is
   // now exactly a retry of the part that did not land.
   const [savedKeys, setSavedKeys] = useState(() => new Set())
+  // Name corrections the owner accepted, by tick-box key. Kept apart from the
+  // parse so the original is never lost — pressing Back still shows what was
+  // actually said.
+  const [renamed, setRenamed] = useState({})
+
+  // Only these two kinds carry a product name worth checking against the
+  // vocabulary. A medical record's title is free text and a bill has no name.
+  const NAMED = { vaccinations: 'name', medicines: 'name' }
+
+  const rowValue = (kind, i, row) => {
+    const field = NAMED[kind.key]
+    const k = keyOf(kind, i)
+    return field && renamed[k] ? { ...row, [field]: renamed[k] } : row
+  }
 
   const toggle = k => setPicked(p => ({ ...p, [k]: !p[k] }))
   const keyOf  = (kind, i) => `${kind.key}-${i}`
@@ -117,8 +143,12 @@ function Review({ parsed, pet, onBack, onSaved }) {
           // left the phone. It cannot have written anything, so repeating it is
           // safe. Anything the server ANSWERED — a refusal, a bad value — is not
           // retried by withRetry, because it would just be refused again.
-          await withRetry(() => SAVERS[kind.saver](kind.payload(rows[i], pet.id)),
+          const row = rowValue(kind, i, rows[i])
+          await withRetry(() => SAVERS[kind.saver](kind.payload(row, pet.id)),
                           { attempts: 2 })
+          // A name a human looked at and saved is trustworthy enough to bias
+          // the next recording with. See src/lib/petMeds.js.
+          if (NAMED[kind.key]) rememberName(row[NAMED[kind.key]])
           nowSaved.add(k)
           justSaved.push(kind.label)
         }
@@ -171,12 +201,21 @@ function Review({ parsed, pet, onBack, onSaved }) {
       {groups.map(({ kind, rows }) => (
         <div key={kind.key} className="rounded-2xl p-3 space-y-2"
           style={{ backgroundColor: '#FFFEF8', border: '1.5px solid #ebe3d3' }}>
-          {rows.map((r, i) => (
-            <Row key={i} checked={!!picked[keyOf(kind, i)]} onToggle={() => toggle(keyOf(kind, i))}
-              saved={savedKeys.has(keyOf(kind, i))}
-              icon={LOOK[kind.key].icon} color={LOOK[kind.key].color} label={kind.label}
-              title={kind.title(r)} detail={kind.detail(r)} />
-          ))}
+          {rows.map((r, i) => {
+            const k     = keyOf(kind, i)
+            const row   = rowValue(kind, i, r)
+            const field = NAMED[kind.key]
+            // Only product names are checked against the vocabulary.
+            const hit   = field ? suggestName(row[field]) : null
+            return (
+              <Row key={i} checked={!!picked[k]} onToggle={() => toggle(k)}
+                saved={savedKeys.has(k)}
+                icon={LOOK[kind.key].icon} color={LOOK[kind.key].color} label={kind.label}
+                title={kind.title(row)} detail={kind.detail(row)}
+                suggestion={hit?.name}
+                onAccept={name => setRenamed(m => ({ ...m, [k]: name }))} />
+            )
+          })}
         </div>
       ))}
 

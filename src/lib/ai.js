@@ -9,6 +9,7 @@
 // netlify/functions/ai-complete.js.
 
 import { supabase } from './supabase.js'
+import { transcriptionPrompt } from './petMeds.js'
 
 // The proxies need to know who is asking, both to reject anonymous callers and
 // to count usage against the right account. Callers that already hold a session
@@ -75,8 +76,14 @@ export async function transcribeAudio(blob, session, language) {
   })
   // `language` is the user's own choice. Omitted or 'auto' means Whisper
   // detects, which is what anyone who has not chosen should get.
+  // The vocabulary of vaccine and medicine names, so Whisper spells them the
+  // way the packet does. See src/lib/petMeds.js — it biases, never constrains.
+  const vocabulary = transcriptionPrompt()
+
   const { text } = await post('/api/transcribe',
-    { audio: base64, mimeType: blob.type, ...(language && language !== 'auto' ? { language } : {}) },
+    { audio: base64, mimeType: blob.type,
+      ...(vocabulary ? { vocabulary } : {}),
+      ...(language && language !== 'auto' ? { language } : {}) },
     session)
   return text
 }

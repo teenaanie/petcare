@@ -14,7 +14,8 @@
     "test:dates": "node scripts/test-dates.mjs",
     "test:voice-update": "node scripts/test-voice-update.mjs",
     "test:reminder-feed": "node scripts/test-reminder-feed.mjs",
-    "test:net": "node scripts/test-net.mjs"
+    "test:net": "node scripts/test-net.mjs",
+    "test:pet-meds": "node scripts/test-pet-meds.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
