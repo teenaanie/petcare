@@ -4,6 +4,7 @@ import { getReminders, getPets, markReminderDone } from '../lib/storage.js'
 import { groupReminders, badgeCount, dueLabel, SOON_DAYS } from '../lib/reminderFeed.js'
 import { todayIST } from '../lib/dates.js'
 import { friendlyError } from '../lib/errors.js'
+import { withRetry } from '../lib/net.js'
 
 // What is due, on the screen the app opens on.
 //
@@ -79,7 +80,8 @@ export default function NotificationBell({ refresh, onOpenReminder, onChanged, c
   async function load() {
     setError(null)
     try {
-      const [reminders, pets] = await Promise.all([getReminders(), getPets()])
+      const [reminders, pets] = await withRetry(
+        () => Promise.all([getReminders(), getPets()]))
       setGroups(groupReminders(reminders, pets, todayIST()))
     } catch (e) {
       // A bell that cannot load is not worth an alarming message — it is not
@@ -115,7 +117,9 @@ export default function NotificationBell({ refresh, onOpenReminder, onChanged, c
   async function handleDone(r) {
     setBusyId(r.id)
     try {
-      await markReminderDone(r.id, true)
+      // Safe to retry: setting is_done to true twice is the same as once, so
+      // a request WebKit dropped costs a moment rather than the action.
+      await withRetry(() => markReminderDone(r.id, true))
       await load()
       // The pet's own Reminders tab may be open behind this panel, still
       // showing the row as pending. Tell the app so it reloads.

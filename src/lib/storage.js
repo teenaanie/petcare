@@ -287,8 +287,18 @@ export async function getReminders(petId) {
 
 export async function markReminderDone(id, isDone) {
   if (isConfigured) {
-    const { data, error } = await supabase.from('reminders').update({ is_done: isDone }).eq('id', id).select().single()
+    // maybeSingle, not single. An UPDATE that matches no visible row is not a
+    // malformed request, and `.single()` reported it as "Cannot coerce the
+    // result to a single JSON object" — which tells a pet parent nothing.
+    //
+    // It really happens: the notification bell lists reminders for every pet
+    // including ones SHARED with you, and `shared_select_reminders` lets a
+    // viewer read them while `shared_update_reminders` (is_pet_editor) refuses
+    // the write. Ticking one off returned zero rows.
+    const { data, error } = await supabase
+      .from('reminders').update({ is_done: isDone }).eq('id', id).select().maybeSingle()
     if (error) throw error
+    if (!data) throw new Error("That reminder belongs to a pet you can view but not edit — ask whoever shared it to mark it done.")
     return fromSnakeReminder(data)
   }
   const all = lsGet(KEYS.reminders)
