@@ -45,6 +45,46 @@ const MIN_BYTES  = 200
 const MIN_MS     = 400         // a tap, not an utterance
 const MAX_MS     = 120_000     // stop before the upload hits the server's size cap
 
+// ── Stopping by itself ───────────────────────────────────────────────────────
+//
+// Talking to this app used to take three taps: Speak, then the mic to start,
+// then the mic again to stop. The middle one is the only one that is really
+// about the user's intent; the other two were the app's bookkeeping.
+//
+// So it now listens for the end of the sentence instead of waiting to be told.
+// Two different signals, because the two paths have different things to watch:
+//
+//   recording path  the microphone stream itself, through an AnalyserNode
+//   solo path       there is no stream to analyse — running getUserMedia
+//                   alongside recognition is what starved WebKit in the first
+//                   place — so the signal is recognition reporting new words
+//
+// Tuning matters more than the mechanism. Stop too eagerly and you cut someone
+// off mid-thought, which is far more annoying than an extra tap; 2.5s is longer
+// than the pause in "he had his rabies shot ... last March".
+const SILENCE_MS = 2500
+
+// If nothing is ever heard, give up rather than listen forever. Long enough to
+// find the words, short enough that a mic left open is not a surprise.
+const NO_SPEECH_MS = 12_000
+
+// Below this the frame is background noise rather than speech. Measured as RMS
+// over a byte time-domain buffer, where 128 is silence. Measured in-browser
+// against a synthetic stream: digital silence reads 0.000, a quiet voice-band
+// tone 0.036, a normal one 0.214 — so this sits with room either side.
+const VOICE_RMS = 0.015
+
+// A FIXED floor is wrong in a noisy room, and a vet's waiting room is a noisy
+// room. If the background alone reads above the threshold, nothing ever counts
+// as silence and the recording runs until the two-minute cap.
+//
+// So the first moment is spent listening to the room, and the bar is set above
+// whatever is already there. NOISE_FACTOR is what speech has to clear relative
+// to the background — high enough not to trip on a fan, low enough that a
+// normal voice at 6x the floor still registers.
+const CALIBRATE_MS  = 500
+const NOISE_FACTOR  = 2.5
+
 export function useVoiceRecorder(onTranscript, language) {
   const [listening, setListening]       = useState(false)
   const [transcript, setTranscript]     = useState('')
@@ -65,11 +105,104 @@ export function useVoiceRecorder(onTranscript, language) {
   const soloRef                         = useRef(false)  // recognition-only attempt
   const fallbackRef                     = useRef(false)  // solo heard nothing; record next time
   const [partial, setPartial]           = useState('')   // words as they are heard
+  const heardAtRef                      = useRef(0)      // last moment speech was detected
+  const heardAnythingRef                = useRef(false)
+  const silenceRef                      = useRef(null)   // the "has it gone quiet" watcher
+  const analyserRef                     = useRef(null)   // the "is anyone talking" meter
+  const audioCtxRef                     = useRef(null)
   const [engine, setEngine]             = useState(null) // 'browser' | 'whisper'
 
   function clearTimers() {
     clearInterval(tickRef.current);   tickRef.current = null
     clearTimeout(autoStopRef.current); autoStopRef.current = null
+    clearInterval(silenceRef.current);  silenceRef.current = null
+    clearInterval(analyserRef.current); analyserRef.current = null
+    // An AudioContext left open holds the microphone indicator on in some
+    // browsers even after the track has stopped.
+    try { audioCtxRef.current?.close() } catch { /* already closed */ }
+    audioCtxRef.current = null
+  }
+
+  /** Note that speech was just heard, wherever the signal came from. */
+  function noteVoice() {
+    heardAtRef.current = Date.now()
+    heardAnythingRef.current = true
+  }
+
+  /**
+   * Watch for the end of the sentence and stop on its own.
+   * `stopFn` is passed in because `stop` is defined below this point.
+   */
+  function watchForSilence(stopFn) {
+    heardAtRef.current = Date.now()
+    heardAnythingRef.current = false
+    const startedAt = Date.now()
+
+    silenceRef.current = setInterval(() => {
+      const now = Date.now()
+      if (heardAnythingRef.current) {
+        if (now - heardAtRef.current >= SILENCE_MS) stopFn()
+      } else if (now - startedAt >= NO_SPEECH_MS) {
+        stopFn()
+      }
+    }, 250)
+  }
+
+  /**
+   * Listen to the live microphone stream and call noteVoice() while anyone is
+   * speaking. Analysing the stream is read-only and does not compete for the
+   * microphone the way a second recorder would.
+   */
+  function listenForVoice(stream) {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext
+      if (!Ctx) return
+      const ctx = new Ctx()
+      audioCtxRef.current = ctx
+      const source = ctx.createMediaStreamSource(stream)
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 2048
+      source.connect(analyser)
+      const buf = new Uint8Array(analyser.fftSize)
+
+      const rms = () => {
+        analyser.getByteTimeDomainData(buf)
+        let sum = 0
+        for (let i = 0; i < buf.length; i++) {
+          const v = (buf[i] - 128) / 128
+          sum += v * v
+        }
+        return Math.sqrt(sum / buf.length)
+      }
+
+      const startedAt = Date.now()
+      let floor = 0            // the room, learned over the first CALIBRATE_MS
+      let threshold = VOICE_RMS
+      let calibrated = false
+
+      analyserRef.current = setInterval(() => {
+        const level = rms()
+
+        if (Date.now() - startedAt < CALIBRATE_MS) {
+          // Still listening to the room. Anything genuinely loud in this
+          // window is almost certainly the user starting to talk straight
+          // away, so it counts as speech rather than as background.
+          floor = Math.max(floor, level)
+          if (level > Math.max(VOICE_RMS, floor * NOISE_FACTOR)) noteVoice()
+          return
+        }
+
+        // Set once, on the first tick after calibration. A flag rather than
+        // comparing against VOICE_RMS, which stays equal to it in a quiet room.
+        if (!calibrated) {
+          threshold = Math.max(VOICE_RMS, floor * NOISE_FACTOR)
+          calibrated = true
+        }
+        if (level > threshold) noteVoice()
+      }, 100)
+    } catch {
+      // No analyser: the recording still works, it just waits to be stopped.
+    }
   }
 
   // Recognition holds the microphone too; abandoning it without this leaves the
@@ -107,13 +240,19 @@ export function useVoiceRecorder(onTranscript, language) {
     const soloLang = webSpeechLangFor(languageRef.current)
     if (!fallbackRef.current && webSpeechSupported() && webSpeechEnabled()
         && soloLang && webSpeechNeedsSolo()) {
-      const handle = startWebSpeech({ lang: soloLang, onPartial: setPartial })
+      // Every partial is a sign somebody is still talking — the only such
+      // signal available here, since this path deliberately opens no stream.
+      const handle = startWebSpeech({
+        lang: soloLang,
+        onPartial: t => { setPartial(t); if (t) noteVoice() },
+      })
       if (handle) {
         speechRef.current = handle
         soloRef.current   = true
         startTimeRef.current = Date.now()
         setListening(true)
         setEngine('browser')
+        watchForSilence(() => stop())
         tickRef.current = setInterval(() => {
           setElapsedMs(Date.now() - (startTimeRef.current || 0))
         }, 200)
@@ -231,7 +370,7 @@ export function useVoiceRecorder(onTranscript, language) {
       // auto-detect). Whisper covers every case this does not.
       const bcp47 = webSpeechLangFor(languageRef.current)
       speechRef.current = (webSpeechSupported() && webSpeechEnabled() && bcp47)
-        ? startWebSpeech({ lang: bcp47, onPartial: setPartial })
+        ? startWebSpeech({ lang: bcp47, onPartial: t => { setPartial(t); if (t) noteVoice() } })
         : null
       // Recorded now, because speechRef is cleared before onstop reads it.
       usedRecognitionRef.current = !!speechRef.current
@@ -240,6 +379,12 @@ export function useVoiceRecorder(onTranscript, language) {
       startTimeRef.current = Date.now()
       readyRef.current     = true
       setListening(true)
+
+      // Stop when the sentence ends, so the whole interaction is one tap.
+      // Tapping the mic again still stops it early, for anyone who would
+      // rather not wait.
+      listenForVoice(stream)
+      watchForSilence(() => stop())
 
       // Show the user that something is being captured. Without this the only
       // feedback is a pulsing button, which looks the same whether the

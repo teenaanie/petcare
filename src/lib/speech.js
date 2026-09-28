@@ -187,3 +187,21 @@ export function startWebSpeech({ lang, onPartial } = {}) {
     result,
   }
 }
+
+/**
+ * Is talking to this device plausibly going to work?
+ *
+ * Used to decide which mode the voice panel OPENS in. It is a guess made
+ * before anything has been tried — the honest answer only arrives when the
+ * microphone is actually asked for — so it is deliberately generous: getting
+ * it wrong costs one tap on "Type or paste", while defaulting everyone to
+ * typing costs a tap on every single voice note.
+ *
+ * It says no on a device with neither route, and on a page served over plain
+ * http, where getUserMedia does not exist at all.
+ */
+export function voiceLikelyAvailable() {
+  if (typeof window === 'undefined') return false
+  const canRecord = !!navigator?.mediaDevices?.getUserMedia
+  return canRecord || (webSpeechSupported() && webSpeechEnabled())
+}

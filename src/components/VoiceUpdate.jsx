@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { aiComplete } from '../lib/ai.js'
 import { useVoiceRecorder } from '../lib/useVoiceRecorder.js'
+import { voiceLikelyAvailable } from '../lib/speech.js'
 import VoicePanel from './VoicePanel.jsx'
 import {
   saveMedicalRecord, saveVaccination, saveMedicine, saveAllergy,
@@ -250,7 +251,11 @@ function Review({ parsed, pet, onBack, onSaved }) {
 // ── The screen ───────────────────────────────────────────────────────────────
 
 export default function VoiceUpdate({ pet, onClose, onSaved }) {
-  const [mode, setMode]   = useState('type')   // 'speak' | 'type'
+  // Opens on Speak. This screen exists because talking is faster than typing,
+  // so making the user pick "Speak" first was a tap spent asking whether they
+  // meant what they had just opened. Typing is one tap away and still a
+  // first-class mode; a device that cannot record opens on it instead.
+  const [mode, setMode] = useState(() => (voiceLikelyAvailable() ? 'speak' : 'type'))
   const [text, setText]   = useState('')
   const [parsing, setParsing] = useState(false)
   const [parsed, setParsed]   = useState(null)
