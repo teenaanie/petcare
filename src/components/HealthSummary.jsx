@@ -3,6 +3,7 @@ import { Sparkles, X, Loader2, AlertCircle, Copy, Check, ChevronDown, Heart, Ale
 import { getMedicalHistory, getVaccinations, getMedicines, getWeightLogs, getReminders, getAllergies } from '../lib/storage.js'
 import { format, subDays, parseISO, isValid, isAfter } from 'date-fns'
 import { aiComplete } from '../lib/ai.js'
+import { copyText, COPY_FAILED } from '../lib/clipboard.js'
 
 const PERIODS = [
   { label: '2 weeks', days: 14 },
@@ -121,10 +122,12 @@ export default function HealthSummary({ pet, onClose }) {
     }
   }
 
-  function handleCopyQuestions() {
+  async function handleCopyQuestions() {
     if (!summary?.vetQuestions) return
     const text = summary.vetQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')
-    navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2500) })
+    // Only claim it copied if it did — see src/lib/clipboard.js.
+    if (await copyText(text)) { setCopied(true); setTimeout(() => setCopied(false), 2500) }
+    else alert(COPY_FAILED)
   }
 
   return (

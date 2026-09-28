@@ -11,6 +11,8 @@ import {
   saveWeightLog, saveBill, saveReminder,
 } from '../lib/storage.js'
 import { groupParsed } from '../lib/voiceUpdateRecords.js'
+import { withRetry, isNetworkError } from '../lib/net.js'
+import { friendlyError } from '../lib/errors.js'
 
 // Which storage function each kind writes through, named in the pure module so
 // that module can stay free of imports and be tested in plain node.
@@ -47,15 +49,22 @@ const LOOK = {
 // proposes, the human confirms, and nothing is written until the button is
 // pressed.
 
-function Row({ checked, onToggle, icon: Icon, label, title, detail, color }) {
+function Row({ checked, onToggle, icon: Icon, label, title, detail, color, saved }) {
+  // A row that is already in the database is shown ticked off and locked, not
+  // just described in an error message — so it is obvious at a glance that
+  // pressing Save again will not write it twice.
   return (
-    <label className="flex items-start gap-2.5 p-2.5 rounded-xl cursor-pointer"
-      style={{ backgroundColor: checked ? '#fff9e0' : '#f4f1ea' }}>
-      <input type="checkbox" checked={checked} onChange={onToggle} className="mt-0.5" />
-      <Icon className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color }} />
+    <label className={`flex items-start gap-2.5 p-2.5 rounded-xl ${saved ? '' : 'cursor-pointer'}`}
+      style={{ backgroundColor: saved ? '#eef3e2' : checked ? '#fff9e0' : '#f4f1ea' }}>
+      {saved
+        ? <Check className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#44562a' }} />
+        : <input type="checkbox" checked={checked} onChange={onToggle} className="mt-0.5" />}
+      <Icon className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: saved ? '#44562a' : color }} />
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#a08f7a' }}>{label}</p>
-        <p className="text-sm font-bold" style={{ color: '#7a4900' }}>{title}</p>
+        <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#a08f7a' }}>
+          {label}{saved ? ' · saved' : ''}
+        </p>
+        <p className="text-sm font-bold" style={{ color: saved ? '#44562a' : '#7a4900' }}>{title}</p>
         {detail && <p className="text-xs" style={{ color: '#73775b' }}>{detail}</p>}
       </div>
     </label>
@@ -77,30 +86,54 @@ function Review({ parsed, pet, onBack, onSaved }) {
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState(null)
   const [done, setDone]     = useState(null)
+  // Rows already written to the database, by tick-box key.
+  //
+  // This is the important one. A batch can stop halfway — WebKit dropped the
+  // third of three writes on a real phone, after the first two had already
+  // landed — and the old code told the user to "check the tabs before trying
+  // again". Pressing Save again then wrote those first two A SECOND TIME. In a
+  // record a vet reads, a duplicated vaccination is worse than a failed save.
+  //
+  // So what saved is remembered and never sent twice. Pressing Save again is
+  // now exactly a retry of the part that did not land.
+  const [savedKeys, setSavedKeys] = useState(() => new Set())
 
   const toggle = k => setPicked(p => ({ ...p, [k]: !p[k] }))
-  const total  = groups.reduce((n, g) => n + g.rows.filter((_, i) => picked[`${g.kind.key}-${i}`]).length, 0)
+  const keyOf  = (kind, i) => `${kind.key}-${i}`
+  const pending = groups.flatMap(({ kind, rows }) =>
+    rows.map((_, i) => keyOf(kind, i)).filter(k => picked[k] && !savedKeys.has(k)))
+  const total = pending.length
 
   async function save() {
     setSaving(true); setError(null)
-    const saved = []
+    const justSaved = []
+    const nowSaved  = new Set(savedKeys)
     try {
       for (const { kind, rows } of groups) {
         for (let i = 0; i < rows.length; i++) {
-          if (!picked[`${kind.key}-${i}`]) continue
-          await SAVERS[kind.saver](kind.payload(rows[i], pet.id))
-          saved.push(kind.label)
+          const k = keyOf(kind, i)
+          if (!picked[k] || nowSaved.has(k)) continue
+          // One retry, for the failure actually observed: a request that never
+          // left the phone. It cannot have written anything, so repeating it is
+          // safe. Anything the server ANSWERED — a refusal, a bad value — is not
+          // retried by withRetry, because it would just be refused again.
+          await withRetry(() => SAVERS[kind.saver](kind.payload(rows[i], pet.id)),
+                          { attempts: 2 })
+          nowSaved.add(k)
+          justSaved.push(kind.label)
         }
       }
-      const counts = saved.reduce((m, l) => ({ ...m, [l]: (m[l] || 0) + 1 }), {})
+      const counts = justSaved.reduce((m, l) => ({ ...m, [l]: (m[l] || 0) + 1 }), {})
       setDone(counts)
       onSaved?.(counts)
     } catch (e) {
-      // Partial saves are real: some rows may already be in. Say so rather than
-      // implying nothing happened, so the user does not save the same visit twice.
-      setError(saved.length
-        ? `${e.message} — ${saved.length} record${saved.length === 1 ? '' : 's'} had already been saved before this failed, so check the tabs before trying again.`
-        : `${e.message} — nothing was saved, you can try again.`)
+      setSavedKeys(nowSaved)
+      const n = justSaved.length
+      const left = pending.length - n
+      setError(
+        n === 0
+          ? `${friendlyError(e)} Nothing was saved — press Save to try again.`
+          : `${friendlyError(e)} ${n} record${n === 1 ? '' : 's'} saved before that, and ${n === 1 ? 'it is' : 'they are'} ticked off below — pressing Save again sends only the remaining ${left}, so nothing is written twice.`)
       setSaving(false)
     }
   }
@@ -139,7 +172,8 @@ function Review({ parsed, pet, onBack, onSaved }) {
         <div key={kind.key} className="rounded-2xl p-3 space-y-2"
           style={{ backgroundColor: '#FFFEF8', border: '1.5px solid #ebe3d3' }}>
           {rows.map((r, i) => (
-            <Row key={i} checked={!!picked[`${kind.key}-${i}`]} onToggle={() => toggle(`${kind.key}-${i}`)}
+            <Row key={i} checked={!!picked[keyOf(kind, i)]} onToggle={() => toggle(keyOf(kind, i))}
+              saved={savedKeys.has(keyOf(kind, i))}
               icon={LOOK[kind.key].icon} color={LOOK[kind.key].color} label={kind.label}
               title={kind.title(r)} detail={kind.detail(r)} />
           ))}
@@ -168,7 +202,7 @@ function Review({ parsed, pet, onBack, onSaved }) {
         className="btn-primary w-full gap-2 text-sm">
         {saving
           ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
-          : <><Check className="w-4 h-4" /> Add {total} to {pet.name}</>}
+          : <><Check className="w-4 h-4" /> {savedKeys.size ? `Save the remaining ${total}` : `Add ${total} to ${pet.name}`}</>}
       </button>
     </div>
   )

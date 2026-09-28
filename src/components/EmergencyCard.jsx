@@ -3,6 +3,7 @@ import { X, Share2, Download, ShieldAlert, MessageCircle } from 'lucide-react'
 import { getMedicalHistory, getVaccinations, getAllergies } from '../lib/storage.js'
 import { format, parseISO, isValid } from 'date-fns'
 import { getMyProviders, telLink } from '../lib/myProviders.js'
+import { copyText, COPY_FAILED } from '../lib/clipboard.js'
 
 function fmt(str) {
   if (!str) return null
@@ -39,8 +40,9 @@ export default function EmergencyCard({ pet, onClose }) {
     if (navigator.share) {
       try { await navigator.share({ title: `${pet.name}'s Emergency Card`, text }) } catch {}
     } else {
-      await navigator.clipboard.writeText(text)
-      alert('Emergency card copied to clipboard!')
+      alert(await copyText(text)
+        ? 'Emergency card copied to clipboard!'
+        : COPY_FAILED)
     }
   }
 
