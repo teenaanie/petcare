@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Edit2, Trash2, Calendar, Weight, Phone, Sparkles, ShieldAlert, Users } from 'lucide-react'
+import { Edit2, Trash2, Calendar, Weight, Phone, Sparkles, ShieldAlert, Users, Mic } from 'lucide-react'
 import { supabase, isConfigured } from '../lib/supabase.js'
 import HealthSummary from './HealthSummary.jsx'
 
@@ -152,12 +152,19 @@ import PetSharing from './PetSharing.jsx'
 import BreedAlert from './BreedAlert.jsx'
 import Boarding from './Boarding.jsx'
 import ConditionJournal from './ConditionJournal.jsx'
+import VoiceUpdate from './VoiceUpdate.jsx'
 
 export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, onPetDeleted, prefillProviderId, onPrefillUsed }) {
   const [showEdit, setShowEdit]                   = useState(false)
   const [showHealthSummary, setShowHealthSummary] = useState(false)
   const [showEmergencyCard, setShowEmergencyCard] = useState(false)
   const [showSharing, setShowSharing]             = useState(false)
+  const [showVoiceUpdate, setShowVoiceUpdate]     = useState(false)
+  // Each tab loads its own records on mount. A voice update can write into any
+  // of them, so bumping this remounts whichever tab is open and it reloads —
+  // otherwise the user adds a weight by voice and the Weight tab behind the
+  // modal still shows the old list, which reads as the save having failed.
+  const [dataVersion, setDataVersion]             = useState(0)
   const [session, setSession]             = useState(null)
 
   useEffect(() => {
@@ -188,8 +195,13 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
     <div className="p-4 md:p-8">
       {/* Pet header */}
       <div className="card mb-4 md:mb-6">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3 md:gap-4">
+        {/* Wraps on a phone. Before it did, the action buttons ran off the
+            right edge of a 375px screen with no way to scroll to them: AI Brief
+            was already unreachable there, and adding Update pushed SOS off too.
+            On mobile the buttons take their own line under the pet's details;
+            from md up nothing changes. */}
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1">
             <PetAvatar pet={pet} size="lg" editable onPhotoChange={handlePhotoChange} />
             <div className="flex-1 min-w-0">
               <h1 className="text-lg md:text-2xl font-black" style={{ color: '#7a4900' }}>{pet.name}</h1>
@@ -202,7 +214,14 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
               <LifeStageBar pet={pet} ageYears={age} />
             </div>
           </div>
-          <div className="flex gap-1.5 flex-shrink-0">
+          <div className="flex gap-1.5 flex-shrink-0 w-full justify-end md:w-auto">
+            <button onClick={() => setShowVoiceUpdate(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
+              style={{ backgroundColor: '#eef3e2', color: '#44562a' }}
+              title="Add an update by voice">
+              <Mic className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Update</span>
+            </button>
             <button onClick={() => setShowSharing(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
               style={{ backgroundColor: '#eef8fb', color: '#255d6e' }}
@@ -263,16 +282,16 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
       {pet.breed && activeTab === 'timeline' && <BreedAlert pet={pet} />}
 
       {/* Tab content */}
-      {activeTab === 'timeline'     && <Timeline pet={pet} />}
-      {activeTab === 'medical'      && <MedicalHistory pet={pet} />}
-      {activeTab === 'vaccinations' && <Vaccinations pet={pet} />}
-      {activeTab === 'medicines'    && <Medicines pet={pet} />}
-      {activeTab === 'weight'       && <WeightLog pet={pet} />}
-      {activeTab === 'bills'        && <Bills pet={pet} />}
-      {activeTab === 'allergies'    && <Allergies pet={pet} />}
+      {activeTab === 'timeline'     && <Timeline       key={dataVersion} pet={pet} />}
+      {activeTab === 'medical'      && <MedicalHistory key={dataVersion} pet={pet} />}
+      {activeTab === 'vaccinations' && <Vaccinations   key={dataVersion} pet={pet} />}
+      {activeTab === 'medicines'    && <Medicines      key={dataVersion} pet={pet} />}
+      {activeTab === 'weight'       && <WeightLog      key={dataVersion} pet={pet} />}
+      {activeTab === 'bills'        && <Bills          key={dataVersion} pet={pet} />}
+      {activeTab === 'allergies'    && <Allergies      key={dataVersion} pet={pet} />}
       {activeTab === 'journal'      && <ConditionJournal pet={pet} />}
       {activeTab === 'scanner'      && <DocumentScanner pet={pet} session={session} />}
-      {activeTab === 'reminders'    && <Reminders pet={pet} />}
+      {activeTab === 'reminders'    && <Reminders      key={dataVersion} pet={pet} />}
       {activeTab === 'boarding'     && <Boarding pet={pet} onPetUpdated={onPetUpdated}
                                           prefillProviderId={prefillProviderId} onPrefillUsed={onPrefillUsed} />}
 
@@ -297,6 +316,11 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
 
       {showSharing && (
         <PetSharing pet={pet} onClose={() => setShowSharing(false)} />
+      )}
+
+      {showVoiceUpdate && (
+        <VoiceUpdate pet={pet} onClose={() => setShowVoiceUpdate(false)}
+          onSaved={() => setDataVersion(v => v + 1)} />
       )}
     </div>
   )
