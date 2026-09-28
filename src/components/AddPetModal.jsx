@@ -4,6 +4,7 @@ import VoiceIntake from './VoiceIntake.jsx'
 import { savePet, saveReminder } from '../lib/storage.js'
 import { announcePetAdded } from '../lib/notify.js'
 import PetAvatar from './PetAvatar.jsx'
+import { trackEvent } from '../lib/analytics.js'
 
 const SPECIES = ['Dog', 'Cat', 'Bird', 'Rabbit', 'Hamster', 'Fish', 'Reptile', 'Other']
 const GENDERS = ['Male', 'Female', 'Unknown']
@@ -141,6 +142,8 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
       // A NEW pet, not an edit. Not awaited: the alert is not the user's
       // business and must not delay or fail their save.
       announcePetAdded(saved?.id)
+      // Species only — an enum from a fixed list. Never the pet's name.
+      trackEvent('pet_added', { species: saved?.species || '', method: 'form' })
       setStep('reminders')
     } finally {
       setSaving(false)

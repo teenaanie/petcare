@@ -4,6 +4,7 @@ import { getMedicalHistory, getVaccinations, getMedicines, getWeightLogs, getRem
 import { format, subDays, parseISO, isValid, isAfter } from 'date-fns'
 import { aiComplete } from '../lib/ai.js'
 import { copyText, COPY_FAILED } from '../lib/clipboard.js'
+import { trackEvent } from '../lib/analytics.js'
 
 const PERIODS = [
   { label: '2 weeks', days: 14 },
@@ -115,6 +116,7 @@ export default function HealthSummary({ pet, onClose }) {
 
       const result = await generateHealthSummary(pet, data, label)
       setSummary(result)
+      trackEvent('health_brief_generated', { species: pet?.species || '' })
     } catch (e) {
       setError(e.message)
     } finally {

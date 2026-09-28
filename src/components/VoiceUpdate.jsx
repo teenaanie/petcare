@@ -15,6 +15,7 @@ import { groupParsed } from '../lib/voiceUpdateRecords.js'
 import { withRetry, isNetworkError } from '../lib/net.js'
 import { suggestName, rememberName } from '../lib/petMeds.js'
 import { friendlyError } from '../lib/errors.js'
+import { trackEvent } from '../lib/analytics.js'
 
 // Which storage function each kind writes through, named in the pure module so
 // that module can stay free of imports and be tested in plain node.
@@ -156,6 +157,9 @@ function Review({ parsed, pet, onBack, onSaved }) {
       }
       const counts = justSaved.reduce((m, l) => ({ ...m, [l]: (m[l] || 0) + 1 }), {})
       setDone(counts)
+      // How many records one spoken sentence produced — a number, never what
+      // any of them said.
+      trackEvent('voice_update_used', { records: justSaved.length })
       onSaved?.(counts)
     } catch (e) {
       setSavedKeys(nowSaved)

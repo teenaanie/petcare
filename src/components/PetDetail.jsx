@@ -153,6 +153,7 @@ import BreedAlert from './BreedAlert.jsx'
 import Boarding from './Boarding.jsx'
 import ConditionJournal from './ConditionJournal.jsx'
 import VoiceUpdate from './VoiceUpdate.jsx'
+import { trackEvent } from '../lib/analytics.js'
 
 export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, onPetDeleted, prefillProviderId, onPrefillUsed, dataRefresh = 0 }) {
   const [showEdit, setShowEdit]                   = useState(false)
@@ -233,7 +234,7 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
               <Users className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Share</span>
             </button>
-            <button onClick={() => setShowEmergencyCard(true)}
+            <button onClick={() => { setShowEmergencyCard(true); trackEvent('emergency_card_opened', { species: pet?.species || '' }) }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
               style={{ backgroundColor: '#fdeaea', color: '#c0392b' }}
               title="Emergency Card">

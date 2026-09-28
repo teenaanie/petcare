@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Users, UserPlus, Trash2, X, Loader2, AlertCircle, Copy, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { copyText, COPY_FAILED } from '../lib/clipboard.js'
+import { trackEvent } from '../lib/analytics.js'
 
 // ── Supabase helpers ──────────────────────────────────────────────────────────
 
@@ -93,6 +94,7 @@ export default function PetSharing({ pet, onClose }) {
   }
 
   async function copyLink() {
+    trackEvent('pet_shared', { via: 'link' })
     const link = `${window.location.origin}?pet=${pet.id}`
     // This used to swallow the failure and say "Copied!" anyway, which is how
     // someone ends up pasting whatever was on their clipboard before.

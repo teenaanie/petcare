@@ -4,6 +4,7 @@ import { Search, MapPin, Phone, Clock, ExternalLink, MessageCircle, Stethoscope,
 import { getProviders, getProviderFacets } from '../lib/storage.js'
 import { resolvePolicy, hasCustomPolicy, REQUIREMENT_CATALOG, GENERIC_PROVENANCE } from '../lib/boarding.js'
 import { visitPrepFor } from '../lib/visitPrep.js'
+import { trackEvent } from '../lib/analytics.js'
 
 // Category colours are drawn from the brand's secondary palette — azure,
 // yellow-green, orange-yellow and coral — rather than generic UI colours.
@@ -316,6 +317,13 @@ export default function ProviderDirectory({ onPrepForStay }) {
         if (cancelled) return
         setProviders(rows)
         setTotal(count)
+        // Whether a search happened and how well it went — the words typed
+        // are NOT sent. A pet parent's search terms are their business.
+        trackEvent('provider_searched', {
+          searched: !!(query.search || '').trim(),
+          type: query.type || '',
+          results: count || 0,
+        })
       })
       .catch(e => { if (!cancelled) setError(e.message) })
       .finally(() => { if (!cancelled) setLoading(false) })

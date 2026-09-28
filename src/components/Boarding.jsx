@@ -16,6 +16,7 @@ import {
 } from '../lib/boarding.js'
 import BoarderSearch from './BoarderSearch.jsx'
 import { copyText, COPY_FAILED } from '../lib/clipboard.js'
+import { trackEvent } from '../lib/analytics.js'
 
 const SETUP_SQL = 'Run supabase/boarding.sql in your Supabase SQL Editor to enable boarding prep.'
 
@@ -327,6 +328,7 @@ function PrepReminderModal({ tasks, petName, existingCount, onClose, onConfirm }
 function PackModal({ text, petName, onClose }) {
   const [copied, setCopied] = useState(false)
   async function share() {
+    trackEvent('boarding_pack_shared', { via: navigator.share ? 'sheet' : 'clipboard' })
     if (navigator.share) {
       try { await navigator.share({ title: `${petName} — boarding pack`, text }); return } catch {}
     }

@@ -5,6 +5,7 @@ import { groupReminders, badgeCount, dueLabel, SOON_DAYS } from '../lib/reminder
 import { todayIST } from '../lib/dates.js'
 import { friendlyError } from '../lib/errors.js'
 import { withRetry } from '../lib/net.js'
+import { trackEvent } from '../lib/analytics.js'
 
 // What is due, on the screen the app opens on.
 //
@@ -120,6 +121,7 @@ export default function NotificationBell({ refresh, onOpenReminder, onChanged, c
       // Safe to retry: setting is_done to true twice is the same as once, so
       // a request WebKit dropped costs a moment rather than the action.
       await withRetry(() => markReminderDone(r.id, true))
+      trackEvent('reminder_done', { from: 'bell', type: (r.type || '').replace(/\s+/g, '_') })
       await load()
       // The pet's own Reminders tab may be open behind this panel, still
       // showing the row as pending. Tell the app so it reloads.

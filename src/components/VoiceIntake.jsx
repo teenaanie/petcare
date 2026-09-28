@@ -10,6 +10,7 @@ import VoicePanel from './VoicePanel.jsx'
 import { savePet, saveVaccination, saveMedicine, saveAllergy } from '../lib/storage.js'
 import { announcePetAdded } from '../lib/notify.js'
 import { saveCondition } from '../lib/conditions.js'
+import { trackEvent } from '../lib/analytics.js'
 
 // Onboarding someone who already has a pet and a folder of vet papers. They
 // will not scan twenty documents to get started, but many of them know the
@@ -93,6 +94,7 @@ function Review({ parsed, onBack, onSaved }) {
         // This screen creates pets too, so it announces them as well —
         // otherwise a pet added by voice would never be reported.
         announcePetAdded(saved?.id)
+        trackEvent('pet_added', { species: saved?.species || '', method: 'voice' })
 
         for (let j = 0; j < (p.vaccinations || []).length; j++) {
           if (!picked[`vac-${i}-${j}`]) continue
@@ -266,6 +268,8 @@ export default function VoiceIntake({ onClose, onSaved }) {
     setParsing(true); setError(null)
     try {
       setParsed(await aiComplete('voice_intake', { transcript: text.trim() }))
+      // That the screen was used, and by which route. Never the transcript.
+      trackEvent('voice_intake_used', { mode })
     } catch (e) { setError(e.message) }
     finally { setParsing(false) }
   }
