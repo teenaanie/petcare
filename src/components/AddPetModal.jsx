@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Sparkles, X, CheckCircle, Circle, Bell, ChevronRight, Loader2 } from 'lucide-react'
 import VoiceIntake from './VoiceIntake.jsx'
 import { savePet, saveReminder } from '../lib/storage.js'
+import { announcePetAdded } from '../lib/notify.js'
 import PetAvatar from './PetAvatar.jsx'
 
 const SPECIES = ['Dog', 'Cat', 'Bird', 'Rabbit', 'Hamster', 'Fish', 'Reptile', 'Other']
@@ -137,6 +138,9 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
       setSavedPet(saved)
       // Skip reminders step for edits
       if (existing) { onSaved(saved); return }
+      // A NEW pet, not an edit. Not awaited: the alert is not the user's
+      // business and must not delay or fail their save.
+      announcePetAdded(saved?.id)
       setStep('reminders')
     } finally {
       setSaving(false)

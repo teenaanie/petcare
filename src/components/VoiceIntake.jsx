@@ -7,6 +7,7 @@ import { aiComplete } from '../lib/ai.js'
 import { useVoiceRecorder } from '../lib/useVoiceRecorder.js'
 import VoicePanel from './VoicePanel.jsx'
 import { savePet, saveVaccination, saveMedicine, saveAllergy } from '../lib/storage.js'
+import { announcePetAdded } from '../lib/notify.js'
 import { saveCondition } from '../lib/conditions.js'
 
 // Onboarding someone who already has a pet and a folder of vet papers. They
@@ -88,6 +89,9 @@ function Review({ parsed, onBack, onSaved }) {
           color: p.color || '', notes: p.notes || '',
         })
         summary.pets++
+        // This screen creates pets too, so it announces them as well —
+        // otherwise a pet added by voice would never be reported.
+        announcePetAdded(saved?.id)
 
         for (let j = 0; j < (p.vaccinations || []).length; j++) {
           if (!picked[`vac-${i}-${j}`]) continue

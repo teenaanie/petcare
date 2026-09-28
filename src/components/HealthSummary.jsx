@@ -19,7 +19,7 @@ function safeDate(str) {
 // ── AI call ───────────────────────────────────────────────────────────────────
 
 // The prompt that turns this into a health brief is composed server-side, in
-// netlify/functions/ai-complete.js, next to the API key. We send the records.
+// api/_lib/ai-complete.js, next to the API key. We send the records.
 async function generateHealthSummary(pet, data, periodLabel) {
   // Only the fields the brief actually uses. Sending the whole pet would upload
   // pet.photo — a base64 data URL, often megabytes — on every generation.

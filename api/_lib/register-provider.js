@@ -1,4 +1,4 @@
-// netlify/functions/register-provider.js
+// api/_lib/register-provider.js
 // Public endpoint — anyone with the /register-provider link can submit a provider
 // listing. Always saved with is_approved=false; admin reviews in the Admin panel.
 

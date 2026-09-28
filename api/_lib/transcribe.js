@@ -1,4 +1,4 @@
-// netlify/functions/transcribe.js
+// api/_lib/transcribe.js
 // Proxies OpenAI Whisper transcription server-side. Same auth and rate-limit
 // shape as analyze-document.js and ai-complete.js.
 //

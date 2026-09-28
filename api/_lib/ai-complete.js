@@ -1,4 +1,4 @@
-// netlify/functions/ai-complete.js
+// api/_lib/ai-complete.js
 // Proxies OpenAI chat completions server-side so the API key is never exposed
 // to the browser. Authenticates the caller and rate-limits per user per month,
 // exactly as analyze-document.js does.

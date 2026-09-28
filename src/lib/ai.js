@@ -6,7 +6,7 @@
 // the caller and cap usage per month.
 //
 // Callers pass structured data; the server composes the prompt. See
-// netlify/functions/ai-complete.js.
+// api/_lib/ai-complete.js.
 
 import { supabase } from './supabase.js'
 import { transcriptionPrompt } from './petMeds.js'
@@ -64,7 +64,7 @@ export async function aiComplete(task, payload, session) {
 
 /**
  * Transcribe recorded audio.
- * Sent as base64 JSON rather than multipart — see netlify/functions/transcribe.js
+ * Sent as base64 JSON rather than multipart — see api/_lib/transcribe.js
  * for why that matters on Vercel.
  */
 export async function transcribeAudio(blob, session, language) {

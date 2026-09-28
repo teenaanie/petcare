@@ -1,4 +1,4 @@
-// netlify/functions/analyze-document.js
+// api/_lib/analyze-document.js
 // Proxies OpenAI vision calls server-side so the API key is never exposed to the browser.
 // Also enforces per-user rate limiting and logs usage for cost tracking.
 

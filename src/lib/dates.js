@@ -43,7 +43,7 @@ export function isRealDate(d) {
  * yesterday — which would show a reminder due tomorrow as due today, and a
  * weight logged at 00:30 as logged yesterday.
  *
- * The same anchor is used by the prompts in netlify/functions/ai-complete.js
+ * The same anchor is used by the prompts in api/_lib/ai-complete.js
  * and by the nightly reminder job, so all three agree on which day it is.
  */
 export const todayIST = (now = Date.now()) =>

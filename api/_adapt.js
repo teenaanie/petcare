@@ -1,7 +1,11 @@
-// Vercel's Node runtime hands handlers (req, res); the existing functions were
-// written for Netlify's Web-standard (Request) -> Response signature. Rather
-// than fork every function, adapt between the two so one implementation serves
-// both hosts while the migration is in flight.
+// Vercel's Node runtime hands handlers (req, res). The functions in ./_lib are
+// written against the Web standard, (Request) -> Response.
+//
+// Netlify is gone, so the original reason for this adapter — one implementation
+// serving two hosts — has gone with it. It stays because the Web signature is
+// the portable one: Request and Response are the platform, `req`/`res` is
+// Vercel's Node shim. Keeping the functions standard means the next host needs
+// this file rewritten, not all nine functions.
 
 export function toVercel(webHandler) {
   return async function handler(req, res) {

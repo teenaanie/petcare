@@ -36,8 +36,9 @@ export default function ConsentBanner() {
             <BarChart3 className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#c9891f' }} />
             <p className="text-sm" style={{ color: '#4a4a3d' }}>
               <span className="font-bold" style={{ color: '#7a4900' }}>Help improve Pippy?</span>{' '}
-              Microsoft Clarity can record how the app is used, so rough edges show up.
-              Your pets' records stay masked in any recording. It is off unless you
+              Microsoft Clarity and Google Analytics can record how the app is used, so
+              rough edges show up. Your pets' records stay masked in any recording, and
+              what you type is never sent to Google. It is off unless you
               say yes, and Pippy works exactly the same either way.
             </p>
           </div>

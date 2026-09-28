@@ -1,10 +1,11 @@
-// netlify/functions/morning-reminders.js
+// api/_lib/morning-reminders.js
 // Scheduled function — runs daily at 7:00 AM IST (1:30 AM UTC)
 // Checks all reminders due today, sends email + SMS to each user
 
 import { createClient } from '@supabase/supabase-js'
 import webPush from 'web-push'
 import { maskEmail, maskPhone, bodyShape } from './_redact.js'
+import { sendEmail } from './_email.js'
 
 const SUPABASE_URL   = process.env.SUPABASE_URL
 const SERVICE_KEY    = process.env.SUPABASE_SERVICE_KEY
@@ -22,23 +23,8 @@ if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   webPush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
 }
 
-// ── Email via Resend ──────────────────────────────────────────────────────────
-
-async function sendEmail(to, subject, html) {
-  if (!RESEND_API_KEY) {
-    console.log(`[EMAIL SKIPPED] No RESEND_API_KEY. Would send to ${maskEmail(to)}`)
-    return
-  }
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: FROM_EMAIL, to, subject, html }),
-  })
-  if (!res.ok) {
-    const err = await res.json()
-    throw new Error(`Email failed: ${err.message}`)
-  }
-}
+// Email goes through ./_email.js, shared with notify-owner.js so the sending
+// address and failure handling cannot drift apart between the two.
 
 // ── SMS via Twilio ────────────────────────────────────────────────────────────
 
