@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Users, UserPlus, Trash2, X, Loader2, AlertCircle, Copy, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
-import { copyText, COPY_FAILED } from '../lib/clipboard.js'
 import { trackEvent } from '../lib/analytics.js'
 
 // ── Supabase helpers ──────────────────────────────────────────────────────────
@@ -60,7 +59,6 @@ export default function PetSharing({ pet, onClose }) {
   const [role, setRole]       = useState('viewer')
   const [inviting, setInviting] = useState(false)
   const [inviteErr, setInviteErr] = useState(null)
-  const [copied, setCopied]   = useState(false)
 
   function load() {
     setLoading(true)
@@ -78,6 +76,11 @@ export default function PetSharing({ pet, onClose }) {
     setInviteErr(null)
     try {
       await inviteMember(pet.id, email.trim().toLowerCase(), role)
+      // THE event for this screen. It used to sit in copyLink(), which nothing
+      // calls — so the bundler dropped the function and the event with it, and
+      // it could never have fired. Sharing a pet means inviting someone.
+      // `role` is a fixed vocabulary; the invited address is never sent.
+      trackEvent('pet_shared', { role: role || 'viewer' })
       setEmail('')
       load()
     } catch (err) {
@@ -91,19 +94,6 @@ export default function PetSharing({ pet, onClose }) {
     if (!confirm('Remove this person from the pet?')) return
     await removeMember(id).catch(e => alert(friendly(e.message)))
     load()
-  }
-
-  async function copyLink() {
-    trackEvent('pet_shared', { via: 'link' })
-    const link = `${window.location.origin}?pet=${pet.id}`
-    // This used to swallow the failure and say "Copied!" anyway, which is how
-    // someone ends up pasting whatever was on their clipboard before.
-    if (await copyText(link)) {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } else {
-      alert(COPY_FAILED)
-    }
   }
 
   return (
