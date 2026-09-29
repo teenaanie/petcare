@@ -3,7 +3,7 @@
 // Bump CACHE on any change to this file. The activate handler deletes every
 // cache whose name does not match, so a bump is what evicts stale entries.
 // It sat on v3 across a dozen deploys, which is half of why clients went stale.
-const CACHE = 'pippy-v5'
+const CACHE = 'pippy-v6'
 
 // ── Share target handoff ─────────────────────────────────────────────────────
 //
