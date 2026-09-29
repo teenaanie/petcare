@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { PawPrint, Phone, Mail, MessageSquare, Loader2, AlertCircle, ArrowLeft, CheckCircle } from 'lucide-react'
+import { Phone, Mail, MessageSquare, Loader2, AlertCircle, ArrowLeft, CheckCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import PippyLogo from './PippyLogo.jsx'
+import Landing from './Landing.jsx'
 
 const COUNTRY_CODES = [
   { code: '+91',  label: '🇮🇳 +91' },
@@ -46,7 +47,7 @@ function friendlyAuthError(err) {
 // Supabase dashboard is the way to bring it across.
 const PHONE_LOGIN_ENABLED = false
 
-export default function PhoneAuth() {
+export default function PhoneAuth({ onShowPrivacy }) {
   const [method, setMethod]           = useState('email')
   const [step, setStep]               = useState('entry')
   const [countryCode, setCountryCode] = useState('+91')
@@ -171,26 +172,15 @@ export default function PhoneAuth() {
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
+  //
+  // Two screens, deliberately different. The entry step IS the landing page:
+  // someone arriving here has never seen Pippy and needs a reason before a
+  // form. Once a code is on its way, the landing goes away — at that point the
+  // only job on screen is typing six digits, and anything else is in the way.
 
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4"
-      style={{ backgroundColor: '#FFFEF8' }}>
-
-      {/* Logo */}
-      <div className="flex items-center gap-3 mb-10">
-        <PippyLogo size="lg" className="shadow-sm" />
-        <span className="text-4xl font-black tracking-tight" style={{ color: '#7a4900', fontFamily: 'Nunito, sans-serif' }}>
-          pip<span style={{ color: '#f2b83d' }}>py</span>
-        </span>
-      </div>
-
-      <div className="w-full max-w-sm">
-        <div className="card">
-
-          {/* ── Method toggle ──────────────────────────────────────────── */}
-          {/* Hidden while there is only one way in: a toggle with a single
-              option is furniture, not a choice. */}
-          {step === 'entry' && PHONE_LOGIN_ENABLED && (
+  const entryForm = (
+    <>
+      {PHONE_LOGIN_ENABLED && (
             <div className="flex rounded-xl p-1 mb-6" style={{ backgroundColor: '#ebe3d3' }}>
               <button
                 onClick={() => switchMethod('phone')}
@@ -209,25 +199,8 @@ export default function PhoneAuth() {
                 <Mail className="w-4 h-4" /> Email
               </button>
             </div>
-          )}
+      )}
 
-          {/* ── Entry step ─────────────────────────────────────────────── */}
-          {step === 'entry' && (
-            <>
-              <div className="text-center mb-6">
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                  style={{ backgroundColor: '#fff3c0' }}>
-                  {method === 'phone'
-                    ? <Phone className="w-7 h-7" style={{ color: '#7a4900' }} />
-                    : <Mail className="w-7 h-7" style={{ color: '#7a4900' }} />}
-                </div>
-                <h1 className="text-xl font-black mb-1" style={{ color: '#7a4900' }}>Welcome to Pippy</h1>
-                <p className="text-sm" style={{ color: '#73775b' }}>
-                  {method === 'phone'
-                    ? 'Enter your phone number to get started'
-                    : 'Enter your email to get started'}
-                </p>
-              </div>
 
               <form onSubmit={handleSend} className="space-y-4">
                 {method === 'phone' ? (
@@ -271,8 +244,25 @@ export default function PhoneAuth() {
                     : <><MessageSquare className="w-4 h-4" /> Send Code</>}
                 </button>
               </form>
-            </>
-          )}
+    </>
+  )
+
+  if (step === 'entry') return <Landing onShowPrivacy={onShowPrivacy}>{entryForm}</Landing>
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-4"
+      style={{ backgroundColor: '#FFFEF8' }}>
+
+      {/* Logo */}
+      <div className="flex items-center gap-3 mb-10">
+        <PippyLogo size="lg" className="shadow-sm" />
+        <span className="text-4xl font-black tracking-tight" style={{ color: '#7a4900', fontFamily: 'Nunito, sans-serif' }}>
+          pip<span style={{ color: '#f2b83d' }}>py</span>
+        </span>
+      </div>
+
+      <div className="w-full max-w-sm">
+        <div className="card">
 
           {/* ── OTP step: Phone ────────────────────────────────────────── */}
           {step === 'otp' && method === 'phone' && (
@@ -391,6 +381,14 @@ export default function PhoneAuth() {
 
         <p className="text-center text-xs mt-6" style={{ color: '#73775b' }}>
           Your data is private and secure. Only you can see your pets' records.
+          {onShowPrivacy && (
+            <>
+              {' · '}
+              <button type="button" onClick={onShowPrivacy} className="underline">
+                Privacy &amp; Terms
+              </button>
+            </>
+          )}
         </p>
       </div>
     </div>

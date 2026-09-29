@@ -176,14 +176,13 @@ export default function App() {
   // afterwards.
   if (isConfigured && !session) return (
     <>
-      <PhoneAuth />
+      {/* The Privacy & Terms link is no longer a `fixed` element here. The
+          signed-out screen is a scrolling landing page now, so a fixed link
+          sat permanently on top of the content; each auth screen places it in
+          its own flow instead. */}
+      <PhoneAuth onShowPrivacy={() => setShowPrivacy(true)} />
       <ConsentBanner />
       {showPrivacy && <PrivacyNotice onClose={() => setShowPrivacy(false)} />}
-      <button type="button" onClick={() => setShowPrivacy(true)}
-        className="fixed bottom-2 left-0 right-0 text-center text-[11px] underline z-30"
-        style={{ color: '#a08f7a' }}>
-        Privacy &amp; Terms
-      </button>
     </>
   )
 
