@@ -106,7 +106,13 @@ export default function HealthSummary({ pet, onClose }) {
         records: records.filter(r => inPeriod(r.date)),
         vaccinations: vaccinations.filter(v => inPeriod(v.dateGiven)),
         medicines: medicines.filter(m => !m.isDone || inPeriod(m.startDate) || inPeriod(m.endDate)),
-        weightLogs: weightLogs.filter(w => inPeriod(w.date)),
+        // Deliberately NOT filtered to the chosen period. A weight trend is
+        // historical by definition, so cutting the history to 30 days can leave
+        // a single reading and no trend to find -- which is how a brief ended up
+        // comparing one real reading against the stale profile weight and
+        // reporting a fall that never happened. The last dozen readings are a
+        // few hundred bytes and give the trend something to stand on.
+        weightLogs: weightLogs.slice(-12),
         allergies, // always include allergies regardless of period
         upcomingReminders: reminders.filter(r => {
           const d = safeDate(r.dueDate)
