@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ShieldCheck, Users, PawPrint, ChevronRight, ChevronLeft, Search, Phone, Mail, Loader2, AlertCircle, Stethoscope, Syringe, Pill, Receipt, Bell, ChevronDown, ChevronUp, Star, MessageSquarePlus, MapPin, Clock, Scissors, ShoppingBag, Home, Camera, Flower2, Plus, Check, X, Trash2, ToggleLeft, ToggleRight, Gauge, HardDrive, Sparkles } from 'lucide-react'
+import { ShieldCheck, Users, PawPrint, ChevronRight, ChevronLeft, Search, Phone, Mail, Loader2, AlertCircle, Stethoscope, Syringe, Pill, Receipt, Bell, ChevronDown, ChevronUp, Star, MessageSquarePlus, MapPin, Clock, Scissors, ShoppingBag, Home, Camera, Flower2, Plus, Check, X, Trash2, ToggleLeft, ToggleRight, Gauge, HardDrive, Sparkles, Bug } from 'lucide-react'
 import { getAdminUsers, getPets, getMedicalHistory, getVaccinations, getMedicines, getBills, getReminders, getFeedback, getProviders, saveProvider, deleteProvider } from '../lib/storage.js'
 import PetAvatar from './PetAvatar.jsx'
 import BoardingRulesPanel from './BoardingRulesPanel.jsx'
@@ -532,6 +532,99 @@ function UsagePanel() {
   )
 }
 
+
+// ── Errors Panel ─────────────────────────────────────────────────────────────
+//
+// What is breaking in people's browsers. Grouped by fingerprint, so one fault
+// hitting fifty people is one row rather than fifty -- which is the difference
+// between a list you read and a list you ignore.
+//
+// Nothing here identifies anyone: the browser scrubs every report before
+// sending and the endpoint scrubs again. Addresses, ids, phone numbers, query
+// strings and tokens are all replaced before storage.
+
+function ErrorsPanel() {
+  const [rows, setRows]       = useState([])
+  const [days, setDays]       = useState(7)
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState(null)
+
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    supabase.rpc('get_client_errors_for_admin', { days })
+      .then(({ data, error: e }) => {
+        if (!alive) return
+        if (e) throw e
+        setRows(data || [])
+        setError(null)
+      })
+      .catch(e => { if (alive) setError(e.message) })
+      .finally(() => { if (alive) setLoading(false) })
+    return () => { alive = false }
+  }, [days])
+
+  if (loading) return (
+    <div className="flex items-center justify-center gap-2 py-16" style={{ color: '#73775b' }}>
+      <Loader2 className="w-5 h-5 animate-spin" /> <span>Reading error reports\u2026</span>
+    </div>
+  )
+
+  if (error) return (
+    <div className="flex items-start gap-2 p-4 rounded-xl text-sm"
+      style={{ backgroundColor: '#fdeaea', color: '#c0392b' }}>
+      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+      <span>{error}. Check that supabase/client_errors.sql has been run.</span>
+    </div>
+  )
+
+  return (
+    <div>
+      <div className="flex gap-1 rounded-xl p-1 mb-4 w-fit" style={{ backgroundColor: '#ebe3d3' }}>
+        {[1, 7, 30].map(d => (
+          <button key={d} onClick={() => setDays(d)}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+            style={days === d ? { backgroundColor: '#f2b83d', color: '#7a4900' } : { color: '#73775b' }}>
+            {d === 1 ? 'Today' : `${d} days`}
+          </button>
+        ))}
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="text-center py-16">
+          <Bug className="w-12 h-12 mx-auto mb-3 opacity-20" style={{ color: '#7a4900' }} />
+          <p className="text-sm" style={{ color: '#73775b' }}>
+            No errors reported in this period. That is the good outcome.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {rows.map(r => (
+            <div key={r.fingerprint} className="p-3 rounded-xl"
+              style={{ backgroundColor: '#ffffff', border: '1px solid #ebe3d3' }}>
+              <div className="flex items-start justify-between gap-3 mb-1">
+                <span className="font-black text-sm break-words" style={{ color: '#c0392b' }}>
+                  {r.name}
+                </span>
+                <span className="text-xs font-black px-2 py-0.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
+                  {r.occurrences}&times;
+                </span>
+              </div>
+              <p className="text-xs mb-2 break-words" style={{ color: '#7a4900' }}>{r.message}</p>
+              <p className="text-[11px]" style={{ color: '#73775b' }}>
+                {r.view} &middot; {r.browser} &middot; build {r.build} &middot;{' '}
+                {r.users_affected} {r.users_affected === 1 ? 'person' : 'people'} &middot;{' '}
+                last {new Date(r.last_seen).toLocaleString()}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Providers Panel ──────────────────────────────────────────────────────────
 
 const EMPTY_PROVIDER = { name: '', type: 'Vet', services: [], specializations: [], description: '', address: '', area: '', city: '', phone: '', whatsapp: '', email: '', website: '', hours: '', photo_url: '', maps_url: '', is_approved: false }
@@ -819,7 +912,7 @@ export default function AdminDashboard() {
   const [error, setError]         = useState(null)
   const [search, setSearch]       = useState('')
   const [selectedUser, setSelectedUser] = useState(null)
-  const [tab, setTab]             = useState('users')   // users | feedback | providers | boarding | usage
+  const [tab, setTab]             = useState('users')   // users | feedback | providers | boarding | usage | errors
 
   useEffect(() => {
     setLoading(true)
@@ -854,7 +947,7 @@ export default function AdminDashboard() {
 
         {/* Tab switcher */}
         {!selectedUser && (
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-1 rounded-xl p-1 mb-5" style={{ backgroundColor: '#ebe3d3' }}>
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 rounded-xl p-1 mb-5" style={{ backgroundColor: '#ebe3d3' }}>
             <button
               onClick={() => setTab('users')}
               className="flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
@@ -885,10 +978,18 @@ export default function AdminDashboard() {
               style={tab === 'usage' ? { backgroundColor: '#f2b83d', color: '#7a4900' } : { color: '#73775b' }}>
               <Gauge className="w-4 h-4" /> Usage
             </button>
+            <button
+              onClick={() => setTab('errors')}
+              className="flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
+              style={tab === 'errors' ? { backgroundColor: '#f2b83d', color: '#7a4900' } : { color: '#73775b' }}>
+              <Bug className="w-4 h-4" /> Errors
+            </button>
           </div>
         )}
 
-        {tab === 'usage' && !selectedUser ? (
+        {tab === 'errors' && !selectedUser ? (
+          <ErrorsPanel />
+        ) : tab === 'usage' && !selectedUser ? (
           <UsagePanel />
         ) : tab === 'boarding' && !selectedUser ? (
           <BoardingRulesPanel />

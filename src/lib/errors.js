@@ -1,6 +1,7 @@
 // src/lib/errors.js
 
 import { isNetworkError } from './net.js'
+import { reportError } from './errorReport.js'
 
 /**
  * Turns a thrown error into something a pet parent can act on.
@@ -33,7 +34,13 @@ export function friendlyError(e) {
   // to return the friendly string and drop the original entirely, so a genuine
   // fault was indistinguishable from a flaky connection — including to whoever
   // was trying to debug it from a screenshot of the message.
-  if (e) console.error('Pippy error:', e)
+  if (e) {
+    console.error('Pippy error:', e)
+    // A connection that dropped is not a fault worth a report -- it is the
+    // normal weather of mobile, and reporting it would bury the real faults
+    // under thousands of rows of "the wifi went".
+    if (!isNetworkError(e)) reportError(e)
+  }
 
   // `e instanceof TypeError` used to be enough on its own to call something a
   // connection problem. It is not: reading a property of undefined is also a

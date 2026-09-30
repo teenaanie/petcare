@@ -78,6 +78,7 @@ export default function PrivacyNotice({ onClose, initialTab = 'privacy' }) {
                 <Row who="Google" what="Voice audio, on some browsers" why="Speech recognition. Off on Apple devices" />
                 <Row who="Google" what="Which screens are used and when — only if you agree" why="Google Analytics. Off unless you opt in" />
                 <Row who="Microsoft" what="Session recordings — only if you agree" why="Clarity analytics. Off unless you opt in" />
+                <Row who="Pippy" what="Technical error reports, stripped of anything identifying" why="So faults can be found and fixed" />
               </tbody>
             </table>
             <p>
@@ -104,6 +105,22 @@ export default function PrivacyNotice({ onClose, initialTab = 'privacy' }) {
               "a document was scanned" — and refuses to pass on free text, so a pet's
               name, a medicine, a note or a condition cannot reach it. Pippy also turns
               off Google's advertising features, so none of this builds an ad profile.
+            </p>
+          </Section>
+
+          <Section title="When something breaks">
+            <p>
+              If the app hits an error, Pippy sends itself a short technical report
+              so the fault can be found and fixed. This is not analytics and is not
+              about you: it is the error's own text, where in the app it happened,
+              which build you were running and which browser you were using.
+            </p>
+            <p>
+              Your browser strips anything identifying before the report leaves your
+              device. Email addresses, phone numbers, record ids, web addresses and
+              sign-in tokens are replaced, and the screen name comes from a fixed
+              list, so a pet's name or a note cannot travel in it. Reports are kept
+              for 90 days and only Pippy's administrator can read them.
             </p>
           </Section>
 
