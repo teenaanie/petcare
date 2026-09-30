@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
-import { ShieldCheck, Users, PawPrint, ChevronRight, ChevronLeft, Search, Phone, Mail, Loader2, AlertCircle, Stethoscope, Syringe, Pill, Receipt, Bell, ChevronDown, ChevronUp, Star, MessageSquarePlus, MapPin, Clock, Scissors, ShoppingBag, Home, Camera, Flower2, Plus, Check, X, Trash2, ToggleLeft, ToggleRight } from 'lucide-react'
+import { ShieldCheck, Users, PawPrint, ChevronRight, ChevronLeft, Search, Phone, Mail, Loader2, AlertCircle, Stethoscope, Syringe, Pill, Receipt, Bell, ChevronDown, ChevronUp, Star, MessageSquarePlus, MapPin, Clock, Scissors, ShoppingBag, Home, Camera, Flower2, Plus, Check, X, Trash2, ToggleLeft, ToggleRight, Gauge, HardDrive, Sparkles } from 'lucide-react'
 import { getAdminUsers, getPets, getMedicalHistory, getVaccinations, getMedicines, getBills, getReminders, getFeedback, getProviders, saveProvider, deleteProvider } from '../lib/storage.js'
 import PetAvatar from './PetAvatar.jsx'
 import BoardingRulesPanel from './BoardingRulesPanel.jsx'
 import { PROVIDER_TYPES, SERVICES, SPECIALIZATIONS } from '../lib/taxonomy.js'
+import { supabase } from '../lib/supabase.js'
+import { THRESHOLDS, breaches, pctOf, byWeek, MB } from '../lib/usageLimits.js'
 
 // ── User Card ────────────────────────────────────────────────────────────────
 
@@ -404,6 +406,132 @@ function FeedbackPanel() {
   )
 }
 
+
+// ── Usage Panel ──────────────────────────────────────────────────────────────
+//
+// What Pippy costs and how much room is left. The live figures come from
+// get_usage_metrics_for_admin(), which is SECURITY DEFINER because
+// pg_database_size and storage.objects are not readable by an ordinary
+// signed-in user. It returns TOTALS only -- no per-user figures and no
+// addresses, so this screen cannot become a way to see who did what.
+
+function Meter({ metricKey, value }) {
+  const t = THRESHOLDS[metricKey]
+  const pct = pctOf(metricKey, value)
+  const over = Number(value || 0) > t.limit
+  return (
+    <div className="mb-4">
+      <div className="flex items-baseline justify-between mb-1.5">
+        <span className="text-sm font-bold" style={{ color: '#7a4900' }}>{t.label}</span>
+        <span className="text-sm font-black" style={{ color: over ? '#c0392b' : '#7a4900' }}>
+          {t.fmt(value)}
+        </span>
+      </div>
+      <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: '#ebe3d3' }}>
+        {/* Minimum 2% so a real but tiny value is still visibly present rather
+            than looking like zero. */}
+        <div className="h-full rounded-full transition-all"
+          style={{ width: `${Math.max(pct, value > 0 ? 2 : 0)}%`,
+                   backgroundColor: over ? '#c0392b' : pct > 75 ? '#f2b83d' : '#8cb369' }} />
+      </div>
+      <p className="text-xs mt-1" style={{ color: '#73775b' }}>
+        {pct}% of the {t.fmt(t.limit)} alert threshold{t.note ? ` \u00b7 ${t.note}` : ''}
+      </p>
+    </div>
+  )
+}
+
+function UsagePanel() {
+  const [metrics, setMetrics] = useState(null)
+  const [weeks, setWeeks]     = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState(null)
+
+  useEffect(() => {
+    let alive = true
+    async function load() {
+      try {
+        const { data, error: e } = await supabase.rpc('get_usage_metrics_for_admin')
+        if (e) throw e
+        const row = Array.isArray(data) ? data[0] : data
+        // The function returns no rows rather than an error when the caller is
+        // not an admin, so an empty result is a permission problem and not an
+        // absence of usage.
+        if (!row) throw new Error('No metrics returned. Check that usage_tracking.sql has been run and that your account is an admin.')
+        const { data: snaps } = await supabase
+          .from('usage_snapshots')
+          .select('day, openai_cost_mtd_usd, openai_calls_mtd, db_bytes, storage_bytes, photo_bytes, pets_total')
+          .order('day', { ascending: false })
+          .limit(70)
+        if (!alive) return
+        setMetrics(row)
+        setWeeks(byWeek(snaps || []).slice(0, 8))
+      } catch (err) {
+        if (alive) setError(err.message)
+      } finally {
+        if (alive) setLoading(false)
+      }
+    }
+    load()
+    return () => { alive = false }
+  }, [])
+
+  if (loading) return (
+    <div className="flex items-center justify-center gap-2 py-16" style={{ color: '#73775b' }}>
+      <Loader2 className="w-5 h-5 animate-spin" /> <span>Reading usage\u2026</span>
+    </div>
+  )
+
+  if (error) return (
+    <div className="flex items-start gap-2 p-4 rounded-xl text-sm"
+      style={{ backgroundColor: '#fdeaea', color: '#c0392b' }}>
+      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /> <span>{error}</span>
+    </div>
+  )
+
+  const over = breaches(metrics)
+
+  return (
+    <div>
+      {over.length > 0 && (
+        <div className="p-3 rounded-xl mb-4 text-sm font-bold"
+          style={{ backgroundColor: '#fdeaea', color: '#c0392b' }}>
+          {over.map(b => <div key={b.key}>{b.text}</div>)}
+        </div>
+      )}
+
+      <div className="card mb-4">
+        <Meter metricKey="openai_cost_mtd_usd" value={metrics.openai_cost_mtd_usd} />
+        <Meter metricKey="db_bytes"            value={metrics.db_bytes} />
+        <Meter metricKey="storage_bytes"       value={metrics.storage_bytes} />
+        <p className="text-xs pt-1" style={{ color: '#73775b' }}>
+          Spend is Pippy&apos;s own estimate from logged token counts, not OpenAI&apos;s bill.
+          The cap on the OpenAI account is the real backstop.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 mb-4">
+        <StatChip icon={Sparkles}  label="AI calls this month" count={metrics.openai_calls_mtd} />
+        <StatChip icon={Sparkles}  label="Spend all time"      count={`$${Number(metrics.openai_cost_all_usd || 0).toFixed(4)}`} />
+        <StatChip icon={Users}     label="Users"               count={metrics.users_total} />
+        <StatChip icon={PawPrint}  label="Pets"                count={metrics.pets_total} />
+        <StatChip icon={HardDrive} label="Photos in database"  count={`${(Number(metrics.photo_bytes || 0) / 1024).toFixed(0)} kB`} />
+      </div>
+
+      <Section icon={Gauge} title="By week" count={weeks.length} color="#7a4900">
+        {weeks.length === 0 ? (
+          <EmptyRow label="No snapshots yet. The nightly job writes one a day; the first week appears after it has run." />
+        ) : weeks.map(w => (
+          <Row key={w.weekStart}
+            primary={`Week of ${w.weekStart}`}
+            secondary={`$${Number(w.openai_cost_mtd_usd).toFixed(4)} \u00b7 ${w.openai_calls_mtd} calls`}
+            tertiary={`${(w.db_bytes / MB).toFixed(1)} MB db \u00b7 ${(w.storage_bytes / MB).toFixed(1)} MB files`} />
+        ))}
+      </Section>
+    </div>
+  )
+}
+
 // ── Providers Panel ──────────────────────────────────────────────────────────
 
 const EMPTY_PROVIDER = { name: '', type: 'Vet', services: [], specializations: [], description: '', address: '', area: '', city: '', phone: '', whatsapp: '', email: '', website: '', hours: '', photo_url: '', maps_url: '', is_approved: false }
@@ -691,7 +819,7 @@ export default function AdminDashboard() {
   const [error, setError]         = useState(null)
   const [search, setSearch]       = useState('')
   const [selectedUser, setSelectedUser] = useState(null)
-  const [tab, setTab]             = useState('users')   // users | feedback | providers | boarding
+  const [tab, setTab]             = useState('users')   // users | feedback | providers | boarding | usage
 
   useEffect(() => {
     setLoading(true)
@@ -726,7 +854,7 @@ export default function AdminDashboard() {
 
         {/* Tab switcher */}
         {!selectedUser && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 rounded-xl p-1 mb-5" style={{ backgroundColor: '#ebe3d3' }}>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-1 rounded-xl p-1 mb-5" style={{ backgroundColor: '#ebe3d3' }}>
             <button
               onClick={() => setTab('users')}
               className="flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
@@ -751,10 +879,18 @@ export default function AdminDashboard() {
               style={tab === 'boarding' ? { backgroundColor: '#f2b83d', color: '#7a4900' } : { color: '#73775b' }}>
               <Home className="w-4 h-4" /> Boarding
             </button>
+            <button
+              onClick={() => setTab('usage')}
+              className="flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
+              style={tab === 'usage' ? { backgroundColor: '#f2b83d', color: '#7a4900' } : { color: '#73775b' }}>
+              <Gauge className="w-4 h-4" /> Usage
+            </button>
           </div>
         )}
 
-        {tab === 'boarding' && !selectedUser ? (
+        {tab === 'usage' && !selectedUser ? (
+          <UsagePanel />
+        ) : tab === 'boarding' && !selectedUser ? (
           <BoardingRulesPanel />
         ) : tab === 'providers' && !selectedUser ? (
           <ProvidersPanel />

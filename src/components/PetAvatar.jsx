@@ -18,6 +18,14 @@ const SPECIES_EMOJI = {
   Other:   '🐾',
 }
 
+// How large a stored avatar may get, in characters of the base64 data URL.
+// 60000 is roughly a 44 kB image; the largest photo in the table today is 34 kB,
+// so ordinary uploads never reach this. The database enforces a harder 150000
+// (see supabase/usage_tracking.sql) because this file runs in the browser and
+// is therefore a courtesy, not a limit.
+const PHOTO_BUDGET = 60_000
+const QUALITY_STEPS = [0.82, 0.7, 0.6, 0.5, 0.4]
+
 // Resize image client-side before storing (keeps DB size small)
 //
 // This promise used to have only an `onload` path. If the browser could not
@@ -44,12 +52,38 @@ export async function resizeImage(file, maxPx = 300) {
       const done = fn => (...args) => { clearTimeout(timer); fn(...args) }
 
       img.onload = done(() => {
-        const ratio = Math.min(maxPx / img.width, maxPx / img.height, 1)
-        const canvas = document.createElement('canvas')
-        canvas.width  = Math.round(img.width  * ratio)
-        canvas.height = Math.round(img.height * ratio)
-        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
-        resolve(canvas.toDataURL('image/jpeg', 0.82))
+        // Shrinking to a fixed pixel size caps the DIMENSIONS but not the
+        // bytes, and bytes are what actually cost anything: this string is
+        // stored in pets.photo, so it counts against the database's 500 MB
+        // rather than the 1 GB file storage, and every query that reads a pet
+        // carries the whole image along with it. A noisy 300px photo can
+        // encode several times larger than a smooth one at the same quality,
+        // so quality steps down until the result fits the budget, and the
+        // dimensions are halved once if even the lowest quality will not.
+        const encode = (px, q) => {
+          const ratio = Math.min(px / img.width, px / img.height, 1)
+          const canvas = document.createElement('canvas')
+          canvas.width  = Math.round(img.width  * ratio)
+          canvas.height = Math.round(img.height * ratio)
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+          return canvas.toDataURL('image/jpeg', q)
+        }
+
+        let out = null
+        for (const px of [maxPx, Math.round(maxPx / 2)]) {
+          for (const q of QUALITY_STEPS) {
+            out = encode(px, q)
+            if (out.length <= PHOTO_BUDGET) return resolve(out)
+          }
+        }
+
+        // Everything was tried and nothing fit. Returning the oversized string
+        // anyway would hand the database a row it will refuse (there is a CHECK
+        // constraint on pets.photo), and the user would see an opaque failure
+        // on save instead of a clear one here.
+        reject(new Error(
+          'That photo could not be shrunk small enough to store. Try a simpler ' +
+          'or less detailed picture.'))
       })
 
       img.onerror = done(() => reject(new Error(
