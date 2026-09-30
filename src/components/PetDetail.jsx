@@ -1,7 +1,16 @@
-import { useState, useEffect } from 'react'
-import { Edit2, Trash2, Calendar, Weight, Phone, Sparkles, ShieldAlert, Users, Mic } from 'lucide-react'
+import { useState, useEffect, lazy, Suspense } from 'react'
+import { Edit2, Trash2, Calendar, Weight, Phone, Sparkles, ShieldAlert, Users, Mic, Loader2 } from 'lucide-react'
 import { supabase, isConfigured } from '../lib/supabase.js'
-import HealthSummary from './HealthSummary.jsx'
+function TabLoading() {
+  return (
+    <div className="flex items-center justify-center gap-2 py-16" style={{ color: '#73775b' }}>
+      <Loader2 className="w-5 h-5 animate-spin" />
+      <span className="text-sm">Loading…</span>
+    </div>
+  )
+}
+
+const HealthSummary = lazy(() => import('./HealthSummary.jsx'))
 
 // ── Life stage data ───────────────────────────────────────────────────────────
 const STAGES = {
@@ -138,21 +147,21 @@ import { deletePet, savePet } from '../lib/storage.js'
 import { format } from 'date-fns'
 import AddPetModal from './AddPetModal.jsx'
 import PetAvatar from './PetAvatar.jsx'
-import Timeline from './Timeline.jsx'
-import MedicalHistory from './MedicalHistory.jsx'
-import Vaccinations from './Vaccinations.jsx'
-import Allergies from './Allergies.jsx'
-import DocumentScanner from './DocumentScanner.jsx'
-import Reminders from './Reminders.jsx'
-import WeightLog from './WeightLog.jsx'
-import Medicines from './Medicines.jsx'
-import Bills from './Bills.jsx'
-import EmergencyCard from './EmergencyCard.jsx'
-import PetSharing from './PetSharing.jsx'
+const Timeline = lazy(() => import('./Timeline.jsx'))
+const MedicalHistory = lazy(() => import('./MedicalHistory.jsx'))
+const Vaccinations = lazy(() => import('./Vaccinations.jsx'))
+const Allergies = lazy(() => import('./Allergies.jsx'))
+const DocumentScanner = lazy(() => import('./DocumentScanner.jsx'))
+const Reminders = lazy(() => import('./Reminders.jsx'))
+const WeightLog = lazy(() => import('./WeightLog.jsx'))
+const Medicines = lazy(() => import('./Medicines.jsx'))
+const Bills = lazy(() => import('./Bills.jsx'))
+const EmergencyCard = lazy(() => import('./EmergencyCard.jsx'))
+const PetSharing = lazy(() => import('./PetSharing.jsx'))
 import BreedAlert from './BreedAlert.jsx'
-import Boarding from './Boarding.jsx'
-import ConditionJournal from './ConditionJournal.jsx'
-import VoiceUpdate from './VoiceUpdate.jsx'
+const Boarding = lazy(() => import('./Boarding.jsx'))
+const ConditionJournal = lazy(() => import('./ConditionJournal.jsx'))
+const VoiceUpdate = lazy(() => import('./VoiceUpdate.jsx'))
 import { trackEvent } from '../lib/analytics.js'
 import { withRetry } from '../lib/net.js'
 
@@ -291,19 +300,23 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
       {/* Breed health alert */}
       {pet.breed && activeTab === 'timeline' && <BreedAlert pet={pet} />}
 
-      {/* Tab content */}
-      {activeTab === 'timeline'     && <Timeline       key={tabKey} pet={pet} />}
-      {activeTab === 'medical'      && <MedicalHistory key={tabKey} pet={pet} />}
-      {activeTab === 'vaccinations' && <Vaccinations   key={tabKey} pet={pet} />}
-      {activeTab === 'medicines'    && <Medicines      key={tabKey} pet={pet} />}
-      {activeTab === 'weight'       && <WeightLog      key={tabKey} pet={pet} />}
-      {activeTab === 'bills'        && <Bills          key={tabKey} pet={pet} />}
-      {activeTab === 'allergies'    && <Allergies      key={tabKey} pet={pet} />}
-      {activeTab === 'journal'      && <ConditionJournal pet={pet} />}
-      {activeTab === 'scanner'      && <DocumentScanner pet={pet} session={session} />}
-      {activeTab === 'reminders'    && <Reminders      key={tabKey} pet={pet} />}
-      {activeTab === 'boarding'     && <Boarding pet={pet} onPetUpdated={onPetUpdated}
-                                          prefillProviderId={prefillProviderId} onPrefillUsed={onPrefillUsed} />}
+      {/* Tab content. Every view below is a lazy chunk, so this needs a
+          Suspense boundary: without one, switching tabs suspends with no
+          fallback and React blanks the subtree instead of showing the tab. */}
+      <Suspense fallback={<TabLoading />}>
+        {activeTab === 'timeline'     && <Timeline       key={tabKey} pet={pet} />}
+        {activeTab === 'medical'      && <MedicalHistory key={tabKey} pet={pet} />}
+        {activeTab === 'vaccinations' && <Vaccinations   key={tabKey} pet={pet} />}
+        {activeTab === 'medicines'    && <Medicines      key={tabKey} pet={pet} />}
+        {activeTab === 'weight'       && <WeightLog      key={tabKey} pet={pet} />}
+        {activeTab === 'bills'        && <Bills          key={tabKey} pet={pet} />}
+        {activeTab === 'allergies'    && <Allergies      key={tabKey} pet={pet} />}
+        {activeTab === 'journal'      && <ConditionJournal pet={pet} />}
+        {activeTab === 'scanner'      && <DocumentScanner pet={pet} session={session} />}
+        {activeTab === 'reminders'    && <Reminders      key={tabKey} pet={pet} />}
+        {activeTab === 'boarding'     && <Boarding pet={pet} onPetUpdated={onPetUpdated}
+                                            prefillProviderId={prefillProviderId} onPrefillUsed={onPrefillUsed} />}
+      </Suspense>
 
       {showEdit && (
         <AddPetModal
