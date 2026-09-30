@@ -19,7 +19,8 @@
     "test:analytics": "node scripts/test-analytics.mjs",
     "check:shadowing": "node scripts/check-shadowing.mjs",
     "test:share-invite": "node scripts/test-share-invite.mjs",
-    "test:usage-limits": "node scripts/test-usage-limits.mjs"
+    "test:usage-limits": "node scripts/test-usage-limits.mjs",
+    "check:suspense": "node scripts/check-suspense.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
