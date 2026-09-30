@@ -1,6 +1,19 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { Edit2, Trash2, Calendar, Weight, Phone, Sparkles, ShieldAlert, Users, Mic, Loader2 } from 'lucide-react'
 import { supabase, isConfigured } from '../lib/supabase.js'
+function ModalLoading() {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}>
+      <div className="rounded-2xl px-5 py-4 flex items-center gap-2"
+        style={{ backgroundColor: '#fffef8', color: '#73775b' }}>
+        <Loader2 className="w-5 h-5 animate-spin" />
+        <span className="text-sm font-bold">Opening…</span>
+      </div>
+    </div>
+  )
+}
+
 function TabLoading() {
   return (
     <div className="flex items-center justify-center gap-2 py-16" style={{ color: '#73775b' }}>
@@ -330,20 +343,28 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
       )}
 
       {showHealthSummary && (
-        <HealthSummary pet={pet} onClose={() => setShowHealthSummary(false)} />
+        <Suspense fallback={<ModalLoading />}>
+          <HealthSummary pet={pet} onClose={() => setShowHealthSummary(false)} />
+        </Suspense>
       )}
 
       {showEmergencyCard && (
-        <EmergencyCard pet={pet} onClose={() => setShowEmergencyCard(false)} />
+        <Suspense fallback={<ModalLoading />}>
+          <EmergencyCard pet={pet} onClose={() => setShowEmergencyCard(false)} />
+        </Suspense>
       )}
 
       {showSharing && (
-        <PetSharing pet={pet} onClose={() => setShowSharing(false)} />
+        <Suspense fallback={<ModalLoading />}>
+          <PetSharing pet={pet} onClose={() => setShowSharing(false)} />
+        </Suspense>
       )}
 
       {showVoiceUpdate && (
-        <VoiceUpdate pet={pet} onClose={() => setShowVoiceUpdate(false)}
-          onSaved={() => setDataVersion(v => v + 1)} />
+        <Suspense fallback={<ModalLoading />}>
+          <VoiceUpdate pet={pet} onClose={() => setShowVoiceUpdate(false)}
+            onSaved={() => setDataVersion(v => v + 1)} />
+        </Suspense>
       )}
     </div>
   )
