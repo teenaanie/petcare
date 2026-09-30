@@ -27,7 +27,7 @@ function isNetworkError(err) {
 
 function friendlyAuthError(err) {
   if (isNetworkError(err)) {
-    return "Couldn't reach the server. Check your connection and try again — if you're on patchy mobile data, switching to Wi-Fi usually helps."
+    return "Couldn't reach the server. Check your connection and try again. If you're on patchy mobile data, switching to Wi-Fi usually helps."
   }
   return err?.message || 'Could not send code. Please try again.'
 }
@@ -358,7 +358,7 @@ export default function PhoneAuth({ onShowPrivacy }) {
                 </button>
 
                 <p className="text-xs text-center px-3 py-2 rounded-xl" style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
-                  Using the Pippy app? Type the code here — tapping the email link
+                  Using the Pippy app? Type the code here. Tapping the email link
                   opens your browser instead, which signs you in there, not in the app.
                 </p>
 
