@@ -58,18 +58,18 @@ function PetPhoto({ photo, className = '', style, decorative = false }) {
 }
 
 const FEATURES = [
-  { icon: Bell, tint: '#fff3c0', ink: '#7a4900', title: 'Reminders that arrive',
-    body: 'A nudge the morning a vaccine, dose or deworming is due — by email and on your phone.' },
+  { icon: Bell, tint: '#fff3c0', ink: '#7a4900', title: 'Reminders',
+    body: 'A nudge by email and on your phone, the morning a dose or a booster is due.' },
   { icon: Mic, tint: '#ffe0e0', ink: '#9c3b3b', title: 'Just say it',
     body: 'Talk on the way home from the vet. Pippy turns it into proper records you can check.' },
   { icon: FileText, tint: '#bfe5ef', ink: '#22424b', title: 'Scan the paperwork',
     body: 'Photograph a vet report or a bill. Pippy reads it and files it under the right pet.' },
-  { icon: ShieldCheck, tint: '#eef3e2', ink: '#4a5f2e', title: 'Vaccinations, ready',
-    body: 'Every shot, date and booster in one list — the one a boarder or groomer asks for.' },
+  { icon: ShieldCheck, tint: '#eef3e2', ink: '#4a5f2e', title: 'Vaccinations',
+    body: 'Every shot and booster with its date, in the one list a boarder asks for.' },
   { icon: Camera, tint: '#fff3c0', ink: '#7a4900', title: 'Photo journal',
-    body: 'Follow a rash, a limp or a recovery week by week, with the photos beside the notes.' },
+    body: 'Follow a rash or a recovery week by week, with the photos beside the notes.' },
   { icon: Users, tint: '#ffe6e6', ink: '#99414d', title: 'Share with family',
-    body: 'Give a partner, a sitter or a boarder their own view — look only, or help keep it up to date.' },
+    body: 'Give a partner or a sitter their own view. Look only, or help keep it up to date.' },
 ]
 
 const HOUSEHOLD = [PHOTOS.pino, PHOTOS.kitten, PHOTOS.cat, PHOTOS.glasses]
@@ -108,17 +108,17 @@ export default function Landing({ children, onShowPrivacy }) {
           <div className="lg:w-[54%] flex flex-col gap-5">
             <span className="self-start text-[11px] sm:text-xs font-black uppercase tracking-[0.09em] px-3.5 py-2 rounded-full"
               style={{ backgroundColor: '#bfe5ef', color: '#22424b' }}>
-              Dogs, cats, fish and everyone else
+              For every pet you look after
             </span>
 
             <h1 className="m-0 font-extrabold leading-[1.05] tracking-tight text-[38px] sm:text-5xl lg:text-[58px]"
               style={{ color: '#7a4900', fontFamily: 'var(--font-display)' }}>
-              Every vaccine, pill and vet visit — in one calm place.
+              Every vaccine, pill and vet visit, in one calm place.
             </h1>
 
             <p className="m-0 text-base sm:text-lg leading-relaxed max-w-[34rem]" style={{ color: '#73775b' }}>
-              Pippy holds your pet&apos;s whole health story, and nudges you the morning
-              something is due — so you are not the one remembering.
+              Pippy holds your pet&apos;s whole health record, and tells you the morning
+              something is due, so you don&apos;t have to remember.
             </p>
 
             {/* The sign-in form itself. PhoneAuth owns it; this is only the box
@@ -141,7 +141,7 @@ export default function Landing({ children, onShowPrivacy }) {
               One app, every animal in the house
             </h2>
             <p className="m-0 text-sm sm:text-[15px]" style={{ color: '#73775b' }}>
-              Dogs, cats, fish — each with their own records, reminders and history.
+              Every pet gets their own records and history.
             </p>
           </div>
           <div className="flex items-center flex-shrink-0">
@@ -167,10 +167,10 @@ export default function Landing({ children, onShowPrivacy }) {
         <section className="pt-12 sm:pt-16 pb-10">
           <h2 className="m-0 mb-2 font-extrabold text-[28px] sm:text-4xl tracking-tight"
             style={{ color: '#7a4900', fontFamily: 'var(--font-display)' }}>
-            One app, the whole story
+            What Pippy keeps
           </h2>
           <p className="m-0 mb-7 text-base sm:text-[17px]" style={{ color: '#73775b' }}>
-            The things you would otherwise keep in a folder, a photo roll and your head.
+            The things that otherwise live in a folder somewhere.
           </p>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
@@ -199,14 +199,14 @@ export default function Landing({ children, onShowPrivacy }) {
           <div className="flex-grow">
             <h2 className="m-0 mb-2.5 font-extrabold text-2xl sm:text-3xl tracking-tight"
               style={{ color: '#22424b', fontFamily: 'var(--font-display)' }}>
-              The bits you only photograph once
+              Show a vet what changed
             </h2>
             <p className="m-0 mb-4 text-[15px] sm:text-base leading-relaxed max-w-[27rem]" style={{ color: '#22424b' }}>
-              A limp, a rash, a good day after a bad week. The journal keeps them in order
-              with the date attached — so you can show a vet what changed.
+              A limp, or the week something finally cleared up. The journal keeps the
+              photos in order, with the date each one was taken.
             </p>
             <div className="flex flex-wrap gap-2">
-              {['Emergency card', 'Boarding prep', 'Weight trend'].map(tag => (
+              {['Emergency card', 'Boarding prep', 'Weight trend', 'Timeline'].map(tag => (
                 <span key={tag} className="text-xs font-extrabold px-3 py-1.5 rounded-full"
                   style={{ backgroundColor: '#fffef8', color: '#22424b' }}>
                   {tag}
@@ -215,8 +215,8 @@ export default function Landing({ children, onShowPrivacy }) {
             </div>
           </div>
           <div className="flex gap-3.5 flex-shrink-0">
-            <JournalEntry photo={PHOTOS.glasses} caption="12 Sep · feeling better" />
-            <JournalEntry photo={PHOTOS.cat} caption="28 Sep · resting well" />
+            <JournalEntry photo={PHOTOS.glasses} caption="12 September" />
+            <JournalEntry photo={PHOTOS.cat} caption="28 September" />
           </div>
         </section>
 
@@ -230,7 +230,7 @@ export default function Landing({ children, onShowPrivacy }) {
                 Start with one pet. It takes a minute.
               </h2>
               <p className="m-0 text-sm sm:text-[15px]" style={{ color: '#73775b' }}>
-                Add the rest whenever you like — Pippy handles a household.
+                Add the rest whenever you like. Pippy handles a household.
               </p>
             </div>
           </div>
@@ -245,10 +245,10 @@ export default function Landing({ children, onShowPrivacy }) {
             signed-out screen was one non-scrolling card; now the page scrolls,
             and a fixed link sat on top of whatever you were reading. */}
         <p className="text-center text-xs pb-8" style={{ color: '#73775b' }}>
-          Your data is private and secure. Only you can see your pets&apos; records.
+          Only you can see your pets&apos; records.
           {onShowPrivacy && (
             <>
-              {' · '}
+              {' '}
               <button type="button" onClick={onShowPrivacy} className="underline">
                 Privacy &amp; Terms
               </button>
@@ -293,7 +293,7 @@ function HeroMascot() {
           className="w-full h-full object-cover block" />
       </span>
 
-      <Chip className="left-0 top-[2%] flex" photo={PHOTOS.pino} text="Pino · due 4 Oct" />
+      <Chip className="left-0 top-[2%] flex" photo={PHOTOS.pino} text="Pino, due 4 Oct" />
       {/* Only one chip on a phone. At that size the mascot is small enough that
           a second chip lands across its face. */}
       <Chip className="right-0 top-[55%] hidden sm:flex" photo={PHOTOS.kitten} text="New journal photo" />
