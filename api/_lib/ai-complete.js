@@ -23,7 +23,7 @@ const AI_LIMIT     = parseInt(process.env.MONTHLY_AI_LIMIT || '100')  // calls p
 // ── Prompt builders ──────────────────────────────────────────────────────────
 // Moved verbatim from the components so behaviour is unchanged.
 
-function healthSummaryPrompt({ pet = {}, data = {}, periodLabel = 'period' }) {
+export function healthSummaryPrompt({ pet = {}, data = {}, periodLabel = 'period' }) {
   const lines = []
   lines.push(`Pet name: ${pet.name}`)
   lines.push(`Species: ${pet.species || 'Unknown'}`)
@@ -32,7 +32,19 @@ function healthSummaryPrompt({ pet = {}, data = {}, periodLabel = 'period' }) {
     const ageYears = Math.floor((Date.now() - new Date(pet.dob)) / (1000 * 60 * 60 * 24 * 365))
     lines.push(`Age: ${ageYears} years`)
   }
-  if (pet.weight) lines.push(`Recorded weight: ${pet.weight} kg`)
+  // pets.weight is a snapshot typed in when the pet was added and never
+  // updated afterwards, so for most pets it disagrees with the latest logged
+  // weight. Printing it here undated, next to dated readings, is what made the
+  // brief say Mapple had gone DOWN from 2.6 kg to 1.7 kg when she had actually
+  // gone UP from 1.6 to 2.6: 1.7 was the stale profile value, and it reads as
+  // the current one because it is stated first and carries no date.
+  //
+  // So it is only shown when there is nothing better, and it is labelled for
+  // what it is. When readings exist, the newest reading IS the current weight.
+  const hasWeightLogs = Array.isArray(data.weightLogs) && data.weightLogs.length > 0
+  if (pet.weight && !hasWeightLogs) {
+    lines.push(`Weight typed in when the pet was added (may be out of date): ${pet.weight} kg`)
+  }
 
   lines.push(`\n--- Data from the last ${periodLabel} ---`)
 
@@ -50,9 +62,26 @@ function healthSummaryPrompt({ pet = {}, data = {}, periodLabel = 'period' }) {
     lines.push('\nMEDICINES (active/recent):')
     arr('medicines').forEach(m => lines.push(`  • ${m.name} ${m.dosage || ''} ${m.frequency || ''} [${m.category}]${m.isDone ? ' (completed)' : ''}${m.nextDue ? ` — next due ${m.nextDue}` : ''}`))
   }
-  if (arr('weightLogs').length) {
-    lines.push('\nWEIGHT READINGS:')
-    arr('weightLogs').forEach(w => lines.push(`  • ${w.date}: ${w.weight} kg`))
+  const weights = arr('weightLogs')
+    .filter(w => w && w.weight != null && w.date)
+    .slice()
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+  if (weights.length) {
+    // Sorted here rather than trusted from the caller, and the direction is
+    // spelled out rather than left to be inferred from the order of the lines.
+    lines.push('\nWEIGHT READINGS (oldest first):')
+    weights.forEach(w => lines.push(`  • ${w.date}: ${w.weight} kg`))
+    const first = weights[0], last = weights[weights.length - 1]
+    lines.push(`  → Current weight is ${last.weight} kg, measured ${last.date}.`)
+    if (weights.length > 1) {
+      const diff = Number(last.weight) - Number(first.weight)
+      const dir = diff > 0 ? 'UP' : diff < 0 ? 'DOWN' : 'UNCHANGED'
+      lines.push(`  → Across these readings the weight has gone ${dir}` +
+        (diff === 0 ? '' : ` by ${Math.abs(diff).toFixed(2)} kg`) +
+        ` (${first.weight} kg on ${first.date} → ${last.weight} kg on ${last.date}).`)
+    } else {
+      lines.push('  → Only one reading, so no trend can be stated. Do not describe a rise or a fall.')
+    }
   }
   if (arr('allergies').length) {
     lines.push('\nKNOWN ALLERGIES:')
