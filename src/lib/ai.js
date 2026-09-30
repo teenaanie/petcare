@@ -28,12 +28,40 @@ async function authHeaders(session) {
   }
 }
 
-async function post(path, body, session) {
+// How long to wait before giving up on a request.
+//
+// fetch() has no timeout of its own. A connection that is refused or dropped
+// rejects quickly, but one that STALLS -- a handover between wifi and mobile,
+// a captive portal, a TCP connection that stays open and silent -- never
+// settles at all. `await fetch(...)` then waits forever, the caller's spinner
+// never stops, and no error is ever shown. That is what "the voice feature
+// hung" looks like from the outside: the mic stops, nothing happens, and there
+// is nothing to tap.
+//
+// Transcription gets longer than a chat call because it uploads up to two
+// minutes of audio and then waits for Whisper; a chat parse is round-trip only.
+const TIMEOUT_MS = { complete: 45_000, transcribe: 90_000 }
+
+async function post(path, body, session, timeoutMs = TIMEOUT_MS.complete) {
   const headers = await authHeaders(session)
+
+  // One controller for the whole exchange. Reading the body can stall just as
+  // the connection can, so the timer is not cleared until the JSON is parsed.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+
   let res
   try {
-    res = await fetch(path, { method: 'POST', headers, body: JSON.stringify(body) })
+    res = await fetch(path, {
+      method: 'POST', headers, body: JSON.stringify(body), signal: controller.signal,
+    })
   } catch (e) {
+    clearTimeout(timer)
+    if (e.name === 'AbortError') {
+      throw new Error(
+        `That took longer than ${Math.round(timeoutMs / 1000)} seconds and was stopped. ` +
+        `Your connection may have dropped. Tap to try again.`)
+    }
     // A network failure here reads to the user as the feature being broken, so
     // say which part failed rather than surfacing "Failed to fetch".
     throw new Error(`Could not reach the server. Check your connection and try again.`)
@@ -41,6 +69,7 @@ async function post(path, body, session) {
 
   let data
   try { data = await res.json() } catch { data = {} }
+  finally { clearTimeout(timer) }
 
   if (!res.ok) {
     const err = new Error(data.error || `Server error ${res.status}`)
@@ -70,8 +99,16 @@ export async function aiComplete(task, payload, session) {
 export async function transcribeAudio(blob, session, language) {
   const base64 = await new Promise((resolve, reject) => {
     const reader = new FileReader()
-    reader.onload  = () => resolve(String(reader.result).split(',')[1])
-    reader.onerror = reject
+    // Bounded for the same reason as the request below: onerror covers a read
+    // that FAILS, and nothing covers a read that simply never finishes.
+    const bail = setTimeout(
+      () => { try { reader.abort() } catch { /* already done */ }
+              reject(new Error('That recording could not be read. Please try again.')) },
+      20_000)
+    const done = fn => (...a) => { clearTimeout(bail); fn(...a) }
+    reader.onload  = done(() => resolve(String(reader.result).split(',')[1]))
+    reader.onerror = done(reject)
+    reader.onabort = done(() => reject(new Error('That recording could not be read. Please try again.')))
     reader.readAsDataURL(blob)
   })
   // `language` is the user's own choice. Omitted or 'auto' means Whisper
@@ -84,6 +121,6 @@ export async function transcribeAudio(blob, session, language) {
     { audio: base64, mimeType: blob.type,
       ...(vocabulary ? { vocabulary } : {}),
       ...(language && language !== 'auto' ? { language } : {}) },
-    session)
+    session, TIMEOUT_MS.transcribe)
   return text
 }
