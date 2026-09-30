@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { drainSharedFiles, wasShared, clearSharedFlag } from './lib/shareTarget.js'
 import { PawPrint } from 'lucide-react'
 import { supabase, isConfigured } from './lib/supabase.js'
@@ -11,10 +11,10 @@ import PetDetail from './components/PetDetail.jsx'
 import AddPetModal from './components/AddPetModal.jsx'
 import MobileHeader from './components/MobileHeader.jsx'
 import MobileAppNav from './components/MobileAppNav.jsx'
-import AdminDashboard from './components/AdminDashboard.jsx'
+const AdminDashboard = lazy(() => import('./components/AdminDashboard.jsx'))
 import FeedbackButton from './components/FeedbackButton.jsx'
-import ProviderDirectory from './components/ProviderDirectory.jsx'
-import MyProviders from './components/MyProviders.jsx'
+const ProviderDirectory = lazy(() => import('./components/ProviderDirectory.jsx'))
+const MyProviders = lazy(() => import('./components/MyProviders.jsx'))
 import ConsentBanner from './components/ConsentBanner.jsx'
 import PrivacyNotice from './components/PrivacyNotice.jsx'
 import { startAnalyticsIfConsented } from './lib/analytics.js'
@@ -255,11 +255,11 @@ export default function App() {
 
         <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
           {adminView ? (
-            <AdminDashboard />
+            <Suspense fallback={<LoadingScreen />}><AdminDashboard /></Suspense>
           ) : myProvidersView ? (
-            <MyProviders />
+            <Suspense fallback={<LoadingScreen />}><MyProviders /></Suspense>
           ) : servicesView ? (
-            <ProviderDirectory onPrepForStay={startBoardingPrep} />
+            <Suspense fallback={<LoadingScreen />}><ProviderDirectory onPrepForStay={startBoardingPrep} /></Suspense>
           ) : selectedPet ? (
             <PetDetail
               pet={selectedPet}
