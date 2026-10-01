@@ -7,8 +7,9 @@ Every "current state" claim below was checked against the live Pippy project
 (`lumgcfqsiwzbyfhjmkct`) and the repo on 2026-09-30, not recalled. Where I am
 inferring rather than reporting, it says so.
 
-**Revision, 2026-10-01.** The access model changed, and it changed for the
-better. Section 3 used to propose granting a provider scoped read access to a
+**Revision, 2026-10-01.** All six open decisions are now settled — see section 6,
+which records the rulings rather than asking for them. The access model also
+changed, and it changed for the better. Section 3 used to propose granting a provider scoped read access to a
 customer's pet records. It now proposes the opposite: no record access at all,
 ever. The customer composes a note, edits it, sends it, and that note is the
 only thing the provider can read. Section 3.5 keeps the rejected options on the
@@ -43,8 +44,26 @@ shared, nothing can be *un*-shared: a sent note is a copy in someone else's
 hands with no expiry. A grant can be revoked; a note cannot be recalled. We
 trade **breadth** risk (the provider sees too many fields) for **duration** risk
 (the provider keeps a copy forever). Breadth is the one worth eliminating, so
-this is the right trade — but withdrawal needs a deliberate answer, not silence.
-See decision 2.
+this is the right trade.
+
+**The owner's ruling is that there is no withdrawal** (decision 2). Sent is
+sent. That is the more honest of the options — a withdraw button that cannot
+unsee what was read promises something it does not deliver — and it removes a
+whole class of schema and policy work. It puts the weight on two other things
+instead:
+
+- **The send screen's copy carries the whole warning.** It is the only moment
+  the customer can change their mind, so it has to say, before they tap, that
+  this goes to the business permanently and cannot be taken back. That screen is
+  now a safety control, not just a form.
+- **Re-sending is the only correction path**, which is why superseding
+  (decision 6) matters more under this ruling, not less.
+
+One consequence worth naming rather than discovering later: no-withdrawal plus
+supersede means there *is* a de facto way to clear a note from a provider's
+inbox — send a replacement that says less. That is not a loophole to close. It
+is the honest shape of the promise we are making, which is **"you can correct a
+note, not recall one"**. We should say exactly that and no more.
 
 ---
 
@@ -144,12 +163,16 @@ provider_notes
   contact_name   text
   contact_phone  text
   contact_email  text                      all three customer-chosen
-  starts_on      date                      optional stay window
+  starts_on      date                      optional stay window (decision 5)
   ends_on        date
   sent_at        timestamptz
-  withdrawn_at   timestamptz
   supersedes     -> provider_notes(id)     a re-send points at what it replaces
 ```
+
+There is no `withdrawn_at`: decision 2 is that a note cannot be taken back. A
+re-send sets `supersedes` on the new row, and the provider's inbox shows only
+notes nothing else supersedes (decision 6). The customer's own history shows the
+whole chain.
 
 `pet_label` and the contact fields are **denormalised on purpose**, the same
 call `user_providers` already makes and for the same reason: the provider must
@@ -160,24 +183,26 @@ contact detail, so nothing at all is disclosed implicitly.
 ### Policies
 
 ```
-SELECT  is_pet_member(pet_id)
-        OR (is_provider_member(provider_id) AND withdrawn_at IS NULL)
+SELECT  is_pet_member(pet_id) OR is_provider_member(provider_id)
 INSERT  is_pet_editor(pet_id) AND sent_by = auth.uid()
-DELETE  is_pet_editor(pet_id)
-UPDATE  revoked — see below
+UPDATE  not granted
+DELETE  not granted
 ```
 
-**One thing to get right: RLS cannot restrict which *columns* an UPDATE
-touches.** "The customer may withdraw a note but not rewrite one already
-delivered" is therefore not expressible as a policy — a `USING (is_pet_editor)`
-UPDATE policy would let them rewrite `body` after the provider read it. So grant
-no UPDATE at all and expose a `withdraw_provider_note(id)` RPC that sets
-`withdrawn_at` and nothing else. This is the same trap `pet_owner_takeover.sql`
-in this repo already documents from the other direction.
+**No UPDATE, and this is load-bearing rather than tidy.** RLS cannot restrict
+which *columns* an UPDATE touches, so any UPDATE policy permissive enough to be
+useful would also let a customer rewrite `body` after the provider had read it —
+a note that silently changes under the reader is worse than one that is merely
+stale. `pet_owner_takeover.sql` in this repo documents the same trap from the
+other direction. Decision 2 means nothing needs UPDATE at all, so the simplest
+answer is also the correct one.
 
-A second RPC, `onboarded_provider_ids(uuid[])`, answers "which of my providers
-can be informed?" — needed because `provider_accounts` is not readable by a
-customer, and it returns ids only, nothing about the account.
+No DELETE either, for the same reason in a stronger form: a deletable note is a
+withdrawable note. The row goes only when the pet goes, by cascade.
+
+One RPC is needed: `onboarded_provider_ids(uuid[])`, answering "which of my
+providers can be informed?". `provider_accounts` is not readable by a customer,
+and this returns ids only, nothing about the account behind them.
 
 ### Composing the draft — do not let a model invent a vaccination date
 
@@ -203,17 +228,22 @@ wrong date in a note a boarder acts on is the one failure in this feature that
 could hurt an animal. The facts are structured rows; there is no reason to put a
 language model between them and a kennel.
 
-Default facts block, for you to edit (section 6, decision 4):
+The default facts block, as decided (decision 4):
 
 - **In:** name, species, breed, age, latest vaccination per type with dates,
   allergies, current medicines with dose, the boarding profile (diet, feeding
   schedule, temperament, anxiety notes, triggers, handling, socialises with
-  dogs), most recent medical record *title and date only*, vet name and phone.
-- **Out:** bills, medical record detail or attachments, weight history,
+  dogs), most recent medical record **title and date only**, vet name and phone.
+- **Out:** medical record detail and attachments, bills, weight history,
   condition journal notes, reminders, documents.
 
-This is now a **default**, not a boundary — the customer edits it before sending —
-which is why it is a much lower-stakes decision than it was yesterday.
+The medical line is deliberately a headline and not a record: "Ear infection —
+12 Aug 2026" tells a boarder there was something recent and lets them ask,
+without handing over the note the vet wrote. A customer who wants to say more
+can type it.
+
+This is a **default**, not a boundary — the customer edits before sending — which
+is what makes it a safe default to have at all.
 
 ### 3.5 What this replaces, for the record
 
@@ -250,9 +280,9 @@ sufficient, and it is strictly safer.
 | 2 | Claim → admin approval | RPC drafted; **approval UI does not exist** |
 | 3 | `onboarded_provider_ids()` + **Inform provider** button | gated on a claimed, approved listing |
 | 4 | Draft → edit → send | deterministic facts, generated covering note |
-| 5 | `provider_notes` + withdraw RPC | the whole provider-side read surface |
-| 6 | Customer-side history under the pet | what was sent, to whom, when |
-| 7 | Provider inbox: upcoming / current / past | grouped by the note's stay window |
+| 5 | `provider_notes`, insert-only | the whole provider-side read surface |
+| 6 | Customer-side history under the pet | what was sent, to whom, when, superseded chain and all |
+| 7 | Provider inbox: upcoming / current / past | grouped by the note's stay window, age flagged past 30 days |
 | 8 | Notify the provider on send | one email or SMS through `_notify.js` |
 | 9 | Broadcast to customers | provider → their customers, `_notify.js` |
 
@@ -281,15 +311,23 @@ could not deliver in MVP.
 
 ## 5. Build order
 
-**Phase 0 — unblock.** Put `is_admin()` into `supabase/`. Decide the admin model
-(decision 1). Build the approval queue UI. Apply `provider_accounts.sql` and
-record the boundary-test results in the file's own table.
+**Phase 0 — unblock.** Add the `admins` table (decision 1), rewrite `is_admin()`
+to read it, and commit both to `supabase/` — seeded with the owner as the first
+row, so behaviour is unchanged on the day it ships. Build the approval queue UI.
+Apply `provider_accounts.sql` and record the boundary-test results in the file's
+own table.
+
+The one thing to get right in that rewrite: `is_admin()` is `SECURITY DEFINER`
+and is already called by `get_all_users_for_admin()` and five policies in the
+drafted provider SQL. Changing its body changes who can read every user's email
+and phone. It wants the same treatment as the rest — pinned `search_path`, and a
+boundary test proving a non-admin gets `false` rather than an error.
 
 **Phase 1 — the shell.** Deploy what is drafted. End-to-end proof: a real
 boarder signs in, claims, is approved, sees their business name.
 
-**Phase 2 — the note.** `provider_notes`, the withdraw RPC,
-`onboarded_provider_ids()`. Verified by SQL boundary tests before any UI exists.
+**Phase 2 — the note.** `provider_notes` and `onboarded_provider_ids()`.
+Verified by SQL boundary tests before any UI exists.
 
 **Phase 3 — send.** The button, the draft, the edit-and-send sheet, the
 customer-side history.
@@ -306,41 +344,41 @@ grant system across eleven, which is the main thing this revision buys.
 
 ---
 
-## 6. Decisions I need from you
+## 6. Decisions — settled 2026-10-01
 
-1. **Admin model** — keep one hardcoded email, or an `admins` table with a
-   version-controlled `is_admin()`? *Recommendation: the table.* Not for
-   security — for throughput. Provider onboarding otherwise stops whenever you
-   are unavailable, and the current function cannot be rebuilt from this repo.
+All six are the owner's ruling. Apply them; do not relitigate them.
 
-2. **Withdrawal.** Can a customer withdraw a sent note? *Recommendation: yes,
-   soft — `withdrawn_at` set, the note disappears from the provider's inbox, the
-   row is kept so the customer's own history stays honest.* And the UI should say
-   plainly what withdrawal does and does not do: it removes their access going
-   forward, it cannot unsee what was already read. Promising more than that would
-   be a lie we built into a button.
+| # | Decision | Ruling |
+|---|---|---|
+| 1 | Admin model | **An `admins` table**, `is_admin()` rewritten to read it, both committed to `supabase/`, owner seeded as the first row |
+| 2 | Withdrawal | **None.** Sent is sent. No `withdrawn_at`, no UPDATE, no DELETE |
+| 3 | Staleness | **Exact age always; flagged past 30 days**, and the customer prompted to re-send when they open that pet |
+| 4 | Facts block | As listed in section 3. Medical history is **title and date only** |
+| 5 | Stay window | **Yes, optional** — two skippable dates, which is what makes the provider inbox groupable |
+| 6 | Re-send | **Supersede.** The provider's inbox shows only the latest; the customer's history keeps the chain |
 
-3. **Staleness threshold.** At what age does a note get flagged in the
-   provider's inbox? *Recommendation: show exact age always; flag past 30 days;
-   and prompt the customer to re-send if they open an old note's pet.* Your call
-   on the number — it depends on how long a typical gap between stays is, which
-   you know and I do not.
+Three of these interact, and the interaction is the thing to hold on to while
+building:
 
-4. **The default facts block.** The list in section 3 is my proposal. Lower
-   stakes than it was, since the customer edits before sending, but it sets what
-   most people will actually send. Say what you would move across the line — in
-   particular whether "most recent medical record, title and date only" is right,
-   or whether that should be out entirely.
+- Decision 2 makes the **send screen a safety control**. It is the only point of
+  no return, so it must say before the tap that this goes permanently and cannot
+  be recalled. No other screen in the app carries that weight.
+- Decision 2 plus decision 6 means the real promise is **"correct, not recall"**.
+  Write that, and resist the temptation to describe superseding as if it undid
+  anything.
+- Decision 3 plus decision 6 is the staleness answer end to end: the flag tells
+  the provider a note is old, and the re-send prompt gives the customer the one
+  action that fixes it. Neither works without the other, so build them together
+  rather than shipping the flag alone.
 
-5. **Does a note carry a stay window?** *Recommendation: yes, optional.* It is
-   two date fields and it is what makes item 7 possible. The cost is one more
-   thing on the send form.
+### Still open — not blocking, but needed before the relevant phase
 
-6. **Re-send behaviour.** When a customer informs the same provider about the
-   same pet again: supersede the old note, or keep both visible? *Recommendation:
-   supersede, with the old one still reachable from the customer's history.* Two
-   live notes with different vaccination dates is exactly the confusion the
-   staleness risk is about.
+- **The send screen's exact copy.** Decision 2 raised the stakes on this
+  considerably and it has not been written. Needed before phase 3.
+- **Whether a provider can be informed about a pet they have no stay with.** The
+  flow allows it (a vet, a groomer, no dates). Assumed yes; say if not.
+- **What the covering note's prose should sound like.** Phase 3.
+- **The broadcast's cost ceiling.** Phase 5, and see section 7.
 
 ---
 
@@ -354,10 +392,9 @@ grant system across eleven, which is the main thing this revision buys.
 - **I did not open the provider shell in a browser.** It compiles and
   code-splits; I did not confirm it renders or that an OTP round trip works. The
   claim, approval and sign-in path is untested end to end.
-- **I have not designed the send form's copy**, and it matters more than usual
-  here: the customer is about to send medical facts to a business, and the
-  screen is the only place that can set expectations about what happens to them
-  afterwards.
+- **I have not designed the send form's copy**, and under decision 2 it matters
+  more than anything else unbuilt: the customer is about to send medical facts
+  to a business permanently, and that screen is the only place that can say so.
 - **I did not cost the notification fan-out.** Item 8 is one message per note and
   is negligible. Item 9 is not: a broadcast to a boarder's whole customer list
   goes out over Resend and Twilio, and Twilio SMS to Indian numbers is metered
