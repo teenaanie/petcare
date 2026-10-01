@@ -1,6 +1,10 @@
 -- Provider sign-in: run this in your Supabase SQL editor (safe to re-run).
 -- NOT YET APPLIED. Stamp the header above with the date once it is.
 --
+-- RUN admins.sql FIRST. This file calls is_admin() in five places, and until
+-- that file runs, is_admin() is the version that exists only in the live
+-- database and hardcodes one address.
+--
 -- Until now a provider was a row in a directory: 968 of them, scraped from
 -- Google Maps, with no way for the business itself to sign in or see anything.
 -- This binds an auth.users row to a providers row so a boarder can reach their
@@ -81,6 +85,35 @@ GRANT  EXECUTE ON FUNCTION public.current_user_phone() TO authenticated;
 -- anon too: see the note on is_provider_member below. Same reasoning.
 GRANT  EXECUTE ON FUNCTION public.current_user_phone() TO anon;
 
+-- "Is this row's email mine?"
+--
+-- This exists because of a bug the boundary tests below caught, and it is worth
+-- understanding before anyone inlines it again. provider_accounts_select used
+-- to compare `lower(email) = lower(current_user_email())` directly in the
+-- policy. A policy expression runs as the CALLING role, and pet_members.sql
+-- deliberately revokes current_user_email() from anon — so an anonymous read of
+-- provider_accounts did not return zero rows, it hard-errored with "permission
+-- denied for function current_user_email". That is the exact failure
+-- rls_hardening.sql documents, reproduced inside the file that warns about it.
+--
+-- Wrapping the comparison in its own SECURITY DEFINER function fixes it without
+-- touching pet_members.sql's revoke: the nested call is then checked against
+-- the function's owner, not the caller. anon gets false, because auth.uid() is
+-- null for anon — not an error, and no email of anyone else's is observable
+-- either way, since the only address this can ever compare against is the
+-- caller's own.
+
+CREATE OR REPLACE FUNCTION public.email_is_mine(check_email text)
+RETURNS boolean LANGUAGE sql SECURITY DEFINER STABLE SET search_path TO 'public' AS $$
+  SELECT check_email IS NOT NULL
+     AND auth.uid() IS NOT NULL
+     AND lower(check_email) = lower((SELECT u.email::text FROM auth.users u WHERE u.id = auth.uid()));
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.email_is_mine(text) FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION public.email_is_mine(text) TO authenticated;
+GRANT  EXECUTE ON FUNCTION public.email_is_mine(text) TO anon;
+
 -- "Am I staff at this business?" — the spine every provider-scoped policy in
 -- the platform hangs off, mirroring is_pet_member().
 --
@@ -131,7 +164,10 @@ DROP POLICY IF EXISTS provider_accounts_select ON public.provider_accounts;
 CREATE POLICY provider_accounts_select ON public.provider_accounts
   FOR SELECT USING (
     user_id = auth.uid()
-    OR (email IS NOT NULL AND lower(email) = lower(public.current_user_email()))
+    -- email_is_mine(), not current_user_email(): see the note on that function.
+    -- A policy expression runs as the calling role, and anon cannot execute
+    -- current_user_email().
+    OR public.email_is_mine(email)
     OR public.is_provider_member(provider_id)
     OR public.is_admin()
   );
@@ -265,27 +301,59 @@ REVOKE EXECUTE ON FUNCTION public.admin_provider_accounts() FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.admin_provider_accounts() FROM anon;
 GRANT  EXECUTE ON FUNCTION public.admin_provider_accounts() TO authenticated;
 
--- ── Verify before trusting this ─────────────────────────────────────────────
+-- ── Verified ────────────────────────────────────────────────────────────────
 --
--- Run these impersonating each role, inside BEGIN … ROLLBACK, and record the
--- results here. A test of a permission boundary must FIRST prove the actor
--- holds the permission being tested: assert is_provider_member() returns true
--- before attacking with it. The 2026-09-16 privacy audit correction exists
--- because a fixture that silently failed to grant a role turned every
--- subsequent "blocked" into a false pass.
+-- `npm run test:sql` runs admins.sql and this file against a throwaway
+-- PostgreSQL 16 and attacks the policies as anon and as authenticated. Results
+-- below are from that run, 2026-10-01, 44/44 passing. See the caveat in
+-- admins.sql: the harness is a Supabase-shaped stub, so a green run justifies
+-- applying this, not skipping a look at the live project afterwards.
+--
+-- The harness earned its keep on the first run by failing #17, "anonymous
+-- selects provider_accounts": it errored rather than returning zero rows,
+-- because the SELECT policy called current_user_email(), which pet_members.sql
+-- revokes from anon. Review had read straight past it, in a file that contains
+-- a comment warning about exactly that. email_is_mine() is the fix.
 --
 --   anonymous selects provider_accounts .............. 0 rows, NOT an error
 --   anonymous calls is_provider_member(<id>) ......... false, NOT an error
+--   anonymous calls email_is_mine(<addr>) ............ false, NOT an error
+--   email_is_mine(my own address) .................... true
+--   email_is_mine(someone else's) .................... false
 --   user claims a listing ............................ allowed, status='pending'
---   user claims the same listing twice ............... returns the same id
---   user inserts a row with status='active' .......... blocked
---   user updates their own row to status='active' .... blocked
---   user updates another provider's account .......... blocked
+--   user claims the same listing twice ............... returns the same id,
+--                                                      and makes no second row
+--   pending claimant: is_provider_member(theirs) ..... false
+--   user inserts a row with status='active' .......... blocked, 42501
+--   user inserts a claim naming someone else ......... blocked, 42501
+--   user updates their own row to status='active' .... 0 rows (admin-only policy)
 --   user selects another provider's account .......... 0 rows
+--   my_provider_accounts() as anon ................... permission denied (by design)
+--   admin_provider_accounts() as non-admin ........... 0 rows
+--   admin_provider_accounts() as admin ............... 1 row
 --   admin approves a claim ........................... allowed
 --   approved user: is_provider_member(theirs) ........ true
 --   approved user: is_provider_member(another) ....... false
---   my_provider_accounts() as anon ................... permission denied (by design)
---   admin_provider_accounts() as non-admin ........... 0 rows
---   deleting a claimed providers row ................. blocked by RESTRICT
---   account deletion removes the provider_account .... verified
+--   my_provider_accounts() joins the business name ... "Unleash - The Dog Town"
+--   admin suspends the account ....................... allowed
+--   suspended user: is_provider_member(theirs) ....... false
+--   suspended user: my_provider_accounts() ........... still sees own row,
+--                                                      status='suspended'
+--   admin invites by email, user never signed in ..... allowed
+--   invitee: is_provider_member() by email alone ..... true
+--   invitee claims -> adopts the waiting row ......... 1 row, not 2
+--   adopted row kept status='active' ................. true
+--   deleting a claimed providers row ................. blocked, 23503 (RESTRICT)
+--   re-running this whole file ....................... clean
+--
+-- Still to check by hand on the live project, after applying — the harness
+-- cannot reach these:
+--
+--   account deletion removes the provider_account .... ON DELETE CASCADE from
+--                                                      auth.users; needs a real
+--                                                      GoTrue user deletion
+--   phone-match path for an admin-created row ........ last-10-digit match
+--                                                      against a real
+--                                                      auth.users.phone
+--   signed-out app still renders ..................... the bug above was found
+--                                                      by a test, not a page

@@ -311,17 +311,32 @@ could not deliver in MVP.
 
 ## 5. Build order
 
-**Phase 0 — unblock.** Add the `admins` table (decision 1), rewrite `is_admin()`
-to read it, and commit both to `supabase/` — seeded with the owner as the first
-row, so behaviour is unchanged on the day it ships. Build the approval queue UI.
-Apply `provider_accounts.sql` and record the boundary-test results in the file's
-own table.
+**Phase 0 — unblock. Built, not yet applied.** `supabase/admins.sql` adds the
+table and rewrites `is_admin()` to read it, seeded with the owner so behaviour is
+unchanged on the day it runs. The Claims tab in `AdminDashboard.jsx` is the
+approval queue. `npm run test:sql` stands up a throwaway PostgreSQL 16, runs both
+SQL files against it and attacks the policies as `anon` and `authenticated` —
+44/44 passing.
 
-The one thing to get right in that rewrite: `is_admin()` is `SECURITY DEFINER`
-and is already called by `get_all_users_for_admin()` and five policies in the
-drafted provider SQL. Changing its body changes who can read every user's email
-and phone. It wants the same treatment as the rest — pinned `search_path`, and a
-boundary test proving a non-admin gets `false` rather than an error.
+Two things came out of building it that were not in the plan:
+
+- **The harness found a real hole in `provider_accounts.sql`.** Its SELECT policy
+  called `current_user_email()`, which `pet_members.sql` revokes from `anon`, so
+  an anonymous read of `provider_accounts` hard-errored instead of returning zero
+  rows — leaking that the table exists and breaking signed-out rendering. It
+  fails closed, so it was never a data leak, but it is the exact failure
+  `rls_hardening.sql` documents, in a file that contains a comment warning about
+  it. `email_is_mine()` is the fix. Review had read straight past it twice.
+- **`is_admin()` was VOLATILE on the live project**, so Postgres re-evaluated it
+  once per row in every policy that called it. The rewrite makes it `STABLE`,
+  like `is_pet_member()` and `current_user_email()` already were, and the harness
+  asserts that rather than trusting the file.
+
+What remains is applying it, which needs a human at the SQL editor: run
+`admins.sql` then `provider_accounts.sql`, then confirm the admin dashboard still
+loads. `is_admin()` is `SECURITY DEFINER` and gates `get_all_users_for_admin()`,
+which returns every user's email and phone, so that last check is not a
+formality.
 
 **Phase 1 — the shell.** Deploy what is drafted. End-to-end proof: a real
 boarder signs in, claims, is approved, sees their business name.

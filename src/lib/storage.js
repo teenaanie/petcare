@@ -42,6 +42,46 @@ export async function getAdminUsers() {
   return data || []
 }
 
+// ── Provider claims (admin only) ─────────────────────────────────────────────
+//
+// A business claiming its directory listing lands status='pending' and a human
+// decides. Both calls below are gated in the database, not here:
+// admin_provider_accounts() returns zero rows to a non-admin, and
+// provider_accounts' UPDATE policy is is_admin() on both USING and WITH CHECK.
+// Nothing in this file is a permission check.
+
+export async function getProviderClaims() {
+  if (!isConfigured) return []
+  const { data, error } = await supabase.rpc('admin_provider_accounts')
+  if (error) throw error
+  return data || []
+}
+
+// granted_by / granted_at are stamped here rather than by a trigger so the
+// review queue shows who approved what. They are pinned shut against the
+// claimant by the INSERT policy, which refuses a row that arrives with either
+// one already set.
+export async function setProviderClaimStatus(id, status) {
+  if (!isConfigured) throw new Error('Supabase is not configured.')
+  const now = new Date().toISOString()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // Approving clears revoked_at as well as stamping the grant: an account that
+  // came back from suspension and kept its revoked_at would read as
+  // active-and-revoked, and whichever of the two a later query trusted would be
+  // a coin toss. Suspending does the reverse but KEEPS the grant stamp, because
+  // "who approved this, and when" is the thing you want most once an account
+  // has turned out to be trouble. Only a return to pending clears all three,
+  // which is the one case where no approval has happened.
+  const row = { status }
+  if (status === 'active')    Object.assign(row, { granted_by: user?.id ?? null, granted_at: now, revoked_at: null })
+  if (status === 'suspended') Object.assign(row, { revoked_at: now })
+  if (status === 'pending')   Object.assign(row, { granted_by: null, granted_at: null, revoked_at: null })
+
+  const { error } = await supabase.from('provider_accounts').update(row).eq('id', id)
+  if (error) throw error
+}
+
 export async function savePet(pet) {
   if (isConfigured) {
     const { data: { user } } = await supabase.auth.getUser()

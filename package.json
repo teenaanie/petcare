@@ -11,6 +11,7 @@
     "check:exclusions": "node scripts/check-exclusions.mjs",
     "test:speech": "node scripts/test-speech.mjs",
     "test:notify": "node scripts/test-notify.mjs",
+    "test:sql": "bash scripts/sql-harness/run.sh",
     "check:drift": "node scripts/check-drift.mjs",
     "test:dates": "node scripts/test-dates.mjs"
   },

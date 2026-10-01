@@ -97,6 +97,21 @@ Each one is idempotent, so re-running is safe:
 | `boarding.sql` | Boarding prep — the pet boarding profile, `providers.boarding_policy`, and `boarding_trips` |
 | `fix_pet_members_select.sql` | Lets the sharing dialog read `pet_members` (its policy read `auth.users` inline, which the calling role can't) |
 | `provider_taxonomy.sql` | `providers.services` / `.specializations`, and the Dog Walking + Training types |
+| `admins.sql` | The `admins` table and `is_admin()`. Must come before `provider_accounts.sql`, which calls it |
+| `provider_accounts.sql` | Provider sign-in: `provider_accounts`, `is_provider_member()`, `email_is_mine()`, and the claim RPCs |
+
+The last two have a harness, so you do not have to take their policies on
+trust. It builds a throwaway PostgreSQL 16, runs both files against it, and then
+attacks the policies as `anon` and as `authenticated`:
+
+```bash
+npm run test:sql
+```
+
+It needs a local PostgreSQL 16 (`initdb` and `psql` on `PATH`, or `PGBIN` set),
+creates its cluster fresh and destroys it afterwards, and never touches the live
+project. Run it before applying either file, and after editing either one — it
+found a real hole in `provider_accounts.sql` that reading the file had missed.
 
 The base block below also predates the `medicines`, `bills` and `weight_logs`
 tables and the `is_done` columns on `vaccinations`, `medicines` and `reminders`.
