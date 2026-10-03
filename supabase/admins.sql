@@ -1,5 +1,7 @@
--- Admins: run this in your Supabase SQL editor (safe to re-run).
--- NOT YET APPLIED. Stamp the header above with the date once it is.
+-- Admins: APPLIED 2026-10-03. Safe to re-run.
+--
+-- Applied statement by statement over the Supabase connector, each one verified
+-- before the next. Post-apply checks are recorded in the Verified block below.
 --
 -- RUN THIS BEFORE provider_accounts.sql, which calls is_admin() in five places.
 --
@@ -193,11 +195,24 @@ CREATE POLICY admins_select ON public.admins
 --   is_admin() not executable by PUBLIC .............. true (was, live)
 --   re-running this whole file ....................... no duplicate seed row
 --
--- Still to check by hand on the live project, after applying — the harness
--- cannot reach these:
+-- Checked on the LIVE project after applying, 2026-10-03:
 --
---   owner loads the admin dashboard .................. get_all_users_for_admin()
---                                                      still returns rows
---   revoked_at set -> is_admin() for that person ..... expected false; the
---                                                      harness has no second
---                                                      admin to revoke
+--   seeded row is bound by user_id, not email ........ true (the owner's uuid)
+--   is_admin() as the owner .......................... true
+--   is_admin() as another signed-in user ............. false
+--   is_admin() as anonymous .......................... false, NOT an error
+--   get_all_users_for_admin() as the owner ........... 20 rows — the admin
+--                                                      dashboard survived the
+--                                                      function swap
+--   get_all_users_for_admin() as another user ........ 0 rows
+--   get_all_users_for_admin() as anonymous ........... 0 rows
+--   is_admin() volatility ............................ STABLE (was VOLATILE)
+--   is_admin() executable by PUBLIC .................. no (was yes)
+--
+-- Still unchecked, because neither the harness nor a SQL session can reach it:
+--
+--   revoked_at set -> is_admin() false ............... logic verified in the
+--                                                      harness; there is only
+--                                                      one admin row live, and
+--                                                      revoking it to test
+--                                                      would lock the owner out

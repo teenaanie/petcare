@@ -311,7 +311,7 @@ could not deliver in MVP.
 
 ## 5. Build order
 
-**Phase 0 — unblock. Built, not yet applied.** `supabase/admins.sql` adds the
+**Phase 0 — unblock. Done and applied 2026-10-03.** `supabase/admins.sql` adds the
 table and rewrites `is_admin()` to read it, seeded with the owner so behaviour is
 unchanged on the day it runs. The Claims tab in `AdminDashboard.jsx` is the
 approval queue. `npm run test:sql` stands up a throwaway PostgreSQL 16, runs both
@@ -332,11 +332,28 @@ Two things came out of building it that were not in the plan:
   like `is_pet_member()` and `current_user_email()` already were, and the harness
   asserts that rather than trusting the file.
 
-What remains is applying it, which needs a human at the SQL editor: run
-`admins.sql` then `provider_accounts.sql`, then confirm the admin dashboard still
-loads. `is_admin()` is `SECURITY DEFINER` and gates `get_all_users_for_admin()`,
-which returns every user's email and phone, so that last check is not a
-formality.
+Both files are now applied to the live project and the results are recorded in
+their own Verified blocks. The checks that mattered: `get_all_users_for_admin()`
+still returns rows to the owner and nothing to anyone else, so the admin
+dashboard survived the `is_admin()` swap; an anonymous read of
+`provider_accounts` returns zero rows rather than erroring, which is the
+regression `email_is_mine()` exists for, confirmed against the real policy; and
+the whole claim → pending → approve → member lifecycle ran against the live
+database inside a transaction that was rolled back, leaving the table empty.
+
+Two things are applied but still unproven, and both need a person rather than
+SQL: **nobody has signed in at `/business`** — the SQL under the shell is live,
+the OTP round trip and the UI path are not yet exercised — and the Claims tab
+has never rendered a real claim, because there are none. The first real boarder
+to claim a listing is the test.
+
+One standing item the Supabase advisor raised, worth knowing rather than fixing
+now: the policy helpers are callable by `anon` over PostgREST, because a policy
+expression runs as the calling role and Postgres has no "only from inside a
+policy" grant. None of them leaks — see the note at the foot of
+`provider_accounts.sql`. The advisor's real remedy, moving the helpers to a
+schema PostgREST does not expose, would have to take `is_pet_member()`,
+`is_pet_editor()` and `current_user_email()` with it, and is its own change.
 
 **Phase 1 — the shell.** Deploy what is drafted. End-to-end proof: a real
 boarder signs in, claims, is approved, sees their business name.

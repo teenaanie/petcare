@@ -1,9 +1,10 @@
--- Provider sign-in: run this in your Supabase SQL editor (safe to re-run).
--- NOT YET APPLIED. Stamp the header above with the date once it is.
+-- Provider sign-in: APPLIED 2026-10-03. Safe to re-run.
 --
--- RUN admins.sql FIRST. This file calls is_admin() in five places, and until
--- that file runs, is_admin() is the version that exists only in the live
--- database and hardcodes one address.
+-- Applied after admins.sql, statement by statement, with the claim-to-approve
+-- lifecycle then exercised against the live database inside a transaction that
+-- was rolled back. Results are in the Verified block at the foot.
+--
+-- RUN admins.sql FIRST. This file calls is_admin() in five places.
 --
 -- Until now a provider was a row in a directory: 968 of them, scraped from
 -- Google Maps, with no way for the business itself to sign in or see anything.
@@ -346,8 +347,33 @@ GRANT  EXECUTE ON FUNCTION public.admin_provider_accounts() TO authenticated;
 --   deleting a claimed providers row ................. blocked, 23503 (RESTRICT)
 --   re-running this whole file ....................... clean
 --
--- Still to check by hand on the live project, after applying — the harness
--- cannot reach these:
+-- Checked on the LIVE project after applying, 2026-10-03. The whole lifecycle
+-- was run as the owner inside a transaction that was then ROLLED BACK, so the
+-- table is still empty — confirmed afterwards at 0 rows, with providers still
+-- at 976:
+--
+--   anonymous selects provider_accounts .............. 0 rows, NOT an error
+--                                                      (this is the regression
+--                                                      the email_is_mine fix
+--                                                      exists for, confirmed on
+--                                                      the real policy)
+--   policies on the table ............................ 5
+--   claim_provider() ................................. returned an id
+--   status after claiming ............................ pending
+--   is_provider_member() while pending ............... false
+--   admin_provider_accounts() as the owner ........... 1 row
+--   admin approves ................................... status active
+--   is_provider_member() after approval .............. true
+--   my_provider_accounts() after claiming twice ...... 1 row, not 2
+--   grants: anon may execute ......................... is_provider_member,
+--                                                      email_is_mine,
+--                                                      current_user_phone
+--   grants: anon may NOT execute ..................... my_provider_accounts,
+--                                                      claim_provider,
+--                                                      admin_provider_accounts
+--   PUBLIC may execute none of the seven ............. confirmed
+--
+-- Still unchecked, because a SQL session cannot reach it:
 --
 --   account deletion removes the provider_account .... ON DELETE CASCADE from
 --                                                      auth.users; needs a real
@@ -355,5 +381,19 @@ GRANT  EXECUTE ON FUNCTION public.admin_provider_accounts() TO authenticated;
 --   phone-match path for an admin-created row ........ last-10-digit match
 --                                                      against a real
 --                                                      auth.users.phone
---   signed-out app still renders ..................... the bug above was found
---                                                      by a test, not a page
+--   the provider shell at /business .................. no OTP round trip has
+--                                                      been done; the SQL under
+--                                                      it is now live, the UI
+--                                                      path is not yet proven
+--
+-- One thing the Supabase security advisor flags that is worth knowing rather
+-- than fixing: email_is_mine(), is_provider_member() and current_user_phone()
+-- are callable by anon over PostgREST, as /rest/v1/rpc/<name>. That is
+-- unavoidable here — a policy expression runs as the CALLING role, so the
+-- caller must hold EXECUTE, and Postgres has no "only from inside a policy"
+-- grant. None of them leaks: for anon auth.uid() is null, so they return false
+-- or null, and email_is_mine can only ever compare against the caller's own
+-- address, never confirm anyone else's. The advisor's own suggested remedy —
+-- move the helpers to a schema PostgREST does not expose — is the real fix, and
+-- it would have to take is_pet_member(), is_pet_editor() and
+-- current_user_email() with it. That is a separate change, not this one.
