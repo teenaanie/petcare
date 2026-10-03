@@ -390,6 +390,13 @@ function FeedbackPanel() {
                 {new Date(item.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
               </span>
             </div>
+            {item.providers?.name && (
+              <p className="flex items-center gap-1.5 text-xs font-bold mb-1" style={{ color: '#b08d57' }}>
+                <Building2 className="w-3 h-3 shrink-0" />
+                {item.providers.name}
+                {item.providers.area ? ` · ${item.providers.area}` : ''}
+              </p>
+            )}
             {item.category && (
               <span className="inline-block text-xs font-bold px-2.5 py-1 rounded-full mb-2"
                 style={{ backgroundColor: '#ebe3d3', color: '#7a4900' }}>

@@ -99,6 +99,7 @@ Each one is idempotent, so re-running is safe:
 | `provider_taxonomy.sql` | `providers.services` / `.specializations`, and the Dog Walking + Training types |
 | `admins.sql` | The `admins` table and `is_admin()`. Must come before `provider_accounts.sql`, which calls it |
 | `provider_accounts.sql` | Provider sign-in: `provider_accounts`, `is_provider_member()`, `email_is_mine()`, and the claim RPCs |
+| `provider_feedback.sql` | `feedback.provider_id` and `is_provider_claimant()`, so a provider — including a suspended one — can send a message |
 
 The last two have a harness, so you do not have to take their policies on
 trust. It builds a throwaway PostgreSQL 16, runs both files against it, and then

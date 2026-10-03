@@ -4,6 +4,7 @@ import { supabaseProvider, isConfigured } from '../../lib/supabase.js'
 import PippyLogo from '../PippyLogo.jsx'
 import ProviderAuth from './ProviderAuth.jsx'
 import ProviderOnboarding from './ProviderOnboarding.jsx'
+import ProviderFeedback from './ProviderFeedback.jsx'
 
 // The provider shell. Mounted only at /business (see src/main.jsx), lazily, so
 // a pet parent never downloads it.
@@ -157,6 +158,12 @@ export default function ProviderApp() {
             </button>
           </div>
         </div>
+        <ProviderFeedback
+          userId={session.user.id}
+          providerId={suspended.provider_id}
+          context="Access paused"
+          open
+          prompt="Think this is a mistake? Tell us what happened and we'll look again." />
       </Shell>
     )
   }
@@ -187,6 +194,10 @@ export default function ProviderApp() {
             </button>
           </div>
         </div>
+        <ProviderFeedback
+          userId={session.user.id}
+          providerId={pending.provider_id}
+          context="Awaiting approval" />
       </Shell>
     )
   }
@@ -209,6 +220,10 @@ export default function ProviderApp() {
           Your customers, their pets and your daily updates land here next.
         </p>
       </div>
+      <ProviderFeedback
+        userId={session.user.id}
+        providerId={active.provider_id}
+        context="Signed in" />
     </Shell>
   )
 }

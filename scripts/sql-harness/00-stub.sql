@@ -79,6 +79,25 @@ INSERT INTO public.providers (id, name, type, area, city, is_approved) VALUES
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Unleash - The Dog Town', 'Boarder', 'Baner',  'Pune', true),
   ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Vetic Pet Clinic Aundh', 'Vet',     'Aundh',  'Pune', true);
 
+-- feedback, as it exists live before provider_feedback.sql runs: the same
+-- columns and the same two policies. provider_feedback.sql then alters it, so
+-- the harness proves the pet-parent insert path survives that alteration.
+CREATE TABLE public.feedback (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    uuid,
+  rating     integer,
+  category   text,
+  message    text NOT NULL,
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
+
+-- Only the INSERT policy: live also has "Admin reads all feedback", which calls
+-- is_admin() and so cannot be created before admins.sql has run. No assertion
+-- reads feedback as an admin, and provider_feedback.sql only touches INSERT.
+CREATE POLICY "Users can insert own feedback" ON public.feedback
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
 -- From pet_members.sql, verbatim.
 CREATE OR REPLACE FUNCTION public.current_user_email()
 RETURNS text LANGUAGE sql SECURITY DEFINER STABLE SET search_path TO 'public' AS $$

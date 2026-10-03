@@ -535,9 +535,13 @@ export async function deleteBill(id) {
 
 export async function getFeedback() {
   if (!isConfigured) return []
+  // Embed the business a provider's message is about. feedback.provider_id is a
+  // real FK to providers, which is what lets PostgREST do this join, and the
+  // admin reads providers through "Admin manages providers". A pet parent's
+  // row has provider_id null and comes back with providers: null, unchanged.
   const { data, error } = await supabase
     .from('feedback')
-    .select('*')
+    .select('*, providers(name, type, area)')
     .order('created_at', { ascending: false })
   if (error) throw error
   return data || []

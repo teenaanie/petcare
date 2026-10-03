@@ -166,6 +166,34 @@ SELECT t_run   ('deleting a claimed providers row',         'postgres',      NUL
                 $q$delete from public.providers where id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'$q$, 'error:23503');
 
 \echo ''
+\echo '════ provider_feedback.sql ════'
+
+-- The regression that matters most here: a pet parent sends provider_id NULL
+-- and must be governed by exactly the rule they were governed by before.
+SELECT t_run   ('pet parent inserts feedback',            'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$insert into public.feedback (user_id, message) values ('33333333-3333-3333-3333-333333333333', 'the scanner is slow')$q$, 'ok:1');
+SELECT t_run   ('anonymous inserts feedback',             'anon',          NULL,
+                $q$insert into public.feedback (user_id, message) values (null, 'spam')$q$, 'denied');
+SELECT t_run   ('user inserts as another user_id',        'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$insert into public.feedback (user_id, message) values ('22222222-2222-2222-2222-222222222222', 'not me')$q$, 'denied');
+
+SELECT t_scalar('is_provider_claimant() as anonymous',    'anon',          NULL,
+                $q$select public.is_provider_claimant('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')::text$q$, 'false');
+
+-- The suspended account from the block above is still suspended here, which is
+-- exactly the case this feature exists for: is_provider_member() is false for
+-- them, and they must still be able to send a message.
+SELECT t_scalar('suspended user is still not a member',   'authenticated', '22222222-2222-2222-2222-222222222222',
+                $q$select public.is_provider_member('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')::text$q$, 'false');
+SELECT t_scalar('...but IS a claimant',                   'authenticated', '22222222-2222-2222-2222-222222222222',
+                $q$select public.is_provider_claimant('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')::text$q$, 'true');
+SELECT t_run   ('SUSPENDED provider sends feedback',      'authenticated', '22222222-2222-2222-2222-222222222222',
+                $q$insert into public.feedback (user_id, provider_id, message) values ('22222222-2222-2222-2222-222222222222', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'why was my access paused?')$q$, 'ok:1');
+
+SELECT t_run   ('stranger attributes to that business',   'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$insert into public.feedback (user_id, provider_id, message) values ('33333333-3333-3333-3333-333333333333', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'they were terrible')$q$, 'denied');
+
+\echo ''
 \echo '════ results ════'
 SELECT ord, label, expected, got, CASE WHEN ok THEN 'PASS' ELSE 'FAIL' END AS result
 FROM t_results ORDER BY ord;

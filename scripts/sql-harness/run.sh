@@ -53,6 +53,7 @@ run() { "$PGBIN/psql" -h "$BASE/sock" -U postgres -d postgres -v ON_ERROR_STOP=1
 run "$HERE/00-stub.sql"
 run "$REPO/supabase/admins.sql"
 run "$REPO/supabase/provider_accounts.sql"
+run "$REPO/supabase/provider_feedback.sql"
 
 # Mirror Supabase's own grants. Without these, anon and authenticated would be
 # blocked by a missing table privilege rather than by RLS, and every "blocked"
@@ -61,9 +62,10 @@ run "$REPO/supabase/provider_accounts.sql"
   GRANT ALL ON ALL TABLES    IN SCHEMA public TO anon, authenticated, service_role;
   GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;"
 
-# Re-run both files to prove they are safe to re-run, as their headers claim.
+# Re-run them to prove they are safe to re-run, as their headers claim.
 run "$REPO/supabase/admins.sql"
 run "$REPO/supabase/provider_accounts.sql"
+run "$REPO/supabase/provider_feedback.sql"
 
 "$PGBIN/psql" -h "$BASE/sock" -U postgres -d postgres -v ON_ERROR_STOP=1 -q -tAc \
   "select case when count(*) = 1 then 'ok' else 'DUPLICATE SEED: ' || count(*) end
