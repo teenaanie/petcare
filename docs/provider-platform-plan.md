@@ -355,8 +355,40 @@ policy" grant. None of them leaks — see the note at the foot of
 schema PostgREST does not expose, would have to take `is_pet_member()`,
 `is_pet_editor()` and `current_user_email()` with it, and is its own change.
 
-**Phase 1 — the shell.** Deploy what is drafted. End-to-end proof: a real
-boarder signs in, claims, is approved, sees their business name.
+**Phase 1 — the shell. Driven in a real browser 2026-10-03; not yet deployed.**
+The shell was run against the live project in Chromium and every state checked:
+
+- `/business` renders the sign-in screen — both tabs, `+91` default, the escape
+  hatch back to the pet app — and the pet-parent app at `/` still renders, which
+  is the regression that mattered.
+- The three post-sign-in states are correct: no account → "Find your business";
+  claim pending → "Waiting on approval", naming the business, with no dashboard
+  leaking through; approved → the dashboard with the business name and
+  type · area · city.
+- The claim flow works: type a name, pick a listing, claim, and the shell
+  re-reads its accounts.
+- The Claims tab — written blind in phase 0 and never rendered until now — shows
+  the pending claim with its note and contact, flags a claimed type that
+  disagrees with the directory, hides already-decided claims behind its toggle,
+  and its Approve button issues exactly `status=active, granted_by=<admin uuid>,
+  granted_at=<now>, revoked_at=null`.
+
+Transport was stubbed for the post-sign-in states: a session seeded under the
+provider `storageKey`, and the RPCs intercepted. That exercises the real
+component code and the real payloads, and does **not** exercise GoTrue. The OTP
+round trip is still unproven and needs a person with an inbox.
+
+**One gap this found: nothing linked to `/business`.** The shell was reachable
+only by being told the URL — the single cross-link in the codebase ran the other
+way, from the claim screen to `/register-provider`. That page is already the
+business-facing one, so it now points both ways: a footer line for a business
+already in the directory ("Already listed on Pippy? Claim your business"), and a
+CTA on the post-submit screen, which is the one moment a business has just said
+who it is and has nowhere to go.
+
+What remains is the deploy, which is a merge — both hosts build from the default
+branch. After that the real test is one boarder completing an OTP sign-in, and a
+claim appearing in the Claims tab.
 
 **Phase 2 — the note.** `provider_notes` and `onboarded_provider_ids()`.
 Verified by SQL boundary tests before any UI exists.

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PawPrint, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import { PawPrint, Loader2, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react'
 import PippyLogo from './PippyLogo.jsx'
 
 const PROVIDER_TYPES = ['Vet', 'Groomer', 'Store', 'Boarder', 'Special Services', 'Pet Loss & Memorial Services']
@@ -59,6 +59,18 @@ export default function ProviderRegistration() {
             <p className="text-sm" style={{ color: '#73775b' }}>
               Your listing has been submitted for review and will appear in the Pippy directory once approved.
             </p>
+            {/* The one moment this person is certain to want the provider shell:
+                they have just told us who they are and have nowhere to go. Until
+                this link existed, /business was reachable only by being told the
+                URL. */}
+            <hr className="my-6" style={{ borderColor: '#f0e6c8' }} />
+            <p className="text-sm" style={{ color: '#4A2C0A' }}>
+              Once it is approved you can sign in to your business account to see
+              what customers share with you.
+            </p>
+            <a href="/business" className="btn-secondary inline-flex mt-4">
+              Go to business sign-in <ArrowRight className="w-4 h-4 ml-2" />
+            </a>
           </div>
         ) : (
           <div className="card">
@@ -148,6 +160,15 @@ export default function ProviderRegistration() {
 
         <p className="text-center text-xs mt-6" style={{ color: '#73775b' }}>
           Submissions are reviewed before appearing in the Pippy directory.
+        </p>
+        {/* A business already in the directory does not need this form at all —
+            968 of them were imported from Google and have never been asked. They
+            need to claim the listing that already exists. */}
+        <p className="text-center text-xs mt-2" style={{ color: '#73775b' }}>
+          Already listed on Pippy?{' '}
+          <a href="/business" className="underline" style={{ color: '#b08d57' }}>
+            Claim your business
+          </a>.
         </p>
       </div>
     </div>
