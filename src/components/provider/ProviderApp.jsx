@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Clock, LogOut, RefreshCw } from 'lucide-react'
+import { Ban, Clock, LogOut, RefreshCw } from 'lucide-react'
 import { supabaseProvider, isConfigured } from '../../lib/supabase.js'
 import PippyLogo from '../PippyLogo.jsx'
 import ProviderAuth from './ProviderAuth.jsx'
@@ -14,7 +14,7 @@ import ProviderOnboarding from './ProviderOnboarding.jsx'
 // separation is in the UI and the session only — both carry the same
 // auth.uid(), and no RLS policy can tell them apart.
 //
-// Boot has four outcomes, which is why the role source matters: `profiles` has
+// Boot has five outcomes, which is why the role source matters: `profiles` has
 // RLS enabled with zero policies and can never be read from the client, so it
 // is no use for this. provider_accounts carries its own "my own row" SELECT
 // policy and answers the question directly.
@@ -31,6 +31,27 @@ function Booting() {
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#FFFEF8' }}>
       <PippyLogo size="xl" className="animate-pulse" />
+    </div>
+  )
+}
+
+// Every signed-in screen carries the wordmark, and every screen a provider can
+// get STUCK on carries a way out. Sign-out is a prop rather than always-on
+// because the claim screen deliberately has no header at all.
+function Header({ onSignOut }) {
+  return (
+    <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center gap-3">
+        <PippyLogo size="md" />
+        <span className="text-2xl font-black" style={{ color: '#7a4900', fontFamily: 'Nunito, sans-serif' }}>
+          pip<span style={{ color: '#f2b83d' }}>py</span>
+        </span>
+      </div>
+      {onSignOut && (
+        <button className="btn-secondary" onClick={onSignOut}>
+          <LogOut size={14} className="mr-2" /> Sign out
+        </button>
+      )}
     </div>
   )
 }
@@ -91,8 +112,9 @@ export default function ProviderApp() {
   if (accounts === null) return <Booting />
 
   const email = session.user.email || session.user.phone || ''
-  const active  = accounts.find(a => a.status === 'active')
-  const pending = accounts.find(a => a.status === 'pending')
+  const active    = accounts.find(a => a.status === 'active')
+  const pending   = accounts.find(a => a.status === 'pending')
+  const suspended = accounts.find(a => a.status === 'suspended')
 
   if (error) {
     return (
@@ -107,6 +129,38 @@ export default function ProviderApp() {
     )
   }
 
+  // Suspended used to fall through to the claim screen: no explanation, no sign
+  // out, and claiming again returns the same already-suspended row — so the only
+  // way out was clearing site data. Order matters here. `active` is checked
+  // first so somebody suspended at one business and active at another still
+  // lands on their dashboard, and `suspended` is checked before the claim screen
+  // so it can no longer be the fallthrough.
+  if (!active && !pending && suspended) {
+    return (
+      <Shell>
+        <Header onSignOut={signOut} />
+        <div className="card">
+          <div className="flex items-start gap-3">
+            <Ban size={20} className="mt-0.5 shrink-0" style={{ color: '#b4453c' }} />
+            <div>
+              <h1 className="text-lg font-black mb-1" style={{ color: '#7a4900' }}>Access paused</h1>
+              <p className="text-sm" style={{ color: '#4A2C0A' }}>
+                Your account for <strong>{suspended.provider_name}</strong> has been paused, so you
+                can&apos;t sign in to it at the moment. A person decides this, and a person can undo
+                it — nothing about your business listing has changed.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2 mt-6">
+            <button className="btn-secondary" onClick={loadAccounts}>
+              <RefreshCw size={14} className="mr-2" /> Check again
+            </button>
+          </div>
+        </div>
+      </Shell>
+    )
+  }
+
   if (!active && !pending) {
     return <ProviderOnboarding email={email} onClaimed={loadAccounts} />
   }
@@ -114,12 +168,7 @@ export default function ProviderApp() {
   if (!active && pending) {
     return (
       <Shell>
-        <div className="flex items-center gap-3 mb-8">
-          <PippyLogo size="md" />
-          <span className="text-2xl font-black" style={{ color: '#7a4900', fontFamily: 'Nunito, sans-serif' }}>
-            pip<span style={{ color: '#f2b83d' }}>py</span>
-          </span>
-        </div>
+        <Header onSignOut={signOut} />
         <div className="card">
           <div className="flex items-start gap-3">
             <Clock size={20} className="mt-0.5 shrink-0" style={{ color: '#b08d57' }} />
@@ -136,9 +185,6 @@ export default function ProviderApp() {
             <button className="btn-secondary" onClick={loadAccounts}>
               <RefreshCw size={14} className="mr-2" /> Check again
             </button>
-            <button className="btn-secondary" onClick={signOut}>
-              <LogOut size={14} className="mr-2" /> Sign out
-            </button>
           </div>
         </div>
       </Shell>
@@ -149,17 +195,7 @@ export default function ProviderApp() {
   // in the phases that follow; this proves the whole sign-in path end to end.
   return (
     <Shell>
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-3">
-          <PippyLogo size="md" />
-          <span className="text-2xl font-black" style={{ color: '#7a4900', fontFamily: 'Nunito, sans-serif' }}>
-            pip<span style={{ color: '#f2b83d' }}>py</span>
-          </span>
-        </div>
-        <button className="btn-secondary" onClick={signOut}>
-          <LogOut size={14} className="mr-2" /> Sign out
-        </button>
-      </div>
+      <Header onSignOut={signOut} />
 
       <div className="card">
         <p className="text-xs font-bold uppercase tracking-wide mb-1" style={{ color: '#b08d57' }}>Signed in as</p>
