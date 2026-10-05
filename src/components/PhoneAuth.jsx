@@ -370,7 +370,29 @@ export default function PhoneAuth() {
         </div>
 
         <p className="text-center text-xs mt-6" style={{ color: '#73775b' }}>
-          Your data is private and secure. Only you can see your pets' records.
+          Your data is private and secure. Only you can see your pets&apos; records.
+        </p>
+
+        {/* The way across to the provider shell, and the mirror of the line
+            ProviderAuth already carries back to here. Without it, a boarder
+            told "go to pippypets.com" lands on the pet-parent sign-in with no
+            sign that /business exists — it was reachable only by being handed
+            the URL. This is the one place that reliably catches them, because
+            it is the first screen a signed-out visitor sees.
+
+            On a phone, the analytics consent banner is fixed to the bottom and
+            measures about 330px — nearly 40% of the screen — so it covers this
+            line until it is answered. Padding the page to clear it was tried
+            and reverted: it needed ~280px, which left the sign-in jammed
+            against the top for everyone once the banner was gone. The banner is
+            a one-tap first-run gate, so the cost is one tap for a first-time
+            visitor and nothing at all afterwards. If that ever stops being
+            acceptable, shrink the banner rather than move this. */}
+        <p className="text-center text-xs mt-2" style={{ color: '#73775b' }}>
+          Run a boarding or grooming business?{' '}
+          <a href="/business" className="underline" style={{ color: '#b08d57' }}>
+            Sign in to your business account
+          </a>.
         </p>
       </div>
     </div>
