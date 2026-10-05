@@ -2,6 +2,8 @@ import { useState, useEffect, lazy, Suspense } from 'react'
 import { drainSharedFiles, wasShared, clearSharedFlag } from './lib/shareTarget.js'
 import { PawPrint } from 'lucide-react'
 import { getSupabase, isConfigured, hasStoredSession } from './lib/supabase.js'
+import ChunkErrorBoundary from './components/ChunkErrorBoundary.jsx'
+import { isChunkLoadError, reloadOnceForChunkError } from './lib/chunkErrors.js'
 import { getPets } from './lib/storage.js'
 import { announceSignupOnce } from './lib/notify.js'
 import PhoneAuth from './components/PhoneAuth.jsx'
@@ -86,11 +88,17 @@ export default function App() {
         setAuthLoading(false)
         if (session?.user) announceSignupOnce(session.user)
       })
-    }).catch(() => {
-      // The client could not be fetched at all — an offline first load, or a
-      // chunk that 404s after a deploy. Stop waiting and show the sign-in
-      // screen rather than the spinner forever.
-      if (!cancelled) setAuthLoading(false)
+    }).catch(err => {
+      if (cancelled) return
+      // A stale deploy can 404 this chunk, and nothing catches that: the import
+      // happens in an effect, so no error boundary ever sees it. Falling
+      // through to the sign-in screen would tell somebody who IS signed in that
+      // they are not, which reads as "it logged me out". Reload once instead,
+      // sharing the boundary's guard so this cannot become a loop.
+      if (isChunkLoadError(err) && hasStoredSession() && reloadOnceForChunkError()) return
+      // Anything else — offline on a first load, or the reload already spent.
+      // Stop waiting and show the sign-in screen rather than the spinner.
+      setAuthLoading(false)
     })
 
     return () => { cancelled = true; subscription?.unsubscribe() }
@@ -285,11 +293,11 @@ export default function App() {
 
         <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
           {adminView ? (
-            <Suspense fallback={<LoadingScreen />}><AdminDashboard /></Suspense>
+            <ChunkErrorBoundary><Suspense fallback={<LoadingScreen />}><AdminDashboard /></Suspense></ChunkErrorBoundary>
           ) : myProvidersView ? (
-            <Suspense fallback={<LoadingScreen />}><MyProviders /></Suspense>
+            <ChunkErrorBoundary><Suspense fallback={<LoadingScreen />}><MyProviders /></Suspense></ChunkErrorBoundary>
           ) : servicesView ? (
-            <Suspense fallback={<LoadingScreen />}><ProviderDirectory onPrepForStay={startBoardingPrep} /></Suspense>
+            <ChunkErrorBoundary><Suspense fallback={<LoadingScreen />}><ProviderDirectory onPrepForStay={startBoardingPrep} /></Suspense></ChunkErrorBoundary>
           ) : selectedPet ? (
             <PetDetail
               pet={selectedPet}

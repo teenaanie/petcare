@@ -1,6 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { X, Loader2, PawPrint, Share2, AlertCircle } from 'lucide-react'
 import { getPets } from '../lib/storage.js'
+import ChunkErrorBoundary from './ChunkErrorBoundary.jsx'
 
 // Lazy, and it has to stay lazy. PetDetail loads the scanner this way too, and
 // a single static import anywhere pulls it -- and pdf.js behind it -- back into
@@ -51,9 +52,11 @@ export default function SharedImport({ files, session, onClose }) {
             </p>
             <button onClick={onClose}><X className="w-5 h-5" style={{ color: '#73775b' }} /></button>
           </div>
-          <Suspense fallback={<ScannerLoading />}>
-            <DocumentScanner pet={pet} session={session} initialFiles={files} />
-          </Suspense>
+          <ChunkErrorBoundary view="shared-import">
+            <Suspense fallback={<ScannerLoading />}>
+              <DocumentScanner pet={pet} session={session} initialFiles={files} />
+            </Suspense>
+          </ChunkErrorBoundary>
         </div>
       </div>
     )

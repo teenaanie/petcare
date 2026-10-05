@@ -2,6 +2,7 @@ import { useState, useEffect, lazy, Suspense } from 'react'
 import { Edit2, Trash2, Calendar, Weight, Phone, Sparkles, ShieldAlert, Users, Mic, Loader2 } from 'lucide-react'
 import { getSupabase, isConfigured } from '../lib/supabase.js'
 import { prefetchTab } from '../lib/prefetchTab.js'
+import ChunkErrorBoundary from './ChunkErrorBoundary.jsx'
 function ModalLoading() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center"
@@ -325,6 +326,7 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
       {/* Tab content. Every view below is a lazy chunk, so this needs a
           Suspense boundary: without one, switching tabs suspends with no
           fallback and React blanks the subtree instead of showing the tab. */}
+      <ChunkErrorBoundary view="pet-detail">
       <Suspense fallback={<TabLoading />}>
         {activeTab === 'timeline'     && <Timeline       key={tabKey} pet={pet} />}
         {activeTab === 'medical'      && <MedicalHistory key={tabKey} pet={pet} />}
@@ -339,6 +341,7 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
         {activeTab === 'boarding'     && <Boarding pet={pet} onPetUpdated={onPetUpdated}
                                             prefillProviderId={prefillProviderId} onPrefillUsed={onPrefillUsed} />}
       </Suspense>
+      </ChunkErrorBoundary>
 
       {showEdit && (
         <AddPetModal
@@ -352,28 +355,36 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
       )}
 
       {showHealthSummary && (
+        <ChunkErrorBoundary view="pet-detail">
         <Suspense fallback={<ModalLoading />}>
           <HealthSummary pet={pet} onClose={() => setShowHealthSummary(false)} />
         </Suspense>
+        </ChunkErrorBoundary>
       )}
 
       {showEmergencyCard && (
+        <ChunkErrorBoundary view="pet-detail">
         <Suspense fallback={<ModalLoading />}>
           <EmergencyCard pet={pet} onClose={() => setShowEmergencyCard(false)} />
         </Suspense>
+        </ChunkErrorBoundary>
       )}
 
       {showSharing && (
+        <ChunkErrorBoundary view="pet-detail">
         <Suspense fallback={<ModalLoading />}>
           <PetSharing pet={pet} onClose={() => setShowSharing(false)} />
         </Suspense>
+        </ChunkErrorBoundary>
       )}
 
       {showVoiceUpdate && (
+        <ChunkErrorBoundary view="pet-detail">
         <Suspense fallback={<ModalLoading />}>
           <VoiceUpdate pet={pet} onClose={() => setShowVoiceUpdate(false)}
             onSaved={() => setDataVersion(v => v + 1)} />
         </Suspense>
+        </ChunkErrorBoundary>
       )}
     </div>
   )
