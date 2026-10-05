@@ -22,6 +22,23 @@
 // an unrecognised value is dropped rather than forwarded.
 
 const MAX_PER_SESSION = 10      // an error inside a render loop must not flood
+
+// Browser housekeeping that fails in ways nobody experiences.
+//
+// A service worker update that aborts -- the tab closed, another update was
+// already in flight, iOS had no installed worker to compare against -- is not a
+// fault. It is routine, it is invisible to the user, and there is nothing to
+// fix. The first three reports Pippy ever collected were all of this, which is
+// exactly how a useful list becomes one nobody reads.
+//
+// The source of those is fixed too (index.html now catches them), so this is
+// the net rather than the fix. It is kept deliberately narrow: anything that
+// is not plainly service-worker lifecycle still gets through.
+const IGNORED = [
+  /failed to (update|register) a serviceworker/i,
+  /newestworker is null/i,
+  /the operation was aborted.*serviceworker/i,
+]
 const MAX_MESSAGE     = 300
 const MAX_STACK       = 1500
 
@@ -122,16 +139,34 @@ export function setErrorView(view) {
  * Report one error. Never throws and never rejects: a failure to report a
  * problem must not itself become a problem the user sees.
  */
+/** The token of whoever is signed in, so a report can be attributed. */
+let authToken = null
+
+/**
+ * Tell the reporter who is signed in.
+ *
+ * sendBeacon cannot set headers, so the token travels in the body instead --
+ * which is why this exists at all. Without it every report arrives anonymous
+ * and the dashboard says "0 people" for faults that in fact hit someone
+ * specific, which is what it said for every report until now.
+ */
+export function setErrorUser(token) { authToken = token || null }
+
 export function reportError(error, opts = {}) {
   try {
     if (sentCount >= MAX_PER_SESSION) return
+    const raw = String(error?.message || error || '')
+    if (IGNORED.some(re => re.test(raw))) return
     const report = buildReport(error, { view: opts.view || currentView })
     const fp = fingerprint(error || {})
     if (seen.has(fp)) return
     seen.add(fp)
     sentCount++
 
-    const body = JSON.stringify(report)
+    // The token goes in the body because sendBeacon cannot set headers. The
+    // endpoint verifies it the same way either way, so nothing is weakened --
+    // and a body is not written to access logs the way a URL would be.
+    const body = JSON.stringify(authToken ? { ...report, token: authToken } : report)
     // sendBeacon survives the page being closed, which is exactly when a fatal
     // error tends to happen. It is fire-and-forget by design: there is no
     // response to wait for and nothing useful to do if it fails.
