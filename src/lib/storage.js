@@ -55,9 +55,74 @@ async function _getPets(filterUserId = null) {
     if (filterUserId) q = q.eq('user_id', filterUserId)
     const { data, error } = await q
     if (error) throw error
-    return data.map(fromSnakePet)
+    return withLatestWeights(data.map(fromSnakePet), supabase)
   }
-  return lsGet(KEYS.pets)
+  return withLatestWeights(lsGet(KEYS.pets))
+}
+
+/**
+ * Attach each pet's most recent DATED weight reading.
+ *
+ * `pets.weight` is typed into the profile form and never dated, so on its own
+ * it cannot be shown as a current weight -- and on the live data nine of the
+ * eleven pets with readings disagree with it. Doing this here, in the one
+ * place every screen gets its pets from, means the pet card, the pet header,
+ * the emergency card, the boarding price bands and the admin list all see the
+ * same figure without each one fetching it.
+ *
+ * Deliberately NOT a write. See src/lib/currentWeight.js for why reconciling
+ * the two numbers automatically would have put "3.8 kg" on a Labrador's
+ * emergency card.
+ *
+ * A failure here must not take the pet list down with it. It is an
+ * enrichment: without it `currentWeight()` falls back to the profile figure,
+ * which is exactly the old behaviour.
+ */
+async function withLatestWeights(pets, supabase) {
+  if (!Array.isArray(pets) || pets.length === 0) return pets
+  try {
+    const ids = pets.map(p => p.id).filter(Boolean)
+    if (!ids.length) return pets
+
+    let rows
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('weight_logs').select('pet_id, weight, date, created_at')
+        .in('pet_id', ids).not('date', 'is', null).not('weight', 'is', null)
+      if (error) throw error
+      rows = (data || []).map(r => ({
+        petId: r.pet_id, weight: r.weight, date: r.date, createdAt: r.created_at,
+      }))
+    } else {
+      rows = lsGet(KEYS.weightLogs)
+        .filter(r => r && r.petId && r.date && r.weight != null)
+        .map(r => ({ ...r, createdAt: r.createdAt || '' }))
+    }
+
+    // Latest per pet. Dates are compared as strings, which is correct for ISO
+    // dates and avoids a timezone shifting a reading onto the wrong day.
+    //
+    // Two readings CAN share a date -- weighed twice, or a scanned document
+    // and a typed entry on the same day. There are none today, but leaving
+    // that to the order the rows happen to arrive in means the displayed
+    // weight could change between loads. The later-entered one wins, which is
+    // what somebody correcting a reading would expect.
+    const latest = new Map()
+    for (const r of rows) {
+      const prev = latest.get(r.petId)
+      if (!prev) { latest.set(r.petId, r); continue }
+      const d = String(r.date).localeCompare(String(prev.date))
+      if (d > 0 || (d === 0 && String(r.createdAt || '') > String(prev.createdAt || ''))) {
+        latest.set(r.petId, r)
+      }
+    }
+    return pets.map(p => {
+      const l = latest.get(p.id)
+      return l ? { ...p, latestWeight: l.weight, latestWeightOn: l.date } : p
+    })
+  } catch {
+    return pets
+  }
 }
 
 export async function getAdminUsers() {
@@ -738,6 +803,21 @@ async function _getBoarders() {
 
 // ── Snake ↔ camelCase helpers ─────────────────────────────────────────────────
 
+/**
+ * A pet, in database column names.
+ *
+ * ── Pass the WHOLE pet to savePet(), never a partial object ────────────────
+ *
+ * Most fields below are left `undefined` when the caller does not carry them,
+ * so JSON.stringify drops the key and the PATCH omits the column. But `dob`,
+ * `weight` and `photo` use `|| null`, which means a partial object does not
+ * omit those columns -- it sets them to NULL.
+ *
+ * So `savePet({ id, weight: 2.6 })` does not update only the weight. It also
+ * erases the pet's date of birth and its photo. Every caller today spreads the
+ * existing pet first (`savePet({ ...pet, weight })`), which is why this has
+ * never bitten; it is written down because it nearly did.
+ */
 function toSnake(pet) {
   return {
     name:             pet.name,
