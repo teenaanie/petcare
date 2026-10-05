@@ -3,7 +3,7 @@
 // Bump CACHE on any change to this file. The activate handler deletes every
 // cache whose name does not match, so a bump is what evicts stale entries.
 // It sat on v3 across a dozen deploys, which is half of why clients went stale.
-const CACHE = 'pippy-v6'
+const CACHE = 'pippy-v7'
 
 // ── Share target handoff ─────────────────────────────────────────────────────
 //
@@ -149,9 +149,29 @@ self.addEventListener('fetch', e => {
       if (cached) return cached
       return fetch(request)
         .then(response => {
-          if (response.ok) {
+          // `response.ok` alone is not enough, and that gap caused a real bug.
+          //
+          // The SPA rewrite used to send /index.html for any unknown path,
+          // including a chunk from a previous deploy. That arrives as HTTP 200
+          // with `text/html`, so this cached the app shell under a .js key --
+          // permanently, since only a CACHE bump evicts it. The browser then
+          // refused the module ("'text/html' is not a valid JavaScript MIME
+          // type") and the pet screen went blank.
+          //
+          // The rewrite is fixed, so these now 404 honestly. This stays as the
+          // second line of defence: an asset response that is not script-like
+          // is not an asset, whatever its status code says.
+          const type = response.headers.get('content-type') || ''
+          if (response.ok && !/^text\/html/i.test(type)) {
             const clone = response.clone()
             caches.open(CACHE).then(c => c.put(request, clone))
+            return response
+          }
+          if (response.ok) {
+            // Fail honestly rather than handing the browser HTML to parse as a
+            // module. A 404 produces a clear "failed to fetch dynamically
+            // imported module", which ChunkErrorBoundary knows how to recover.
+            return new Response('', { status: 404, statusText: 'Stale asset' })
           }
           return response
         })

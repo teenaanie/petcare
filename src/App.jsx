@@ -2,6 +2,7 @@ import { useState, useEffect, lazy, Suspense } from 'react'
 import { drainSharedFiles, wasShared, clearSharedFlag } from './lib/shareTarget.js'
 import { PawPrint } from 'lucide-react'
 import { supabase, isConfigured } from './lib/supabase.js'
+import ChunkErrorBoundary from './components/ChunkErrorBoundary.jsx'
 import { getPets } from './lib/storage.js'
 import { announceSignupOnce } from './lib/notify.js'
 import PhoneAuth from './components/PhoneAuth.jsx'
@@ -260,11 +261,11 @@ export default function App() {
 
         <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
           {adminView ? (
-            <Suspense fallback={<LoadingScreen />}><AdminDashboard /></Suspense>
+            <ChunkErrorBoundary><Suspense fallback={<LoadingScreen />}><AdminDashboard /></Suspense></ChunkErrorBoundary>
           ) : myProvidersView ? (
-            <Suspense fallback={<LoadingScreen />}><MyProviders /></Suspense>
+            <ChunkErrorBoundary><Suspense fallback={<LoadingScreen />}><MyProviders /></Suspense></ChunkErrorBoundary>
           ) : servicesView ? (
-            <Suspense fallback={<LoadingScreen />}><ProviderDirectory onPrepForStay={startBoardingPrep} /></Suspense>
+            <ChunkErrorBoundary><Suspense fallback={<LoadingScreen />}><ProviderDirectory onPrepForStay={startBoardingPrep} /></Suspense></ChunkErrorBoundary>
           ) : selectedPet ? (
             <PetDetail
               pet={selectedPet}
