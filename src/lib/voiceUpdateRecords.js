@@ -83,9 +83,20 @@ export const RECORD_KINDS = [
     key: 'reminders', label: 'Reminder', saver: 'saveReminder',
     title:  r => r.type || 'Reminder',
     detail: r => [r.dueDate && `due ${r.dueDate}`, r.frequency, r.notes].filter(Boolean).join(' · '),
-    // A reminder with no date can never fire, so it is not worth saving — the
-    // prompt is told to put those in `unclear` instead.
+    // A reminder with no date can never fire, so it cannot be SAVED — but it
+    // can now be shown and corrected, which is why `editable` exists below.
+    // Dropping it outright is what made a misheard date lose the whole
+    // reminder with nothing to show for it.
     usable: r => !!String(r.dueDate || '').trim(),
+    // What a human may correct before saving. Transcription gets dates wrong
+    // more than anything else here -- "the eighth" and "the eighteenth" are one
+    // vowel apart -- and a reminder is the one record whose whole purpose is
+    // the date being right.
+    editable: [
+      { field: 'type',    label: 'Reminder', type: 'text', placeholder: 'What is it for' },
+      { field: 'dueDate', label: 'Due date', type: 'date', required: true },
+      { field: 'notes',   label: 'Note',     type: 'text', placeholder: 'Optional detail' },
+    ],
     payload: (r, petId) => ({
       petId, type: r.type || 'Other', dueDate: r.dueDate || '',
       frequency: r.frequency || 'Once', email: '', whatsapp: '', notes: r.notes || '',
@@ -100,6 +111,16 @@ export const RECORD_KINDS = [
  */
 export function groupParsed(parsed = {}) {
   return RECORD_KINDS
-    .map(kind => ({ kind, rows: (parsed[kind.key] || []).filter(r => r && kind.usable(r)) }))
+    .map(kind => ({
+      kind,
+      // A row that cannot be saved is still OFFERED when its kind can be
+      // edited, so the owner can supply what is missing. For every other kind
+      // an unusable row is noise -- a medicine with no name says nothing -- and
+      // is dropped as before.
+      //
+      // The indexes here are what the tick-boxes are keyed on, so this list and
+      // the list that gets saved must stay the same list.
+      rows: (parsed[kind.key] || []).filter(r => r && (kind.usable(r) || !!kind.editable)),
+    }))
     .filter(g => g.rows.length)
 }

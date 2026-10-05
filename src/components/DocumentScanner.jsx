@@ -1,6 +1,8 @@
 import { useState, useRef , useEffect } from 'react'
 import { Share2, ChevronRight, Upload, Camera, FileText, Loader2, CheckCircle, AlertCircle, Wand2, Calendar, TriangleAlert, MessageSquare, Copy, Check, Syringe, Pill, Receipt, Weight, X, Plus } from 'lucide-react'
 import { saveMedicalRecord, saveVaccination, saveAllergy, saveReminder, saveMedicine, saveBill, saveWeightLog } from '../lib/storage.js'
+import { withRetry } from '../lib/net.js'
+import { friendlyError } from '../lib/errors.js'
 import { format, isPast, parseISO } from 'date-fns'
 import { aiComplete } from '../lib/ai.js'
 import { shareTargetLikelySupported } from '../lib/shareTarget.js'
@@ -324,10 +326,25 @@ export default function DocumentScanner({ pet, session, initialFiles = null }) {
     setSavingSet(s => new Set([...s, key]))
     setSaveErrors(e => { const n = { ...e }; delete n[key]; return n })
     try {
-      await fn()
+      // One retry, for the failure actually reported: scanning a document and
+      // then having every record fail to save with "Load failed", with the very
+      // next attempt working. That is a request that never left the phone --
+      // WebKit tears down connections on a backgrounded PWA -- so it cannot
+      // have written anything and repeating it is safe.
+      //
+      // withRetry only repeats network failures. Anything the server ANSWERED,
+      // a refusal or a bad value, is not retried, because it would only be
+      // refused again.
+      //
+      // VoiceUpdate was given this when the same thing happened there. The
+      // scanner saves one record per button rather than a batch, so it needs no
+      // resumable bookkeeping -- but it needed the retry just the same.
+      await withRetry(fn, { attempts: 2 })
     } catch (err) {
-      const msg = err?.message || 'Save failed — check if the Supabase table exists.'
-      setSaveErrors(e => ({ ...e, [key]: msg }))
+      // "Load failed" is Safari's wording for a dropped request and means
+      // nothing to anyone. friendlyError says what actually happened, and logs
+      // the original so a real fault is still debuggable.
+      setSaveErrors(e => ({ ...e, [key]: friendlyError(err) }))
     } finally {
       setSavingSet(s => { const n = new Set(s); n.delete(key); return n })
     }

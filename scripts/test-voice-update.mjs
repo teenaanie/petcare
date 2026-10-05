@@ -21,12 +21,51 @@ console.log('\nRows that must be dropped')
     medicines:    [{ name: '', dosage: 'one tablet' }],          // heard "some tablets"
     vaccinations: [{ name: '  ', dateGiven: '2026-09-28' }],
     allergies:    [{ allergen: '', severity: 'Mild' }],
-    reminders:    [{ type: 'Vet Checkup', dueDate: '', notes: 'come back soon' }],
+    // (a dateless reminder is NOT here any more -- it is now offered for
+    //  correction rather than dropped. See "Reminders can be corrected".)
     weights:      [{ weight: 0 }, { weight: 'nineteen' }],
     bills:        [{ date: '2026-09-28' }],                      // no amount, no clinic
     medical:      [{ type: '', title: '', description: '' }],
   })
   ok('nothing survives', g.length === 0, g.map(x => x.kind.key))
+}
+
+console.log('\nReminders can be corrected')
+{
+  const kind = RECORD_KINDS.find(k => k.key === 'reminders')
+
+  // A reminder's whole purpose is its date, and a misheard date used to take
+  // the entire reminder with it: the row failed `usable`, groupParsed dropped
+  // it, and nothing was shown. Now it is offered so the date can be supplied.
+  const g = groupParsed({ reminders: [{ type: 'Vet Checkup', dueDate: '', notes: 'come back soon' }] })
+  ok('a dateless reminder is offered rather than silently dropped',
+     g.length === 1 && g[0].rows.length === 1, g.map(x => x.kind.key))
+  ok('but it is still not usable, so it cannot be saved as it stands',
+     kind.usable(g[0].rows[0]) === false)
+  ok('supplying a date makes it usable',
+     kind.usable({ ...g[0].rows[0], dueDate: '2026-10-08' }) === true)
+
+  ok('the fields offered are the text, the date and the note',
+     kind.editable.map(f => f.field).join() === 'type,dueDate,notes',
+     kind.editable?.map(f => f.field))
+  ok('the date is marked required',
+     kind.editable.find(f => f.field === 'dueDate')?.required === true)
+  ok('the date uses a date input rather than free text',
+     kind.editable.find(f => f.field === 'dueDate')?.type === 'date')
+
+  // An edited row must reach the database as edited.
+  const edited = { type: 'Dental scaling', dueDate: '2026-10-08', notes: 'recheck' }
+  const payload = kind.payload(edited, 'pet-1')
+  ok('an edited reminder saves what was typed, not what was heard',
+     payload.type === 'Dental scaling' && payload.dueDate === '2026-10-08' && payload.notes === 'recheck',
+     payload)
+
+  // Only reminders are editable for now. Offering an unusable row for a kind
+  // that cannot be corrected would just put noise on the screen.
+  const others = RECORD_KINDS.filter(k => k.key !== 'reminders' && k.editable)
+  ok('no other kind claims to be editable yet', others.length === 0, others.map(k => k.key))
+  ok('an unusable row of a non-editable kind is still dropped',
+     groupParsed({ medicines: [{ name: '' }] }).length === 0)
 }
 
 console.log('\nRows that must be kept')
