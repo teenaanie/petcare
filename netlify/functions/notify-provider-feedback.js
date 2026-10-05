@@ -26,6 +26,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { maskEmail, bodyShape } from './_redact.js'
 import { sendEmail, sendPush, emailConfigured, fromDomain } from './_notify.js'
+import { adminEmails } from './_admins.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_KEY
@@ -124,10 +125,10 @@ export default async function handler(req) {
   // saves a lookup when the whole point is replying quickly.
   const { data: sender } = await supabase.auth.admin.getUserById(row.user_id)
 
-  const { data: admins, error: adminErr } = await supabase
+  const { data: admins } = await supabase
     .from('admins').select('user_id, email').is('revoked_at', null)
-  if (adminErr) { console.error('Admin lookup failed:', adminErr.message); return accepted() }
-  if (!admins?.length) { console.warn('Provider feedback arrived with no active admins to tell.'); return accepted() }
+  const recipients = await adminEmails(supabase)
+  if (!recipients.length) { console.warn('Provider feedback arrived with no active admins to tell.'); return accepted() }
 
   const subject = `Pippy: message from ${provider?.name || 'a business'}`
   const html = emailHtml({
@@ -142,16 +143,7 @@ export default async function handler(req) {
   if (emailConfigured()) console.log(`Sending provider-feedback alert from domain ${fromDomain()}`)
 
   let notified = 0
-  for (const admin of admins) {
-    // admins.email is the bootstrap address; auth.users is the truth once the
-    // row is bound, and a row can be bound with no email column set at all.
-    let to = admin.email
-    if (admin.user_id) {
-      const { data: au } = await supabase.auth.admin.getUserById(admin.user_id)
-      to = au?.user?.email || to
-    }
-    if (!to) continue
-
+  for (const to of recipients) {
     try {
       await sendEmail(to, subject, html)
       notified++
@@ -159,14 +151,15 @@ export default async function handler(req) {
       // One admin's bounced address must not stop the others being told.
       console.error(`Admin email failed for ${maskEmail(to)}: ${e.message}`)
     }
+  }
 
-    if (admin.user_id) {
-      await sendPush(supabase, admin.user_id, {
-        title: 'New provider message',
-        body:  `${provider?.name || 'A business'} sent you a message`,
-        url:   '/',
-      }).catch(e => console.error('Admin push failed:', e.message))
-    }
+  for (const admin of admins || []) {
+    if (!admin.user_id) continue
+    await sendPush(supabase, admin.user_id, {
+      title: 'New provider message',
+      body:  `${provider?.name || 'A business'} sent you a message`,
+      url:   '/',
+    }).catch(e => console.error('Admin push failed:', e.message))
   }
 
   // Never the message itself: it is a third party's words and this log is not

@@ -103,9 +103,10 @@ Each one is idempotent, so re-running is safe:
 | `provider_self_registration.sql` | `register_and_claim_provider()` and `approve_provider_claim()`, so a business Google missed can add its listing and claim it in one step |
 
 `npm run test:provider-alert` covers the serverless function that emails the
-admins when a business sends one of those messages. It needs no database and no
-network: it stands up a stand-in for Supabase and intercepts the outbound mail,
-so it asserts on what was actually sent rather than on a status code.
+admins when a business sends one of those messages, and `npm run test:register`
+covers the public registration endpoint. Neither needs a database or a network:
+each stands up a stand-in for Supabase and intercepts the outbound mail, so they
+assert on what was actually sent and written rather than on a status code.
 
 The last two have a harness, so you do not have to take their policies on
 trust. It builds a throwaway PostgreSQL 16, runs both files against it, and then

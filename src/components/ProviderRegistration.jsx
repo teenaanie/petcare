@@ -6,6 +6,7 @@ const PROVIDER_TYPES = ['Vet', 'Groomer', 'Store', 'Boarder', 'Special Services'
 
 const EMPTY_FORM = {
   name: '', type: 'Vet', area: '', city: '', address: '', phone: '', whatsapp: '',
+  email: '',
   hours: '', maps_url: '', photo_url: '', description: '',
   url: '', // honeypot — real users never fill this in
 }
@@ -121,6 +122,22 @@ export default function ProviderRegistration() {
               <div>
                 <label className="label">WhatsApp number</label>
                 <input name="whatsapp" value={form.whatsapp} onChange={set} className="input w-full" placeholder="+91 98765 43210" disabled={status === 'submitting'} />
+              </div>
+
+              {/* The form took a phone and nothing else, which left this page
+                  unable to set up the thing it exists for: the address is how a
+                  submission is matched back to the person who made it when they
+                  later sign in at /business. It is NOT published with the
+                  listing — it goes on the claim, which only an admin can read. */}
+              <div className="sm:col-span-2">
+                <label className="label" htmlFor="reg-email">Your email address</label>
+                <input id="reg-email" name="email" type="email" value={form.email} onChange={set}
+                  className="input w-full" placeholder="you@yourbusiness.com"
+                  disabled={status === 'submitting'} />
+                <p className="text-xs mt-1" style={{ color: '#73775b' }}>
+                  So we can reach you about this listing, and so you can sign in to manage it
+                  once it&apos;s approved. Not shown in the directory.
+                </p>
               </div>
               <div>
                 <label className="label">Hours</label>
