@@ -123,6 +123,7 @@ function ProfileMismatch({ pet }) {
       await savePet({ ...pet, weight: conflict.measured })
       setDone(true)
     } catch (e) {
+      reportHandled(e, { view: 'weight' })
       setError(e.message || 'Could not update the profile.')
     } finally {
       setBusy(false)
