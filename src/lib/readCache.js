@@ -36,6 +36,11 @@
 // returns, so a component that saves and then refetches cannot be served the
 // pre-save rows. The TTL is only a backstop for writes made somewhere else
 // entirely, like the nightly reminder cron or another device.
+//
+// `installAwayInvalidation` narrows that last case: coming back to the app
+// after being away drops everything, so the next read goes to the database
+// rather than to a cache filled before you left. See the note on it below for
+// what it deliberately does NOT do.
 
 export const DEFAULT_TTL_MS = 30_000
 
@@ -101,6 +106,66 @@ export function createReadCache({ enabled = true, ttlMs = DEFAULT_TTL_MS, now = 
   /** Forget everything. For writes that do not go through this module at all. */
   function invalidateAll() { cache.clear() }
 
+  /**
+   * Drop the cache when the user comes back after being away.
+   *
+   * The case this closes: you mark a vaccination done on your phone, then look
+   * at the laptop tab you left open this morning. The laptop never saw that
+   * write, so without this it could serve rows from before it.
+   *
+   * ── What this does NOT do, on purpose ─────────────────────────────────────
+   *
+   * It does not re-render what is already on screen. Clearing the cache only
+   * affects the NEXT read, so a tab you return to still shows what it fetched
+   * when it mounted.
+   *
+   * That is a deliberate choice, not an oversight. Forcing a refresh would
+   * mean remounting the tab -- `dataRefresh` feeds PetDetail's `tabKey`, which
+   * is the React key -- and six of the tabs hold form state. Someone part-way
+   * through typing a vaccination record, who switches apps to check the date
+   * on the vet's card, would come back to an empty form. Losing their typing
+   * is a worse failure than showing them a figure they already knew was from
+   * before they left.
+   *
+   * So the guarantee is narrower and honest: returning from away never leaves
+   * the cache able to serve older rows than the app would have shown anyway.
+   *
+   * @param minAwayMs  Below this, nothing is dropped. Alt-tabbing to copy a
+   *                   phone number should not throw the cache away; editing on
+   *                   another device takes longer than a few seconds.
+   */
+  function installAwayInvalidation({ doc, win, minAwayMs = 10_000 } = {}) {
+    if (!enabled) return () => {}
+    const d = doc ?? (typeof document !== 'undefined' ? document : null)
+    const w = win ?? (typeof window   !== 'undefined' ? window   : null)
+
+    let awayAt = null
+    // Whichever signal arrives first starts the clock; whichever returns first
+    // stops it. Desktop app-switching fires blur with no visibilitychange,
+    // while backgrounding on a phone fires both, so neither alone is enough.
+    const away = () => { if (awayAt === null) awayAt = now() }
+    const back = () => {
+      if (awayAt !== null && now() - awayAt >= minAwayMs) invalidateAll()
+      awayAt = null
+    }
+    const onVisibility = () => (d.visibilityState === 'hidden' ? away() : back())
+
+    const off = []
+    try {
+      if (d?.addEventListener) {
+        d.addEventListener('visibilitychange', onVisibility)
+        off.push(() => d.removeEventListener('visibilitychange', onVisibility))
+      }
+      if (w?.addEventListener) {
+        w.addEventListener('blur', away)
+        w.addEventListener('focus', back)
+        off.push(() => { w.removeEventListener('blur', away); w.removeEventListener('focus', back) })
+      }
+    } catch { /* a cache hint must never be what breaks the app */ }
+
+    return () => { for (const f of off) { try { f() } catch {} } }
+  }
+
   /** Entries currently held, for tests and for the admin diagnostics. */
   function size() {
     let n = 0
@@ -108,5 +173,5 @@ export function createReadCache({ enabled = true, ttlMs = DEFAULT_TTL_MS, now = 
     return n
   }
 
-  return { cached, bust, invalidateAll, size }
+  return { cached, bust, invalidateAll, size, installAwayInvalidation }
 }

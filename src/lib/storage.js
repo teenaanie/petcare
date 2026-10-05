@@ -34,11 +34,16 @@ function uid()            { return Date.now().toString(36) + Math.random().toStr
 //
 // Off in local mode: localStorage is synchronous and has nothing to gain.
 
-const { cached, bust, invalidateAll } = createReadCache({ enabled: isConfigured })
+const { cached, bust, invalidateAll, installAwayInvalidation } =
+  createReadCache({ enabled: isConfigured })
 
 /** Forget every cached read. For writes that bypass this module -- the one-off
  *  localStorage→Supabase migration inserts rows directly. */
 export { invalidateAll }
+
+/** Drop the cache on returning to the app, so a write made on another device
+ *  while this tab sat open is not papered over. Installed once from main.jsx. */
+export { installAwayInvalidation }
 
 // ── Pets ──────────────────────────────────────────────────────────────────────
 

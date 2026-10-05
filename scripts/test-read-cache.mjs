@@ -245,5 +245,132 @@ console.log('\nAwkward input does not break it')
   ok('a non-array result is handled', (await cached('w', 'p', nonObj)) === 42)
 }
 
+console.log('\nComing back after being away drops the cache')
+{
+  // The case: you mark a vaccination done on your phone, then look at the
+  // laptop tab you left open this morning. The laptop never saw that write.
+  //
+  // A fake document and window, so the listeners can be driven directly.
+  const fake = () => {
+    const ls = {}
+    return {
+      visibilityState: 'visible',
+      addEventListener: (k, f) => { (ls[k] ||= []).push(f) },
+      removeEventListener: (k, f) => { ls[k] = (ls[k] || []).filter(g => g !== f) },
+      fire: (k) => (ls[k] || []).forEach(f => f()),
+      count: (k) => (ls[k] || []).length,
+    }
+  }
+
+  {
+    const now = clockAt()
+    const { cached, size, installAwayInvalidation } = createReadCache({ now })
+    const doc = fake(), win = fake()
+    installAwayInvalidation({ doc, win, minAwayMs: 10_000 })
+
+    await cached('vaccinations', 'p', counter())
+    await cached('bills', 'p', counter())
+    ok('two entries held before going away', size() === 2, size())
+
+    doc.visibilityState = 'hidden'; doc.fire('visibilitychange')
+    now.t += 60_000                                   // a minute on your phone
+    doc.visibilityState = 'visible'; doc.fire('visibilitychange')
+    ok('coming back after a minute drops everything', size() === 0, size())
+  }
+
+  {
+    // The threshold is the whole point of the parameter: alt-tabbing to copy a
+    // vet's phone number must not throw the cache away and re-fetch every tab.
+    const now = clockAt()
+    const { cached, size, installAwayInvalidation } = createReadCache({ now })
+    const doc = fake(), win = fake()
+    installAwayInvalidation({ doc, win, minAwayMs: 10_000 })
+
+    const load = counter()
+    await cached('vaccinations', 'p', load)
+    doc.visibilityState = 'hidden'; doc.fire('visibilitychange')
+    now.t += 2_000                                    // a two-second glance
+    doc.visibilityState = 'visible'; doc.fire('visibilitychange')
+    ok('a brief glance away keeps the cache', size() === 1, size())
+
+    await cached('vaccinations', 'p', load)
+    ok('and still serves it without a request', load.calls === 1, load.calls)
+  }
+
+  {
+    // Desktop app-switching fires blur/focus with NO visibilitychange, because
+    // the page stays visible. Listening to only one of the two pairs would
+    // miss half the cases.
+    const now = clockAt()
+    const { cached, size, installAwayInvalidation } = createReadCache({ now })
+    const doc = fake(), win = fake()
+    installAwayInvalidation({ doc, win, minAwayMs: 10_000 })
+
+    await cached('reminders', 'p', counter())
+    win.fire('blur')
+    now.t += 30_000
+    win.fire('focus')
+    ok('window blur/focus alone also drops it', size() === 0, size())
+  }
+
+  {
+    // Mobile backgrounding fires BOTH pairs. The away clock must not be
+    // restarted by the second one, or a long absence reads as a short one.
+    const now = clockAt()
+    const { cached, size, installAwayInvalidation } = createReadCache({ now })
+    const doc = fake(), win = fake()
+    installAwayInvalidation({ doc, win, minAwayMs: 10_000 })
+
+    await cached('medicines', 'p', counter())
+    win.fire('blur')
+    doc.visibilityState = 'hidden'; doc.fire('visibilitychange')   // both fire
+    now.t += 60_000
+    doc.visibilityState = 'visible'; doc.fire('visibilitychange')
+    win.fire('focus')
+    ok('overlapping signals still count the full absence', size() === 0, size())
+  }
+
+  {
+    // A focus with no preceding blur -- the first focus after load -- must not
+    // be read as "returned from an infinitely long absence" and clear a cache
+    // that was just filled.
+    const now = clockAt()
+    const { cached, size, installAwayInvalidation } = createReadCache({ now })
+    const doc = fake(), win = fake()
+    installAwayInvalidation({ doc, win, minAwayMs: 10_000 })
+
+    await cached('bills', 'p', counter())
+    win.fire('focus')
+    ok('a focus with no blur before it changes nothing', size() === 1, size())
+  }
+
+  {
+    const { installAwayInvalidation } = createReadCache({ now: clockAt() })
+    const doc = fake(), win = fake()
+    const stop = installAwayInvalidation({ doc, win })
+    ok('listeners are attached', doc.count('visibilitychange') === 1 && win.count('blur') === 1)
+    stop()
+    ok('and the returned function removes them',
+       doc.count('visibilitychange') === 0 && win.count('blur') === 0)
+  }
+
+  {
+    // Local mode has no cache, so there is nothing to install.
+    const { installAwayInvalidation } = createReadCache({ enabled: false, now: clockAt() })
+    const doc = fake(), win = fake()
+    installAwayInvalidation({ doc, win })
+    ok('nothing is attached when the cache is off',
+       doc.count('visibilitychange') === 0 && win.count('blur') === 0)
+  }
+
+  {
+    // Node, SSR, a locked-down embed: no document and no window at all.
+    const { installAwayInvalidation } = createReadCache({ now: clockAt() })
+    let threw = false
+    try { installAwayInvalidation({ doc: null, win: null }) } catch { threw = true }
+    ok('no document or window does not throw', !threw)
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`)
 process.exit(fail ? 1 : 0)
