@@ -119,7 +119,20 @@ function isParamDecl(line, src, idx) {
       || /^\s*(?:async\s+)?\w+$/.test(before)      // method shorthand, name(
 }
 // Anything that puts it in scope.
-const BINDS = /(?:const|let|var)\s+supabase\s*=|\bsupabase\s*=>|\(\s*supabase\s*(?:,|\))|function\s*\([^)]*\bsupabase\b/
+//
+// The parameter cases need care in both directions. An earlier version matched
+// only a FIRST parameter -- `(supabase` or `(supabase,` -- and so reported
+// `withLatestWeights(pets, supabase)` as broken. Widening it to any paren
+// group containing the word would instead treat `if (x && supabase)` as a
+// binding and hide a real bug, which it did once already. So a parameter list
+// counts only when it is attached to a function: a `function` keyword, or a
+// `)` followed by `=>`.
+const BINDS = new RegExp([
+  '(?:const|let|var)\\s+supabase\\s*=',             // const supabase = ...
+  '\\bsupabase\\s*=>',                              // supabase => ...
+  '\\([^)]*\\bsupabase\\b[^)]*\\)\\s*=>',           // (a, supabase) => ...
+  'function\\s*\\*?\\s*\\w*\\s*\\([^)]*\\bsupabase\\b', // function f(a, supabase)
+].join('|'))
 
 let problems = 0, filesChecked = 0, usesChecked = 0
 
