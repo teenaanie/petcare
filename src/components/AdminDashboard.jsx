@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { ShieldCheck, Users, PawPrint, ChevronRight, ChevronLeft, Search, Phone, Mail, Loader2, AlertCircle, Stethoscope, Syringe, Pill, Receipt, Bell, ChevronDown, ChevronUp, Star, MessageSquarePlus, MapPin, Clock, Scissors, ShoppingBag, Home, Camera, Flower2, Plus, Check, X, Trash2, ToggleLeft, ToggleRight, Gauge, HardDrive, Sparkles, Bug } from 'lucide-react'
+import { ShieldCheck, Users, PawPrint, ChevronRight, ChevronLeft, Search, Phone, Mail, Loader2, AlertCircle, Stethoscope, Syringe, Pill, Receipt, Bell, ChevronDown, ChevronUp, Star, MessageSquarePlus, MapPin, Clock, Scissors, ShoppingBag, Home, Camera, Flower2, Plus, Check, X, Trash2, ToggleLeft, ToggleRight, Gauge, HardDrive, Sparkles, Bug, Moon } from 'lucide-react'
 import { getAdminUsers, getPets, getMedicalHistory, getVaccinations, getMedicines, getBills, getReminders, getFeedback, getProviders, saveProvider, deleteProvider } from '../lib/storage.js'
 import PetAvatar from './PetAvatar.jsx'
 import BoardingRulesPanel from './BoardingRulesPanel.jsx'
+import InactiveUsersPanel from './InactiveUsersPanel.jsx'
 import { PROVIDER_TYPES, SERVICES, SPECIALIZATIONS } from '../lib/taxonomy.js'
 import { supabase } from '../lib/supabase.js'
 import { THRESHOLDS, breaches, pctOf, byWeek, MB } from '../lib/usageLimits.js'
@@ -912,7 +913,7 @@ export default function AdminDashboard() {
   const [error, setError]         = useState(null)
   const [search, setSearch]       = useState('')
   const [selectedUser, setSelectedUser] = useState(null)
-  const [tab, setTab]             = useState('users')   // users | feedback | providers | boarding | usage | errors
+  const [tab, setTab]             = useState('users')   // users | quiet | feedback | providers | boarding | usage | errors
 
   useEffect(() => {
     setLoading(true)
@@ -947,12 +948,18 @@ export default function AdminDashboard() {
 
         {/* Tab switcher */}
         {!selectedUser && (
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 rounded-xl p-1 mb-5" style={{ backgroundColor: '#ebe3d3' }}>
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-1 rounded-xl p-1 mb-5" style={{ backgroundColor: '#ebe3d3' }}>
             <button
               onClick={() => setTab('users')}
               className="flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
               style={tab === 'users' ? { backgroundColor: '#f2b83d', color: '#7a4900' } : { color: '#73775b' }}>
               <Users className="w-4 h-4" /> Users
+            </button>
+            <button
+              onClick={() => setTab('quiet')}
+              className="flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
+              style={tab === 'quiet' ? { backgroundColor: '#f2b83d', color: '#7a4900' } : { color: '#73775b' }}>
+              <Moon className="w-4 h-4" /> Quiet
             </button>
             <button
               onClick={() => setTab('feedback')}
@@ -987,7 +994,9 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {tab === 'errors' && !selectedUser ? (
+        {tab === 'quiet' && !selectedUser ? (
+          <InactiveUsersPanel />
+        ) : tab === 'errors' && !selectedUser ? (
           <ErrorsPanel />
         ) : tab === 'usage' && !selectedUser ? (
           <UsagePanel />

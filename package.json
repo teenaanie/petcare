@@ -17,6 +17,7 @@
     "test:net": "node scripts/test-net.mjs",
     "test:read-cache": "node scripts/test-read-cache.mjs",
     "check:cache-tables": "node scripts/check-cache-tables.mjs",
+    "test:checkin": "node scripts/test-checkin.mjs",
     "test:pet-meds": "node scripts/test-pet-meds.mjs",
     "test:analytics": "node scripts/test-analytics.mjs",
     "check:shadowing": "node scripts/check-shadowing.mjs",
