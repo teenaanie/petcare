@@ -5,7 +5,8 @@
 // follow-up with no date, a weight as a string. None of those should reach a
 // record a vet reads.
 
-import { RECORD_KINDS, groupParsed, todayIST } from '../src/lib/voiceUpdateRecords.js'
+import { RECORD_KINDS, groupParsed, todayIST, VOCAB } from '../src/lib/voiceUpdateRecords.js'
+import { readFileSync } from 'node:fs'
 
 let pass = 0, fail = 0
 const ok = (name, cond, got) => {
@@ -15,18 +16,144 @@ const ok = (name, cond, got) => {
 const kind = k => RECORD_KINDS.find(x => x.key === k)
 const PET = 'pet-1'
 
-console.log('\nRows that must be dropped')
+console.log('\nNothing is dropped now that every kind can be corrected')
 {
+  // This block used to assert that rows like these were thrown away. That was
+  // right when they could not be fixed: an empty medicine was noise. Now every
+  // kind is editable, so the same rows are OFFERED instead, exactly as a
+  // dateless reminder is -- the AI heard that a medicine was mentioned, and
+  // discarding that silently is worse than showing an empty row to complete.
   const g = groupParsed({
     medicines:    [{ name: '', dosage: 'one tablet' }],          // heard "some tablets"
     vaccinations: [{ name: '  ', dateGiven: '2026-09-28' }],
     allergies:    [{ allergen: '', severity: 'Mild' }],
-    reminders:    [{ type: 'Vet Checkup', dueDate: '', notes: 'come back soon' }],
+    // (a dateless reminder is NOT here any more -- it is now offered for
+    //  correction rather than dropped. See "Reminders can be corrected".)
     weights:      [{ weight: 0 }, { weight: 'nineteen' }],
     bills:        [{ date: '2026-09-28' }],                      // no amount, no clinic
     medical:      [{ type: '', title: '', description: '' }],
   })
-  ok('nothing survives', g.length === 0, g.map(x => x.kind.key))
+  ok('all of them are offered rather than discarded', g.length === 6, g.map(x => x.kind.key))
+  ok('and not one of them is savable as it stands',
+     g.every(({ kind, rows }) => rows.every(r => !kind.usable(r))))
+}
+
+console.log('\nReminders can be corrected')
+{
+  const kind = RECORD_KINDS.find(k => k.key === 'reminders')
+
+  // A reminder's whole purpose is its date, and a misheard date used to take
+  // the entire reminder with it: the row failed `usable`, groupParsed dropped
+  // it, and nothing was shown. Now it is offered so the date can be supplied.
+  const g = groupParsed({ reminders: [{ type: 'Vet Checkup', dueDate: '', notes: 'come back soon' }] })
+  ok('a dateless reminder is offered rather than silently dropped',
+     g.length === 1 && g[0].rows.length === 1, g.map(x => x.kind.key))
+  ok('but it is still not usable, so it cannot be saved as it stands',
+     kind.usable(g[0].rows[0]) === false)
+  ok('supplying a date makes it usable',
+     kind.usable({ ...g[0].rows[0], dueDate: '2026-10-08' }) === true)
+
+  ok('the fields offered are the text, date, repeat and note',
+     kind.editable.map(f => f.field).join() === 'type,dueDate,frequency,notes',
+     kind.editable?.map(f => f.field))
+  ok('the date is marked required',
+     kind.editable.find(f => f.field === 'dueDate')?.required === true)
+  ok('the date uses a date input rather than free text',
+     kind.editable.find(f => f.field === 'dueDate')?.type === 'date')
+
+  // An edited row must reach the database as edited.
+  const edited = { type: 'Dental scaling', dueDate: '2026-10-08', notes: 'recheck' }
+  const payload = kind.payload(edited, 'pet-1')
+  ok('an edited reminder saves what was typed, not what was heard',
+     payload.type === 'Dental scaling' && payload.dueDate === '2026-10-08' && payload.notes === 'recheck',
+     payload)
+
+  // Only reminders are editable for now. Offering an unusable row for a kind
+  // that cannot be corrected would just put noise on the screen.
+}
+
+console.log('\nEvery kind can be corrected')
+{
+  // Every record type is editable now, so an unusable row of ANY kind is shown
+  // for fixing rather than dropped. The thing that must not happen is a field
+  // being offered that the payload then ignores.
+  for (const kind of RECORD_KINDS) {
+    ok(`${kind.key}: has fields and a reason it can be invalid`,
+       Array.isArray(kind.editable) && kind.editable.length > 0 && !!kind.needs,
+       { fields: kind.editable?.length, needs: kind.needs })
+
+    const fields = kind.editable.map(f => f.field)
+    // Build a row from the editable fields alone and check each one survives
+    // into the payload -- an input nobody saves is worse than no input.
+    const row = Object.fromEntries(fields.map(f => [f, f === 'cost' || f === 'totalAmount' || f === 'weight' ? 5 : 'x']))
+    const payload = kind.payload(row, 'pet-1')
+    const lost = fields.filter(f => !(f in payload))
+    ok(`${kind.key}: every editable field reaches the payload`, lost.length === 0, lost)
+
+    const bad = kind.editable.filter(f => !['text', 'date', 'number', 'select'].includes(f.type))
+    ok(`${kind.key}: field types are all renderable`, bad.length === 0, bad.map(f => f.type))
+
+    const selectsWithoutOptions = kind.editable.filter(f => f.type === 'select' && !f.options?.length)
+    ok(`${kind.key}: every dropdown has options`, selectsWithoutOptions.length === 0,
+       selectsWithoutOptions.map(f => f.field))
+  }
+}
+
+console.log('\nUnusable rows of every kind are now offered, not dropped')
+{
+  const g = groupParsed({
+    medicines:    [{ name: '' }],
+    vaccinations: [{ name: '  ' }],
+    allergies:    [{ allergen: '' }],
+    reminders:    [{ type: 'Vet Checkup', dueDate: '' }],
+    weights:      [{ weight: 0 }],
+    bills:        [{ date: '2026-09-28' }],
+    medical:      [{ type: '', title: '', description: '' }],
+  })
+  ok('all seven are shown so they can be corrected', g.length === 7, g.map(x => x.kind.key))
+  ok('and every one of them is still marked unusable',
+     g.every(({ kind, rows }) => rows.every(r => !kind.usable(r))))
+}
+
+console.log('\nAllergy reactions survive editing')
+{
+  const kind = RECORD_KINDS.find(k => k.key === 'allergies')
+  ok('a typed comma-separated line becomes several reactions',
+     JSON.stringify(kind.payload({ allergen: 'chicken', reactions: 'itching, swelling' }, 'p').reactions)
+       === JSON.stringify(['itching', 'swelling']))
+  ok('a single typed reaction is still an array',
+     JSON.stringify(kind.payload({ allergen: 'x', reactions: 'itching' }, 'p').reactions)
+       === JSON.stringify(['itching']))
+  ok('an array from the parse is left alone',
+     JSON.stringify(kind.payload({ allergen: 'x', reactions: ['a', 'b'] }, 'p').reactions)
+       === JSON.stringify(['a', 'b']))
+  ok('empty reactions stay an empty array',
+     JSON.stringify(kind.payload({ allergen: 'x' }, 'p').reactions) === JSON.stringify([]))
+}
+
+console.log('\nDropdown options match the rest of the app')
+{
+  // These lists are mirrored in voiceUpdateRecords.js because a lib must not
+  // import from a component. Mirrored constants drift, so they are compared
+  // here against the components they came from.
+  const constIn = (file, name) => {
+    const m = readFileSync(`src/components/${file}`, 'utf8')
+      .match(new RegExp(`const ${name} *= *(\\[[^\\]]*\\])`))
+    return m ? JSON.parse(m[1].replace(/'/g, '"')) : null
+  }
+  const pairs = [
+    ['Allergies.jsx',      'SEVERITY',   VOCAB.ALLERGY_SEVERITY],
+    ['Allergies.jsx',      'TYPES',      VOCAB.ALLERGY_TYPES],
+    ['Medicines.jsx',      'CATEGORIES', VOCAB.MEDICINE_CATS],
+    ['Reminders.jsx',      'TYPES',      VOCAB.REMINDER_TYPES],
+    ['Reminders.jsx',      'FREQ',       VOCAB.REMINDER_FREQ],
+    ['MedicalHistory.jsx', 'TYPES',      VOCAB.MEDICAL_TYPES],
+  ]
+  for (const [file, name, mine] of pairs) {
+    const theirs = constIn(file, name)
+    ok(`${file} ${name} still matches`,
+       theirs && JSON.stringify(theirs) === JSON.stringify(mine), { theirs, mine })
+  }
 }
 
 console.log('\nRows that must be kept')
@@ -44,16 +171,24 @@ console.log('\nRows that must be kept')
      g.map(x => x.kind.key))
 }
 
-console.log('\nIndexes line up after filtering')
+console.log('\nIndexes address the row the user is looking at')
 {
-  // The tick-boxes are keyed by position in the FILTERED list. If groupParsed
-  // ever returned unfiltered rows, unticking row 1 would delete row 0's data.
-  const g = groupParsed({ medicines: [
-    { name: '' }, { name: 'Otibact' }, { name: '' }, { name: 'Simparica' },
-  ] })
-  ok('two kept, in order',
-     g[0].rows.length === 2 && g[0].rows[0].name === 'Otibact' && g[0].rows[1].name === 'Simparica',
-     g[0].rows)
+  // The tick-boxes are keyed by position in the list groupParsed returns, and
+  // that same list is what save() walks. The two must be the same list in the
+  // same order, or unticking row 1 would withhold row 0.
+  //
+  // This used to be guaranteed by filtering before the indexes were taken. Now
+  // nothing is filtered for an editable kind, so it is guaranteed by the rows
+  // being handed through untouched -- which is what this checks.
+  const input = [{ name: '' }, { name: 'Otibact' }, { name: '' }, { name: 'Simparica' }]
+  const g = groupParsed({ medicines: input })
+  ok('every row is offered, in the order it arrived',
+     g[0].rows.length === 4 && g[0].rows.map(r => r.name).join() === ',Otibact,,Simparica',
+     g[0].rows.map(r => r.name))
+  ok('position 1 is still Otibact, so key medicines-1 edits Otibact',
+     g[0].rows[1].name === 'Otibact')
+  ok('the savable ones are exactly the named ones',
+     g[0].rows.map(r => g[0].kind.usable(r)).join() === 'false,true,false,true')
 }
 
 console.log('\nPayloads match what storage.js expects')

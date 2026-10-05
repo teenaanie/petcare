@@ -52,16 +52,22 @@ const LOOK = {
 // proposes, the human confirms, and nothing is written until the button is
 // pressed.
 
-function Row({ checked, onToggle, icon: Icon, label, title, detail, color, saved, suggestion, onAccept }) {
+function Row({ checked, onToggle, icon: Icon, label, title, detail, color, saved,
+              suggestion, onAccept, fields, values, onEdit, invalid, needs }) {
   // A row that is already in the database is shown ticked off and locked, not
   // just described in an error message — so it is obvious at a glance that
   // pressing Save again will not write it twice.
   return (
     <label className={`flex items-start gap-2.5 p-2.5 rounded-xl ${saved ? '' : 'cursor-pointer'}`}
-      style={{ backgroundColor: saved ? '#eef3e2' : checked ? '#fff9e0' : '#f4f1ea' }}>
+      style={{ backgroundColor: saved ? '#eef3e2' : invalid ? '#fdeaea' : checked ? '#fff9e0' : '#f4f1ea' }}>
       {saved
         ? <Check className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#44562a' }} />
-        : <input type="checkbox" checked={checked} onChange={onToggle} className="mt-0.5" />}
+        /* A row that cannot be saved cannot be ticked either. The tick-box
+           decides what gets written, so letting it be ticked while the record
+           is incomplete would promise a save that has to be refused later,
+           somewhere less visible. */
+        : <input type="checkbox" checked={checked} onChange={onToggle} disabled={invalid}
+            className="mt-0.5" style={{ opacity: invalid ? 0.35 : 1 }} />}
       <Icon className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: saved ? '#44562a' : color }} />
       <div className="min-w-0 flex-1">
         <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#a08f7a' }}>
@@ -69,6 +75,56 @@ function Row({ checked, onToggle, icon: Icon, label, title, detail, color, saved
         </p>
         <p className="text-sm font-bold" style={{ color: saved ? '#44562a' : '#7a4900' }}>{title}</p>
         {detail && <p className="text-xs" style={{ color: '#73775b' }}>{detail}</p>}
+
+        {/* Editable fields, for kinds that declare them. A date heard over a
+            phone is the thing most worth being able to correct, and until now a
+            wrong one could only be fixed after saving -- or, when the date was
+            missed entirely, not at all, because the row was never shown. */}
+        {fields && !saved && (
+          <div className="mt-2 space-y-1.5">
+            {fields.map(f => (
+              <div key={f.field}>
+                <span className="block text-[10px] font-black uppercase tracking-wider mb-0.5"
+                  style={{ color: '#a08f7a' }}>
+                  {f.label}{f.required ? ' *' : ''}
+                </span>
+                {f.type === 'select' ? (
+                  <select
+                    value={values?.[f.field] ?? ''}
+                    onChange={e => onEdit(f.field, e.target.value)}
+                    onClick={e => e.stopPropagation()}
+                    className="input w-full text-sm py-1.5">
+                    <option value=""></option>
+                    {/* The value the AI produced is added to the list when it is
+                        not already on it. Without this, rendering a select over
+                        an unexpected value would silently rewrite the record to
+                        whichever option happens to be first -- changing data on
+                        the very screen that exists to approve it. */}
+                    {[...new Set([...(f.options || []), values?.[f.field]].filter(Boolean))]
+                      .map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                ) : (
+                  <input
+                    type={f.type}
+                    step={f.step}
+                    value={values?.[f.field] ?? ''}
+                    placeholder={f.placeholder || ''}
+                    onChange={e => onEdit(f.field, e.target.value)}
+                    /* The whole row is a <label>, so a click inside a field
+                       would otherwise toggle the tick-box underneath it. */
+                    onClick={e => e.stopPropagation()}
+                    className="input w-full text-sm py-1.5"
+                  />
+                )}
+              </div>
+            ))}
+            {invalid && needs && (
+              <p className="text-xs font-bold" style={{ color: '#c0392b' }}>
+                This needs {needs} before it can be saved.
+              </p>
+            )}
+          </div>
+        )}
         {/* Offered, never applied. Drug names are what transcription gets
             wrong most, and a wrong one in a vet's record is the worst kind of
             mistake this app can make — so a human taps to accept it. */}
@@ -115,6 +171,10 @@ function Review({ parsed, pet, onBack, onSaved }) {
   // parse so the original is never lost — pressing Back still shows what was
   // actually said.
   const [renamed, setRenamed] = useState({})
+  // Corrections the owner typed, by tick-box key. Held apart from the parse for
+  // the same reason as `renamed`: pressing Back still shows what was actually
+  // said, not what it was edited into.
+  const [edits, setEdits] = useState({})
 
   // Only these two kinds carry a product name worth checking against the
   // vocabulary. A medical record's title is free text and a bill has no name.
@@ -123,13 +183,25 @@ function Review({ parsed, pet, onBack, onSaved }) {
   const rowValue = (kind, i, row) => {
     const field = NAMED[kind.key]
     const k = keyOf(kind, i)
-    return field && renamed[k] ? { ...row, [field]: renamed[k] } : row
+    const base = field && renamed[k] ? { ...row, [field]: renamed[k] } : row
+    // Typed corrections win over both the parse and an accepted name
+    // suggestion, because they are the most recent thing a human decided.
+    return edits[k] ? { ...base, ...edits[k] } : base
+  }
+
+  function editField(kind, i, field, value) {
+    const k = keyOf(kind, i)
+    setEdits(e => ({ ...e, [k]: { ...(e[k] || {}), [field]: value } }))
   }
 
   const toggle = k => setPicked(p => ({ ...p, [k]: !p[k] }))
   const keyOf  = (kind, i) => `${kind.key}-${i}`
+  // A row that its own kind calls unusable is not pending, however it is
+  // ticked: an incomplete reminder must not be counted in "Save 3 records".
   const pending = groups.flatMap(({ kind, rows }) =>
-    rows.map((_, i) => keyOf(kind, i)).filter(k => picked[k] && !savedKeys.has(k)))
+    rows.map((row, i) => [keyOf(kind, i), kind.usable(rowValue(kind, i, row))])
+        .filter(([k, valid]) => valid && picked[k] && !savedKeys.has(k))
+        .map(([k]) => k))
   const total = pending.length
 
   async function save() {
@@ -146,6 +218,10 @@ function Review({ parsed, pet, onBack, onSaved }) {
           // safe. Anything the server ANSWERED — a refusal, a bad value — is not
           // retried by withRetry, because it would just be refused again.
           const row = rowValue(kind, i, rows[i])
+          // Belt and braces with `pending`: an incomplete row is never written,
+          // whatever the tick-boxes say. A reminder with no date would be saved
+          // as a row that can never fire.
+          if (!kind.usable(row)) continue
           await withRetry(() => SAVERS[kind.saver](kind.payload(row, pet.id)),
                           { attempts: 2 })
           // A name a human looked at and saved is trustworthy enough to bias
@@ -218,7 +294,12 @@ function Review({ parsed, pet, onBack, onSaved }) {
                 icon={LOOK[kind.key].icon} color={LOOK[kind.key].color} label={kind.label}
                 title={kind.title(row)} detail={kind.detail(row)}
                 suggestion={hit?.name}
-                onAccept={name => setRenamed(m => ({ ...m, [k]: name }))} />
+                onAccept={name => setRenamed(m => ({ ...m, [k]: name }))}
+                fields={kind.editable}
+                values={row}
+                onEdit={(field, value) => editField(kind, i, field, value)}
+                invalid={!kind.usable(row)}
+                needs={kind.needs} />
             )
           })}
         </div>
