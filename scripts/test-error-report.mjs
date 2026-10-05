@@ -332,5 +332,45 @@ console.log('\nEvery screen name a caller passes is a real one')
   ok('no caller passes a view the set does not know', bad.length === 0, bad)
 }
 
+// LAST in the file on purpose: this section deliberately exhausts the session
+// budget, so anything after it would be testing a reporter that has stopped.
+console.log('\nA crash is never dropped to make room for a handled fault')
+{
+  // The budget was 10 when only crashes could reach the reporter. About forty
+  // caught paths now feed it, and a session that spends the lot on handled
+  // faults would silently drop the crash that followed -- the one report
+  // nobody can reconstruct afterwards, because the screen went white and the
+  // user closed the tab.
+  const sent = []
+  const realBeacon = globalThis.navigator.sendBeacon
+  globalThis.navigator.sendBeacon = (u, b) => { sent.push(b); return true }
+
+  // Flood it. Distinct messages, because the fingerprint dedupe would
+  // otherwise collapse these into one and prove nothing about the budget.
+  for (let i = 0; i < 60; i++) {
+    reportHandled(new TypeError(`handled fault number ${i} in a render loop`),
+                  { view: 'pet-list' })
+  }
+  const handled = sent.length
+  // 15 is MAX_HANDLED_PER_SESSION. Pinned rather than bounded loosely, because
+  // the whole guarantee is the DIFFERENCE between the two caps: a looser
+  // assertion would still pass if handled faults could take the lot.
+  ok('handled faults stop at their own budget', handled > 0 && handled <= 15, handled)
+
+  // The point of the whole section.
+  sent.length = 0
+  reportError(new TypeError('the crash that arrived after all that noise'))
+  ok('a crash still gets through afterwards', sent.length === 1, sent.length)
+
+  // Not one lucky slot: the reserve is real, so several crashes fit.
+  for (let i = 0; i < 5; i++) reportError(new TypeError(`a later crash, number ${i}`))
+  ok('and so do the crashes after it', sent.length === 6, sent.length)
+
+  const body = JSON.parse(await sent[0].text())
+  ok('and they are recorded as crashes', body.kind === 'uncaught', body.kind)
+
+  globalThis.navigator.sendBeacon = realBeacon
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`)
 process.exit(fail ? 1 : 0)
