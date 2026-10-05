@@ -100,6 +100,7 @@ Each one is idempotent, so re-running is safe:
 | `admins.sql` | The `admins` table and `is_admin()`. Must come before `provider_accounts.sql`, which calls it |
 | `provider_accounts.sql` | Provider sign-in: `provider_accounts`, `is_provider_member()`, `email_is_mine()`, and the claim RPCs |
 | `provider_feedback.sql` | `feedback.provider_id` and `is_provider_claimant()`, so a provider — including a suspended one — can send a message |
+| `provider_self_registration.sql` | `register_and_claim_provider()` and `approve_provider_claim()`, so a business Google missed can add its listing and claim it in one step |
 
 `npm run test:provider-alert` covers the serverless function that emails the
 admins when a business sends one of those messages. It needs no database and no

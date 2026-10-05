@@ -46,13 +46,13 @@ export async function getAdminUsers() {
 //
 // A business claiming its directory listing lands status='pending' and a human
 // decides. Both calls below are gated in the database, not here:
-// admin_provider_accounts() returns zero rows to a non-admin, and
+// admin_provider_claims() returns zero rows to a non-admin, and
 // provider_accounts' UPDATE policy is is_admin() on both USING and WITH CHECK.
 // Nothing in this file is a permission check.
 
 export async function getProviderClaims() {
   if (!isConfigured) return []
-  const { data, error } = await supabase.rpc('admin_provider_accounts')
+  const { data, error } = await supabase.rpc('admin_provider_claims')
   if (error) throw error
   return data || []
 }
@@ -63,18 +63,26 @@ export async function getProviderClaims() {
 // one already set.
 export async function setProviderClaimStatus(id, status) {
   if (!isConfigured) throw new Error('Supabase is not configured.')
-  const now = new Date().toISOString()
-  const { data: { user } } = await supabase.auth.getUser()
 
-  // Approving clears revoked_at as well as stamping the grant: an account that
-  // came back from suspension and kept its revoked_at would read as
-  // active-and-revoked, and whichever of the two a later query trusted would be
-  // a coin toss. Suspending does the reverse but KEEPS the grant stamp, because
-  // "who approved this, and when" is the thing you want most once an account
-  // has turned out to be trouble. Only a return to pending clears all three,
-  // which is the one case where no approval has happened.
+  // Approving is its own RPC because it does two things: activates the account
+  // AND publishes the listing, if that listing was self-registered and still
+  // unpublished. As two client-side updates the second could fail on its own,
+  // leaving an active account whose business is invisible in the directory and
+  // nothing saying so. Suspending and returning to pending touch only the
+  // account, so they stay plain updates.
+  if (status === 'active') {
+    const { error } = await supabase.rpc('approve_provider_claim', { p_account_id: id })
+    if (error) throw error
+    return
+  }
+
+  const now = new Date().toISOString()
+
+  // Suspending KEEPS the grant stamp, because "who approved this, and when" is
+  // the thing you want most once an account has turned out to be trouble. Only
+  // a return to pending clears all three, which is the one case where no
+  // approval has happened. ('active' never reaches here — see above.)
   const row = { status }
-  if (status === 'active')    Object.assign(row, { granted_by: user?.id ?? null, granted_at: now, revoked_at: null })
   if (status === 'suspended') Object.assign(row, { revoked_at: now })
   if (status === 'pending')   Object.assign(row, { granted_by: null, granted_at: null, revoked_at: null })
 

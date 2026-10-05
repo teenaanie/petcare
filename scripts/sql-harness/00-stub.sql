@@ -49,9 +49,16 @@ GRANT EXECUTE ON FUNCTION auth.uid(), auth.role() TO anon, authenticated, servic
 CREATE TABLE public.providers (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name        text NOT NULL,
-  type        text,
+  type        text NOT NULL,
+  phone       text,
   area        text,
   city        text,
+  address     text,
+  whatsapp    text,
+  hours       text,
+  description text,
+  maps_url    text,
+  source      text,
   is_approved boolean DEFAULT false
 );
 ALTER TABLE public.providers ENABLE ROW LEVEL SECURITY;

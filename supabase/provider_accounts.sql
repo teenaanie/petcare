@@ -282,25 +282,46 @@ REVOKE EXECUTE ON FUNCTION public.claim_provider(uuid, text, text) FROM anon;
 GRANT  EXECUTE ON FUNCTION public.claim_provider(uuid, text, text) TO authenticated;
 
 -- The admin review queue. Gated internally, and returns nothing to anyone else.
-CREATE OR REPLACE FUNCTION public.admin_provider_accounts()
+--
+-- It carries the LISTING's state as well as the claim's, because approving a
+-- claim on a self-registered business also publishes that listing
+-- (approve_provider_claim, in provider_self_registration.sql). A reviewer
+-- deciding that needs to see what they are about to publish.
+--
+-- Named admin_provider_claims, not admin_provider_accounts, and the rename is
+-- the point. The first version returned fewer columns, and CREATE OR REPLACE
+-- cannot change a function's return type — so growing it in place needs a DROP
+-- first, which makes the file no longer plainly re-runnable and, on at least
+-- one deployment path, is a statement that will not go through. A new name
+-- costs nothing and means this can keep growing columns with CREATE OR REPLACE
+-- forever. The old function is dropped at the foot of this file.
+CREATE OR REPLACE FUNCTION public.admin_provider_claims()
 RETURNS TABLE (
   id uuid, provider_id uuid, status text, role text, claimed_type text,
   claim_note text, email text, phone text, created_at timestamptz,
-  provider_name text, provider_type text, provider_area text
+  provider_name text, provider_type text, provider_area text,
+  provider_city text, provider_phone text, provider_is_approved boolean,
+  provider_source text
 )
 LANGUAGE sql SECURITY DEFINER STABLE SET search_path TO 'public' AS $$
   SELECT pa.id, pa.provider_id, pa.status, pa.role, pa.claimed_type,
          pa.claim_note, pa.email, pa.phone, pa.created_at,
-         p.name, p.type, p.area
+         p.name, p.type, p.area,
+         p.city, p.phone, p.is_approved, p.source
   FROM public.provider_accounts pa
   JOIN public.providers p ON p.id = pa.provider_id
   WHERE public.is_admin() OR coalesce(auth.role(), '') = 'service_role'
   ORDER BY (pa.status = 'pending') DESC, pa.created_at DESC;
 $$;
 
-REVOKE EXECUTE ON FUNCTION public.admin_provider_accounts() FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.admin_provider_accounts() FROM anon;
-GRANT  EXECUTE ON FUNCTION public.admin_provider_accounts() TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.admin_provider_claims() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.admin_provider_claims() FROM anon;
+GRANT  EXECUTE ON FUNCTION public.admin_provider_claims() TO authenticated;
+
+-- Cleanup of the name this replaced. Nothing calls it. Harmless to leave if
+-- your deployment path refuses DROP, which is why it is last rather than
+-- wrapped around the definition above.
+DROP FUNCTION IF EXISTS public.admin_provider_accounts();
 
 -- ── Verified ────────────────────────────────────────────────────────────────
 --

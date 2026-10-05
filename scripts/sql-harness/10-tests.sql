@@ -133,8 +133,8 @@ SELECT t_run   ('user approves their own claim',            'authenticated', '22
 SELECT t_run   ('stranger selects that claim',              'authenticated', '33333333-3333-3333-3333-333333333333',
                 'select * from public.provider_accounts', 'ok:0');
 SELECT t_run   ('my_provider_accounts() as anon',           'anon',          NULL, 'select * from public.my_provider_accounts()', 'denied');
-SELECT t_run   ('admin_provider_accounts() as non-admin',   'authenticated', '33333333-3333-3333-3333-333333333333', 'select * from public.admin_provider_accounts()', 'ok:0');
-SELECT t_run   ('admin_provider_accounts() as admin',       'authenticated', '11111111-1111-1111-1111-111111111111', 'select * from public.admin_provider_accounts()', 'ok:1');
+SELECT t_run   ('admin_provider_claims() as non-admin',   'authenticated', '33333333-3333-3333-3333-333333333333', 'select * from public.admin_provider_claims()', 'ok:0');
+SELECT t_run   ('admin_provider_claims() as admin',       'authenticated', '11111111-1111-1111-1111-111111111111', 'select * from public.admin_provider_claims()', 'ok:1');
 
 -- The admin approves, through the same UPDATE the Claims panel issues.
 SELECT t_run   ('admin approves the claim',                 'authenticated', '11111111-1111-1111-1111-111111111111',
@@ -196,6 +196,57 @@ SELECT t_run   ('SUSPENDED provider sends feedback',      'authenticated', '2222
 
 SELECT t_run   ('stranger attributes to that business',   'authenticated', '33333333-3333-3333-3333-333333333333',
                 $q$insert into public.feedback (user_id, provider_id, message) values ('33333333-3333-3333-3333-333333333333', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'they were terrible')$q$, 'denied');
+
+\echo ''
+\echo '════ provider_self_registration.sql ════'
+
+SELECT t_run   ('anonymous registers a business',        'anon',          NULL,
+                $q$select public.register_and_claim_provider('Backstreet Kennels','Boarder','9876500000')$q$, 'denied');
+
+-- user 33333333 has no claims yet, so this is a clean first registration.
+SELECT t_scalar('signed-in user registers and claims',   'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$select (public.register_and_claim_provider('Backstreet Kennels','Boarder','9876500000','Kothrud','Pune') is not null)::text$q$, 'true');
+SELECT t_scalar('the listing is NOT published yet',      'postgres',      NULL,
+                $q$select (is_approved = false)::text from public.providers where name = 'Backstreet Kennels'$q$, 'true');
+SELECT t_scalar('the listing is marked self_registered', 'postgres',      NULL,
+                $q$select source from public.providers where name = 'Backstreet Kennels'$q$, 'self_registered');
+SELECT t_scalar('their claim is pending',                'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$select status from public.my_provider_accounts() where provider_name = 'Backstreet Kennels'$q$, 'pending');
+SELECT t_scalar('the claim carries their email',         'postgres',      NULL,
+                $q$select email from public.provider_accounts where provider_id = (select id from public.providers where name = 'Backstreet Kennels')$q$, 'stranger@example.test');
+SELECT t_scalar('they are not a member while pending',   'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$select public.is_provider_member((select provider_id from public.my_provider_accounts() where provider_name = 'Backstreet Kennels'))::text$q$, 'false');
+
+SELECT t_run   ('a blank name is refused',               'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$select public.register_and_claim_provider('   ','Boarder','9876500000')$q$, 'error:P0001');
+SELECT t_run   ('a blank phone is refused',              'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$select public.register_and_claim_provider('Nameless','Boarder','  ')$q$, 'error:P0001');
+SELECT t_run   ('an unknown type is refused',            'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$select public.register_and_claim_provider('Odd One','Taxidermist','9876500000')$q$, 'error:P0001');
+SELECT t_run   ('a junk maps link is refused',           'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$select public.register_and_claim_provider('Linky','Boarder','9876500000',null,null,null,null,null,null,'javascript:alert(1)')$q$, 'error:P0001');
+
+-- They now hold one pending claim; two more reach the ceiling, the fourth stops.
+SELECT t_scalar('a second registration is allowed',      'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$select (public.register_and_claim_provider('Second Kennels','Boarder','9876500001') is not null)::text$q$, 'true');
+SELECT t_scalar('a third is allowed',                    'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$select (public.register_and_claim_provider('Third Kennels','Boarder','9876500002') is not null)::text$q$, 'true');
+SELECT t_run   ('a fourth pending claim is refused',     'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$select public.register_and_claim_provider('Fourth Kennels','Boarder','9876500003')$q$, 'error:P0001');
+
+SELECT t_run   ('non-admin approves a claim',            'authenticated', '22222222-2222-2222-2222-222222222222',
+                $q$select public.approve_provider_claim((select id from public.provider_accounts where provider_id = (select provider_id from public.my_provider_accounts() limit 1)))$q$, 'error:P0001');
+
+SELECT t_run   ('admin approves it',                     'authenticated', '11111111-1111-1111-1111-111111111111',
+                $q$select public.approve_provider_claim((select id from public.admin_provider_claims() where provider_name = 'Backstreet Kennels'))$q$, 'ok:1');
+SELECT t_scalar('the account is now active',             'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$select status from public.my_provider_accounts() where provider_name = 'Backstreet Kennels'$q$, 'active');
+SELECT t_scalar('and the listing is PUBLISHED',          'postgres',      NULL,
+                $q$select is_approved::text from public.providers where name = 'Backstreet Kennels'$q$, 'true');
+SELECT t_scalar('they are a member now',                 'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$select public.is_provider_member((select provider_id from public.my_provider_accounts() where provider_name = 'Backstreet Kennels'))::text$q$, 'true');
+SELECT t_scalar('the queue shows publication state',     'authenticated', '11111111-1111-1111-1111-111111111111',
+                $q$select provider_is_approved::text from public.admin_provider_claims() where provider_name = 'Second Kennels'$q$, 'false');
 
 \echo ''
 \echo '════ results ════'

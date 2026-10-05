@@ -542,7 +542,11 @@ function ClaimCard({ claim, onSet, busy }) {
   // wrong on its own — a day care that also grooms picks either honestly — but
   // it is the one field on this card that the reviewer did not get from Google,
   // so it is worth looking at rather than scrolling past.
-  const typeDiffers = claim.claimed_type && claim.provider_type &&
+  // Only meaningful on a Google-sourced listing, where the claimant's answer and
+  // Google's category are two independent opinions. On a self-registered one the
+  // provider supplied both, so they always agree and the flag would be noise.
+  const typeDiffers = claim.provider_is_approved !== false &&
+                      claim.claimed_type && claim.provider_type &&
                       claim.claimed_type !== claim.provider_type
 
   return (
@@ -557,6 +561,18 @@ function ClaimCard({ claim, onSet, busy }) {
         <span className="text-xs px-2 py-0.5 rounded-full font-bold shrink-0"
           style={{ backgroundColor: cfg.bg, color: cfg.text }}>{cfg.label}</span>
       </div>
+
+      {/* A self-registered listing is not in the directory yet, and approving
+          this claim is what publishes it. Say so, and show what is about to go
+          public, because that is a second decision riding on the same button. */}
+      {claim.provider_is_approved === false && (
+        <div className="mt-3 rounded-xl px-2.5 py-2 text-xs" style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
+          <p className="font-bold mb-1">New listing — approving will publish it</p>
+          <p>{[claim.provider_type, claim.provider_area, claim.provider_city].filter(Boolean).join(' · ')}</p>
+          {claim.provider_phone && <p>{claim.provider_phone}</p>}
+          {claim.provider_source && <p style={{ color: '#b08d57' }}>added via {claim.provider_source.replace(/_/g, ' ')}</p>}
+        </div>
+      )}
 
       <div className="mt-3 space-y-1 text-xs" style={{ color: '#5f624b' }}>
         {claim.email && <p className="flex items-center gap-1.5 truncate"><Mail className="w-3 h-3 shrink-0" /> {claim.email}</p>}
