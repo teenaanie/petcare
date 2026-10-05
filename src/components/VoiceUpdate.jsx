@@ -53,7 +53,7 @@ const LOOK = {
 // pressed.
 
 function Row({ checked, onToggle, icon: Icon, label, title, detail, color, saved,
-              suggestion, onAccept, fields, values, onEdit, invalid }) {
+              suggestion, onAccept, fields, values, onEdit, invalid, needs }) {
   // A row that is already in the database is shown ticked off and locked, not
   // just described in an error message — so it is obvious at a glance that
   // pressing Save again will not write it twice.
@@ -88,21 +88,39 @@ function Row({ checked, onToggle, icon: Icon, label, title, detail, color, saved
                   style={{ color: '#a08f7a' }}>
                   {f.label}{f.required ? ' *' : ''}
                 </span>
-                <input
-                  type={f.type}
-                  value={values?.[f.field] ?? ''}
-                  placeholder={f.placeholder || ''}
-                  onChange={e => onEdit(f.field, e.target.value)}
-                  /* The whole row is a <label>, so a click inside an input
-                     would otherwise toggle the tick-box underneath it. */
-                  onClick={e => e.stopPropagation()}
-                  className="input w-full text-sm py-1.5"
-                />
+                {f.type === 'select' ? (
+                  <select
+                    value={values?.[f.field] ?? ''}
+                    onChange={e => onEdit(f.field, e.target.value)}
+                    onClick={e => e.stopPropagation()}
+                    className="input w-full text-sm py-1.5">
+                    <option value=""></option>
+                    {/* The value the AI produced is added to the list when it is
+                        not already on it. Without this, rendering a select over
+                        an unexpected value would silently rewrite the record to
+                        whichever option happens to be first -- changing data on
+                        the very screen that exists to approve it. */}
+                    {[...new Set([...(f.options || []), values?.[f.field]].filter(Boolean))]
+                      .map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                ) : (
+                  <input
+                    type={f.type}
+                    step={f.step}
+                    value={values?.[f.field] ?? ''}
+                    placeholder={f.placeholder || ''}
+                    onChange={e => onEdit(f.field, e.target.value)}
+                    /* The whole row is a <label>, so a click inside a field
+                       would otherwise toggle the tick-box underneath it. */
+                    onClick={e => e.stopPropagation()}
+                    className="input w-full text-sm py-1.5"
+                  />
+                )}
               </div>
             ))}
-            {invalid && (
+            {invalid && needs && (
               <p className="text-xs font-bold" style={{ color: '#c0392b' }}>
-                A reminder needs a date before it can be saved.
+                This needs {needs} before it can be saved.
               </p>
             )}
           </div>
@@ -280,7 +298,8 @@ function Review({ parsed, pet, onBack, onSaved }) {
                 fields={kind.editable}
                 values={row}
                 onEdit={(field, value) => editField(kind, i, field, value)}
-                invalid={!kind.usable(row)} />
+                invalid={!kind.usable(row)}
+                needs={kind.needs} />
             )
           })}
         </div>

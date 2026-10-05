@@ -16,6 +16,22 @@ export { todayIST }
 
 const num = v => (v === null || v === undefined || v === '' ? '' : v)
 
+// The fixed vocabularies the rest of the app uses. Mirrored here because a lib
+// must not import from components; scripts/test-voice-update.mjs compares these
+// against the component constants so the two cannot drift apart unnoticed.
+//
+// A value the AI produced that is NOT on one of these lists is still kept: the
+// review row adds it as an option rather than quietly rewriting it to whatever
+// happens to be first. Silently changing a record while showing it for approval
+// would be worse than leaving it odd.
+const MEDICAL_TYPES  = ['Checkup', 'Illness', 'Surgery', 'Injury', 'Dental', 'Lab Result', 'Prescription', 'Other']
+const MEDICINE_CATS  = ['Deworming', 'Flea/Tick', 'Antibiotic', 'Anti-inflammatory', 'Supplement', 'Vaccination', 'Other']
+const ALLERGY_TYPES  = ['Food', 'Environmental', 'Medication', 'Contact', 'Insect', 'Other']
+const ALLERGY_SEVERITY = ['Mild', 'Moderate', 'Severe']
+const REMINDER_TYPES = ['Vaccination', 'Grooming', 'Vet Checkup', 'Medication', 'Boarding', 'Other']
+const REMINDER_FREQ  = ['Once', 'Weekly', 'Monthly', 'Yearly']
+export const VOCAB = { MEDICAL_TYPES, MEDICINE_CATS, ALLERGY_TYPES, ALLERGY_SEVERITY, REMINDER_TYPES, REMINDER_FREQ }
+
 export const RECORD_KINDS = [
   {
     key: 'medical', label: 'Visit', saver: 'saveMedicalRecord',
@@ -23,6 +39,15 @@ export const RECORD_KINDS = [
     detail: r => [r.type, r.date, r.vet && `with ${r.vet}`,
                   r.cost != null && `₹${r.cost}`, r.description].filter(Boolean).join(' · '),
     usable: r => !!String(r.title || r.type || r.description || '').trim(),
+    needs: 'a title or a description',
+    editable: [
+      { field: 'title',       label: 'Title',       type: 'text' },
+      { field: 'type',        label: 'Type',        type: 'select', options: MEDICAL_TYPES },
+      { field: 'date',        label: 'Date',        type: 'date' },
+      { field: 'vet',         label: 'Vet',         type: 'text' },
+      { field: 'description', label: 'Description', type: 'text' },
+      { field: 'cost',        label: 'Cost (₹)',    type: 'number' },
+    ],
     payload: (r, petId) => ({
       petId, date: r.date || '', type: r.type || 'Other',
       title: r.title || r.type || 'Vet visit', description: r.description || '',
@@ -35,6 +60,12 @@ export const RECORD_KINDS = [
     detail: r => [r.dateGiven && `given ${r.dateGiven}`, r.nextDue && `next ${r.nextDue}`]
       .filter(Boolean).join(' · ') || 'No dates given',
     usable: r => !!String(r.name || '').trim(),
+    needs: 'a name',
+    editable: [
+      { field: 'name',      label: 'Vaccine',   type: 'text', required: true },
+      { field: 'dateGiven', label: 'Given on',  type: 'date' },
+      { field: 'nextDue',   label: 'Next due',  type: 'date' },
+    ],
     payload: (r, petId) => ({
       petId, name: r.name, dateGiven: r.dateGiven || '', nextDue: r.nextDue || '',
     }),
@@ -44,6 +75,14 @@ export const RECORD_KINDS = [
     title:  r => r.name,
     detail: r => [r.dosage, r.frequency, r.category].filter(Boolean).join(' · '),
     usable: r => !!String(r.name || '').trim(),
+    needs: 'a name',
+    editable: [
+      { field: 'name',      label: 'Medicine',  type: 'text', required: true },
+      { field: 'dosage',    label: 'Dosage',    type: 'text', placeholder: 'e.g. one tablet' },
+      // Free text, not a list: a medicine's frequency is whatever the vet said.
+      { field: 'frequency', label: 'How often', type: 'text', placeholder: 'e.g. twice daily' },
+      { field: 'category',  label: 'Category',  type: 'select', options: MEDICINE_CATS },
+    ],
     payload: (r, petId) => ({
       petId, name: r.name, dosage: r.dosage || '', frequency: r.frequency || '',
       category: r.category || 'Other',
@@ -54,10 +93,20 @@ export const RECORD_KINDS = [
     title:  r => r.allergen,
     detail: r => [r.type, r.severity, (r.reactions || []).join(', ')].filter(Boolean).join(' · '),
     usable: r => !!String(r.allergen || '').trim(),
+    needs: 'what the allergy is to',
+    editable: [
+      { field: 'allergen',  label: 'Allergic to', type: 'text', required: true },
+      { field: 'type',      label: 'Type',        type: 'select', options: ALLERGY_TYPES },
+      { field: 'severity',  label: 'Severity',    type: 'select', options: ALLERGY_SEVERITY },
+      { field: 'reactions', label: 'Reactions',   type: 'text', placeholder: 'comma separated' },
+    ],
     payload: (r, petId) => ({
       petId, allergen: r.allergen, type: r.type || 'Other', severity: r.severity || 'Mild',
-      // reactions is an array column — a single reaction is still an array.
-      reactions: Array.isArray(r.reactions) ? r.reactions : (r.reactions ? [r.reactions] : []),
+      // reactions is an array column — a single reaction is still an array, and
+      // a comma-separated line typed into the review screen becomes several.
+      reactions: Array.isArray(r.reactions)
+        ? r.reactions
+        : String(r.reactions || '').split(',').map(s => s.trim()).filter(Boolean),
     }),
   },
   {
@@ -65,6 +114,12 @@ export const RECORD_KINDS = [
     title:  r => `${r.weight} kg`,
     detail: r => [r.date || todayIST(), r.notes].filter(Boolean).join(' · '),
     usable: r => Number.isFinite(Number(r.weight)) && Number(r.weight) > 0,
+    needs: 'a weight above zero',
+    editable: [
+      { field: 'weight', label: 'Weight (kg)', type: 'number', required: true, step: '0.01' },
+      { field: 'date',   label: 'Measured on', type: 'date' },
+      { field: 'notes',  label: 'Note',        type: 'text' },
+    ],
     payload: (r, petId) => ({
       petId, date: r.date || todayIST(), weight: r.weight, notes: r.notes || '',
     }),
@@ -74,6 +129,13 @@ export const RECORD_KINDS = [
     title:  r => (r.totalAmount != null ? `₹${r.totalAmount}` : 'Bill'),
     detail: r => [r.clinic, r.date, r.notes].filter(Boolean).join(' · '),
     usable: r => r.totalAmount != null || !!String(r.clinic || '').trim(),
+    needs: 'an amount or a clinic',
+    editable: [
+      { field: 'totalAmount', label: 'Amount (₹)', type: 'number' },
+      { field: 'clinic',      label: 'Clinic',     type: 'text' },
+      { field: 'date',        label: 'Date',       type: 'date' },
+      { field: 'notes',       label: 'Note',       type: 'text' },
+    ],
     payload: (r, petId) => ({
       petId, date: r.date || '', clinic: r.clinic || '', totalAmount: num(r.totalAmount),
       lineItems: [], currency: 'INR', notes: r.notes || '',
@@ -92,10 +154,12 @@ export const RECORD_KINDS = [
     // more than anything else here -- "the eighth" and "the eighteenth" are one
     // vowel apart -- and a reminder is the one record whose whole purpose is
     // the date being right.
+    needs: 'a date',
     editable: [
-      { field: 'type',    label: 'Reminder', type: 'text', placeholder: 'What is it for' },
-      { field: 'dueDate', label: 'Due date', type: 'date', required: true },
-      { field: 'notes',   label: 'Note',     type: 'text', placeholder: 'Optional detail' },
+      { field: 'type',      label: 'Reminder',  type: 'select', options: REMINDER_TYPES },
+      { field: 'dueDate',   label: 'Due date',  type: 'date', required: true },
+      { field: 'frequency', label: 'Repeats',   type: 'select', options: REMINDER_FREQ },
+      { field: 'notes',     label: 'Note',      type: 'text', placeholder: 'Optional detail' },
     ],
     payload: (r, petId) => ({
       petId, type: r.type || 'Other', dueDate: r.dueDate || '',
