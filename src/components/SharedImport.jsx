@@ -1,7 +1,20 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { X, Loader2, PawPrint, Share2, AlertCircle } from 'lucide-react'
 import { getPets } from '../lib/storage.js'
-import DocumentScanner from './DocumentScanner.jsx'
+
+// Lazy, and it has to stay lazy. PetDetail loads the scanner this way too, and
+// a single static import anywhere pulls it -- and pdf.js behind it -- back into
+// the main bundle for everyone, signed in or not.
+const DocumentScanner = lazy(() => import('./DocumentScanner.jsx'))
+
+function ScannerLoading() {
+  return (
+    <div className="flex items-center justify-center gap-2 py-16" style={{ color: '#73775b' }}>
+      <Loader2 className="w-5 h-5 animate-spin" />
+      <span className="text-sm">Loading…</span>
+    </div>
+  )
+}
 
 // Somebody shared vet papers into Pippy from WhatsApp or their camera roll.
 //
@@ -38,7 +51,9 @@ export default function SharedImport({ files, session, onClose }) {
             </p>
             <button onClick={onClose}><X className="w-5 h-5" style={{ color: '#73775b' }} /></button>
           </div>
-          <DocumentScanner pet={pet} session={session} initialFiles={files} />
+          <Suspense fallback={<ScannerLoading />}>
+            <DocumentScanner pet={pet} session={session} initialFiles={files} />
+          </Suspense>
         </div>
       </div>
     )
