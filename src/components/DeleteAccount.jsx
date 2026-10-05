@@ -91,6 +91,10 @@ export default function DeleteAccount({ user, onClose, onDeleted }) {
         // How many other people currently have access to these pets.
         try {
           const ids = data.pets.map(p => p.pet.id)
+          // `&& supabase` used to guard against the old module-level export
+          // being null. getSupabase() resolves to null for the same reason, so
+          // the guard moves onto the resolved client.
+          const supabase = await getSupabase()
           if (ids.length && supabase) {
             const { count } = await supabase
               .from('pet_members').select('*', { count: 'exact', head: true }).in('pet_id', ids)

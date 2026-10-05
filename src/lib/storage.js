@@ -348,6 +348,7 @@ async function _markReminderDone(id, isDone) {
     // including ones SHARED with you, and `shared_select_reminders` lets a
     // viewer read them while `shared_update_reminders` (is_pet_editor) refuses
     // the write. Ticking one off returned zero rows.
+    const supabase = await getSupabase()
     const { data, error } = await supabase
       .from('reminders').update({ is_done: isDone }).eq('id', id).select().maybeSingle()
     if (error) throw error

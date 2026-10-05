@@ -24,7 +24,13 @@ const num = v => (v === null || v === undefined || v === '' ? '' : v)
 // review row adds it as an option rather than quietly rewriting it to whatever
 // happens to be first. Silently changing a record while showing it for approval
 // would be worse than leaving it odd.
-const MEDICAL_TYPES  = ['Checkup', 'Illness', 'Surgery', 'Injury', 'Dental', 'Lab Result', 'Prescription', 'Other']
+// 'Observation' exists because of a real gap: a customer said "limping has
+// reduced" and nothing was recorded. Every other type here describes an
+// EVENT -- a visit, a procedure, a result -- so a plain observation about how
+// the animal is doing had no home, and the model put it in "unclear", which
+// is shown and then dropped. It belongs in the medical timeline: it is
+// exactly the kind of thing a vet wants to read back.
+const MEDICAL_TYPES  = ['Checkup', 'Illness', 'Surgery', 'Injury', 'Dental', 'Lab Result', 'Prescription', 'Observation', 'Other']
 const MEDICINE_CATS  = ['Deworming', 'Flea/Tick', 'Antibiotic', 'Anti-inflammatory', 'Supplement', 'Vaccination', 'Other']
 const ALLERGY_TYPES  = ['Food', 'Environmental', 'Medication', 'Contact', 'Insect', 'Other']
 const ALLERGY_SEVERITY = ['Mild', 'Moderate', 'Severe']
@@ -32,10 +38,20 @@ const REMINDER_TYPES = ['Vaccination', 'Grooming', 'Vet Checkup', 'Medication', 
 const REMINDER_FREQ  = ['Once', 'Weekly', 'Monthly', 'Yearly']
 export const VOCAB = { MEDICAL_TYPES, MEDICINE_CATS, ALLERGY_TYPES, ALLERGY_SEVERITY, REMINDER_TYPES, REMINDER_FREQ }
 
+/** A description used as a title: first clause, kept short enough to read. */
+function trunc(text) {
+  const t = String(text ?? '').trim().split(/[.;\n]/)[0].trim()
+  if (!t) return ''
+  return t.length > 60 ? t.slice(0, 57).trimEnd() + '…' : t
+}
+
 export const RECORD_KINDS = [
   {
-    key: 'medical', label: 'Visit', saver: 'saveMedicalRecord',
-    title:  r => r.title || r.type || 'Vet visit',
+    key: 'medical', label: 'Medical', saver: 'saveMedicalRecord',
+    // Falling back to 'Vet visit' would put words in the owner's mouth when
+    // what they actually said was "limping has reduced" and no visit
+    // happened. Prefer their own description.
+    title:  r => r.title || r.type || trunc(r.description) || 'Vet visit',
     detail: r => [r.type, r.date, r.vet && `with ${r.vet}`,
                   r.cost != null && `₹${r.cost}`, r.description].filter(Boolean).join(' · '),
     usable: r => !!String(r.title || r.type || r.description || '').trim(),
@@ -50,7 +66,8 @@ export const RECORD_KINDS = [
     ],
     payload: (r, petId) => ({
       petId, date: r.date || '', type: r.type || 'Other',
-      title: r.title || r.type || 'Vet visit', description: r.description || '',
+      title: r.title || r.type || trunc(r.description) || 'Vet visit',
+      description: r.description || '',
       vet: r.vet || '', cost: num(r.cost),
     }),
   },

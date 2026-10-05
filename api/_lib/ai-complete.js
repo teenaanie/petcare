@@ -246,7 +246,7 @@ RULES — the first is the one that matters most:
 Return valid JSON only.`
 }
 
-function voiceUpdatePrompt({ transcript = '', pet = {} }) {
+export function voiceUpdatePrompt({ transcript = '', pet = {} }) {
   // Same IST anchor as the other date-sensitive prompts. Between 18:30 and
   // 00:00 UTC it is already tomorrow in India, and every relative date — "she
   // goes back in a week" — would land a day out.
@@ -265,8 +265,9 @@ function voiceUpdatePrompt({ transcript = '', pet = {} }) {
 
 The following text was SPOKEN OR TYPED by the owner of ONE pet that is ALREADY
 in the app, telling us what has happened since — most often a vet visit, but it
-could be a new medicine, a weight, a bill, or something they noticed. It may be
-a dictated run-on with no punctuation, or typed or pasted text. Both are normal.
+could be a new medicine, a weight, a bill, or simply how the animal is doing.
+It may be a dictated run-on with no punctuation, or typed or pasted text. Both
+are normal.
 
 The pet these records belong to, for context only:
 ${who || '(no profile details available)'}
@@ -303,7 +304,8 @@ RULES — the first is the one that matters most:
 
 1. NEVER INVENT A VALUE. If the owner does not give a date, leave it EMPTY; do
    not assume the visit was today unless they said so ("today", "this morning",
-   "just got back"). If they say "some tablets" with no name, that is a medicine
+   "just got back"). Weights and observations are the only exceptions, and
+   rules 6 and 8 say why. If they say "some tablets" with no name, that is a medicine
    with an empty name — which is not worth saving, so put it in "unclear"
    instead. An empty field is always better than a plausible guess. These
    records are shown to a vet.
@@ -321,7 +323,7 @@ RULES — the first is the one that matters most:
 
 4. Controlled vocabularies. Use EXACTLY one of these, or an empty string if you
    are not sure:
-   medical type   : Checkup, Illness, Surgery, Injury, Dental, Lab Result, Prescription, Other
+   medical type   : Checkup, Illness, Surgery, Injury, Dental, Lab Result, Prescription, Observation, Other
    medicine category : Deworming, Flea/Tick, Antibiotic, Anti-inflammatory, Supplement, Vaccination, Other
    allergy type   : Food, Environmental, Medication, Contact, Insect, Other
    severity       : Mild, Moderate, Severe
@@ -334,13 +336,28 @@ RULES — the first is the one that matters most:
 6. "weight" is a number in kilograms, "cost" and "totalAmount" are numbers in
    rupees. Never a string, never a range, never a currency symbol. A weight with
    no date the owner gave takes today's date, because a weight is measured when
-   it is said — that is the one date you may fill in, and only for weights.
+   it is said. Weights and observations (rule 8) are the ONLY two places you may
+   fill in a date the owner did not give; everywhere else an absent date stays
+   empty.
 
 7. A total the owner mentions in passing ("it came to about two thousand") is
    the "cost" on the medical record. Only create a "bills" entry when they are
    plainly describing a bill or invoice, with a clinic or an itemisation.
 
-8. Anything you could not confidently place goes in "unclear", verbatim-ish, so
+8. AN OBSERVATION IS A MEDICAL RECORD. "Her limping has reduced", "he's been
+   off his food since Tuesday", "the itching is much better" are not vet
+   visits, but they are exactly what a vet wants to read back later. Record
+   each as one "medical" entry with type "Observation", the owner's own words
+   in "description", a short "title", and NO vet and NO cost. Give it today's
+   date, for the same reason a weight gets today's date: an observation is made
+   when it is spoken. Do not put these in "unclear" — that was the old
+   behaviour and it meant the owner said something about their animal and
+   nothing was saved.
+
+   An observation that comes out of a visit stays part of that visit's record
+   instead; this is for when there is no visit to attach it to.
+
+9. Anything you could not confidently place goes in "unclear", verbatim-ish, so
    the owner can add it by hand. Do not force it into a field and do not
    silently drop it.
 
