@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Phone, Mail, MessageSquare, Loader2, AlertCircle, ArrowLeft, CheckCircle } from 'lucide-react'
-import { supabase } from '../lib/supabase.js'
+import { getSupabase } from '../lib/supabase.js'
 import PippyLogo from './PippyLogo.jsx'
 import Landing from './Landing.jsx'
 
@@ -91,6 +91,7 @@ export default function PhoneAuth({ onShowPrivacy }) {
   // ── Step 1: Send OTP ────────────────────────────────────────────────────────
 
   async function sendOtp() {
+    const supabase = await getSupabase()
     if (method === 'phone') {
       const { error } = await supabase.auth.signInWithOtp({ phone: formattedPhone })
       if (error) throw error
@@ -144,6 +145,7 @@ export default function PhoneAuth({ onShowPrivacy }) {
       const params = method === 'phone'
         ? { phone: sentTo, token: otp, type: 'sms' }
         : { email: sentTo, token: otp, type: 'email' }
+      const supabase = await getSupabase()
       const { error } = await supabase.auth.verifyOtp(params)
       if (error) throw error
       clearOtpState()  // clean up on success
@@ -157,6 +159,7 @@ export default function PhoneAuth({ onShowPrivacy }) {
   async function handleResend() {
     setLoading(true); setError(null); setOtp('')
     try {
+      const supabase = await getSupabase()
       if (method === 'phone') {
         const { error } = await supabase.auth.signInWithOtp({ phone: sentTo })
         if (error) throw error

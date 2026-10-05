@@ -42,9 +42,7 @@
 
 import { Component } from 'react'
 import { reportError } from '../lib/errorReport.js'
-import { isChunkLoadError } from '../lib/chunkErrors.js'
-
-const RELOAD_FLAG = 'pippy_chunk_reload'
+import { isChunkLoadError, reloadOnceForChunkError, clearChunkReloadGuard } from '../lib/chunkErrors.js'
 
 export default class ChunkErrorBoundary extends Component {
   constructor(props) {
@@ -62,14 +60,7 @@ export default class ChunkErrorBoundary extends Component {
     try { reportError(error, { view: this.props.view }) } catch { /* never rethrow */ }
 
     if (!isChunkLoadError(error)) return
-    try {
-      if (sessionStorage.getItem(RELOAD_FLAG)) return   // already tried
-      sessionStorage.setItem(RELOAD_FLAG, '1')
-      location.reload()
-    } catch {
-      // Private mode, blocked storage: reloading without the guard risks a
-      // loop, so prefer showing the message.
-    }
+    reloadOnceForChunkError()
   }
 
   render() {
@@ -90,7 +81,7 @@ export default class ChunkErrorBoundary extends Component {
         <button
           onClick={() => {
             // Clear the guard so the reload is actually attempted this time.
-            try { sessionStorage.removeItem(RELOAD_FLAG) } catch { /* nothing to clear */ }
+            clearChunkReloadGuard()
             location.reload()
           }}
           className="px-4 py-2 rounded-xl text-sm font-bold"

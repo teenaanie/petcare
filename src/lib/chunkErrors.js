@@ -31,3 +31,37 @@ export function isChunkLoadError(error) {
     /failed to fetch dynamically imported/i.test(text)
   )
 }
+
+// One reload, shared by every caller.
+//
+// The boundary below catches chunk failures that happen during render. Not all
+// of them do: the Supabase client is imported from an effect, and a rejection
+// there never reaches a boundary at all -- it would just leave a signed-in
+// user looking at the sign-in screen, which reads as "it logged me out"
+// rather than "it needs a reload".
+//
+// Both paths have to share one flag, or each gets its own reload and the
+// guarantee that matters -- at most one -- quietly becomes two.
+const RELOAD_FLAG = 'pippy_chunk_reload'
+
+/**
+ * Reload once to pick up an index.html that names chunks which exist.
+ * Returns true if a reload was started, false if one was already spent.
+ */
+export function reloadOnceForChunkError() {
+  try {
+    if (sessionStorage.getItem(RELOAD_FLAG)) return false   // already tried
+    sessionStorage.setItem(RELOAD_FLAG, '1')
+    location.reload()
+    return true
+  } catch {
+    // Private mode, blocked storage: reloading without the guard risks a loop,
+    // so prefer leaving the caller to show its message.
+    return false
+  }
+}
+
+/** Let the next chunk failure reload again — for a user-initiated retry. */
+export function clearChunkReloadGuard() {
+  try { sessionStorage.removeItem(RELOAD_FLAG) } catch { /* nothing to clear */ }
+}

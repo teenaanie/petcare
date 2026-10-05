@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Upload, CheckCircle, AlertCircle, Loader2, Database, X } from 'lucide-react'
-import { supabase, isConfigured } from '../lib/supabase.js'
+import { getSupabase, isConfigured } from '../lib/supabase.js'
 import { invalidateAll } from '../lib/storage.js'
 
 // Read everything that exists in localStorage
@@ -18,6 +18,7 @@ function readLocalData() {
 }
 
 async function migrateToSupabase(localData, onProgress) {
+  const supabase = await getSupabase()
   const idMap = {} // old localStorage id → new Supabase uuid
 
   // ── Pets ──

@@ -12,7 +12,7 @@
 // against the database before it sends anything, so this call is a nudge
 // rather than an instruction.
 
-import { supabase } from './supabase.js'
+import { getSupabase } from './supabase.js'
 
 // One alert per browser per account. The server also refuses anything older
 // than a few minutes, so this is about not being noisy rather than about
@@ -20,6 +20,7 @@ import { supabase } from './supabase.js'
 const SIGNUP_KEY = 'pippy_signup_announced'
 
 async function post(payload) {
+  const supabase = await getSupabase()
   if (!supabase) return                       // local-only mode: nobody to tell
   try {
     const { data } = await supabase.auth.getSession()

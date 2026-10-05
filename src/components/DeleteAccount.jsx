@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { AlertTriangle, X, Loader2, Download, Trash2, Check } from 'lucide-react'
-import { supabase } from '../lib/supabase.js'
+import { getSupabase } from '../lib/supabase.js'
 import {
   getPets, getMedicalHistory, getVaccinations, getAllergies, getReminders,
   getWeightLogs, getMedicines, getBills, getBoardingTrips,
@@ -117,6 +117,7 @@ export default function DeleteAccount({ user, onClose, onDeleted }) {
   async function handleDelete() {
     setBusy(true); setError(null)
     try {
+      const supabase = await getSupabase()
       const { data } = await supabase.auth.getSession()
       const token = data?.session?.access_token
       if (!token) throw new Error('Your session has expired. Please sign in again.')

@@ -21,7 +21,7 @@
 
 import { useEffect, useState } from 'react'
 import { Loader2, AlertCircle, Mail, Phone, PawPrint, Send, Check, Moon, Clock } from 'lucide-react'
-import { supabase } from '../lib/supabase.js'
+import { getSupabase } from '../lib/supabase.js'
 
 /** Views, in days. Nothing below 30: the ask was "inactive for more than a
  *  month", and the endpoint refuses anything shorter anyway. */
@@ -31,6 +31,7 @@ const fmtDate = (t) => t ? new Date(t).toLocaleDateString(undefined,
   { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
 
 async function sendCheckin(userId) {
+  const supabase = await getSupabase()
   const { data } = await supabase.auth.getSession()
   const token = data?.session?.access_token
   if (!token) return { ok: false, reason: 'no_session' }
@@ -166,7 +167,8 @@ export default function InactiveUsersPanel() {
   useEffect(() => {
     let alive = true
     setLoading(true)
-    supabase.rpc('get_inactive_users_for_admin', { days })
+    getSupabase()
+      .then(supabase => supabase.rpc('get_inactive_users_for_admin', { days }))
       .then(({ data, error: e }) => {
         if (!alive) return
         if (e) throw e

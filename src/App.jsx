@@ -1,8 +1,9 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { drainSharedFiles, wasShared, clearSharedFlag } from './lib/shareTarget.js'
 import { PawPrint } from 'lucide-react'
-import { supabase, isConfigured } from './lib/supabase.js'
+import { getSupabase, isConfigured, hasStoredSession } from './lib/supabase.js'
 import ChunkErrorBoundary from './components/ChunkErrorBoundary.jsx'
+import { isChunkLoadError, reloadOnceForChunkError } from './lib/chunkErrors.js'
 import { getPets } from './lib/storage.js'
 import { announceSignupOnce } from './lib/notify.js'
 import PhoneAuth from './components/PhoneAuth.jsx'
@@ -49,29 +50,58 @@ export default function App() {
   useEffect(() => {
     if (!isConfigured) { setAuthLoading(false); return }
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      // So an error report can say who it happened to. Only the token travels;
-      // the endpoint turns it into a user id and stores nothing else from it.
-      setErrorUser(session?.access_token)
-      checkAdmin(session)
+    // Nobody is signed in on this browser, and we can tell without the client.
+    //
+    // This is the whole reason the Supabase client is a dynamic import. The
+    // sign-in screen used to wait on getSession(), which meant waiting on
+    // 211 kB of client code first — for a visitor who has no session for it to
+    // find. With no stored token there is nothing to resolve, so the landing
+    // page renders immediately and the client loads alongside it, in time for
+    // the first thing that actually needs it.
+    if (!hasStoredSession()) setAuthLoading(false)
+
+    let subscription = null
+    let cancelled = false
+
+    getSupabase().then(supabase => {
+      if (cancelled) return
+
+      // Attached before the initial read, so a sign-in that completes while the
+      // client is still warming up cannot slip past unobserved.
+      subscription = supabase.auth.onAuthStateChange((_event, session) => {
+        setSession(session)
+        setErrorUser(session?.access_token)
+        checkAdmin(session)
+        // Announces genuinely NEW accounts only — the helper skips a browser that
+        // has already reported this user, and the server independently refuses
+        // anything but an account created minutes ago.
+        if (session?.user) announceSignupOnce(session.user)
+      }).data.subscription
+
+      return supabase.auth.getSession().then(({ data: { session } }) => {
+        if (cancelled) return
+        setSession(session)
+        // So an error report can say who it happened to. Only the token travels;
+        // the endpoint turns it into a user id and stores nothing else from it.
+        setErrorUser(session?.access_token)
+        checkAdmin(session)
+        setAuthLoading(false)
+        if (session?.user) announceSignupOnce(session.user)
+      })
+    }).catch(err => {
+      if (cancelled) return
+      // A stale deploy can 404 this chunk, and nothing catches that: the import
+      // happens in an effect, so no error boundary ever sees it. Falling
+      // through to the sign-in screen would tell somebody who IS signed in that
+      // they are not, which reads as "it logged me out". Reload once instead,
+      // sharing the boundary's guard so this cannot become a loop.
+      if (isChunkLoadError(err) && hasStoredSession() && reloadOnceForChunkError()) return
+      // Anything else — offline on a first load, or the reload already spent.
+      // Stop waiting and show the sign-in screen rather than the spinner.
       setAuthLoading(false)
-      if (session?.user) announceSignupOnce(session.user)
     })
 
-    // Listen for auth changes (login / logout)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-      setErrorUser(session?.access_token)
-      checkAdmin(session)
-      // Announces genuinely NEW accounts only — the helper skips a browser that
-      // has already reported this user, and the server independently refuses
-      // anything but an account created minutes ago.
-      if (session?.user) announceSignupOnce(session.user)
-    })
-
-    return () => subscription.unsubscribe()
+    return () => { cancelled = true; subscription?.unsubscribe() }
   }, [])
 
   async function checkAdmin(session) {
@@ -80,12 +110,14 @@ export default function App() {
     if (session.user.email === ADMIN_EMAIL) { setIsAdmin(true); return }
     // Fallback: check profiles table is_admin flag
     try {
+      const supabase = await getSupabase()
       const { data } = await supabase.from('profiles').select('is_admin').eq('id', session.user.id).single()
       setIsAdmin(data?.is_admin || false)
     } catch { setIsAdmin(false) }
   }
 
   async function handleSignOut() {
+    const supabase = await getSupabase()
     await supabase.auth.signOut()
     setSelectedPet(null)
   }
