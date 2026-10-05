@@ -86,6 +86,10 @@ export default async function handler(req) {
     path:        scrub(body.path, MAX.path),
     build:       scrub(body.build, MAX.build),
     browser:     scrub(body.browser, MAX.browser),
+    // A closed set of two, like `view` above. An unrecognised value -- or one
+    // from a bundle cached before this field existed -- reads as 'uncaught',
+    // which is what every report was before caught faults were wired up.
+    kind:        body.kind === 'handled' ? 'handled' : 'uncaught',
     online:      typeof body.online === 'boolean' ? body.online : null,
     occurred_at: Number.isNaN(Date.parse(body.at)) ? null : new Date(body.at).toISOString(),
   }

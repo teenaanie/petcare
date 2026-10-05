@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { reportHandled } from '../lib/errorReport.js'
 import { AlertTriangle, X, Loader2, Download, Trash2, Check } from 'lucide-react'
 import { getSupabase } from '../lib/supabase.js'
 import {
@@ -102,7 +103,10 @@ export default function DeleteAccount({ user, onClose, onDeleted }) {
           }
         } catch { /* a count we cannot get is not worth blocking on */ }
       })
-      .catch(e => alive && setError(`Could not read your data: ${e.message}`))
+      .catch(e => {
+        reportHandled(e, { view: 'delete-account' })
+        if (alive) setError(`Could not read your data: ${e.message}`)
+      })
       .finally(() => alive && setLoading(false))
     return () => { alive = false }
   }, [])
@@ -138,6 +142,7 @@ export default function DeleteAccount({ user, onClose, onDeleted }) {
       await supabase.auth.signOut().catch(() => {})
       onDeleted?.()
     } catch (e) {
+      reportHandled(e, { view: 'delete-account' })
       setError(e.message)
       setBusy(false)
     }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { reportHandled } from '../lib/errorReport.js'
 import {
   Loader2, Check, Plus, Trash2, RotateCcw, AlertCircle, ClipboardCheck,
   Clock, IndianRupee, Utensils, Package, CloudRain, Info, PawPrint, AlertTriangle,
@@ -90,6 +91,7 @@ function PolicyEditor({ provider, onSaved }) {
       setSaved(true); setTimeout(() => setSaved(false), 2000)
       onSaved({ ...provider, ...updated, boarding_policy: next })
     } catch (e) {
+      reportHandled(e, { view: 'boarding-rules' })
       setError(e.message)
     } finally {
       setSaving(false)
@@ -512,7 +514,7 @@ export default function BoardingRulesPanel() {
   useEffect(() => {
     getBoarders()
       .then(setBoarders)
-      .catch(e => setError(e.message))
+      .catch(e => { reportHandled(e, { view: 'boarding-rules' }); setError(e.message) })
       .finally(() => setLoading(false))
   }, [])
 

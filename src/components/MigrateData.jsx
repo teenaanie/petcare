@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { reportHandled } from '../lib/errorReport.js'
 import { Upload, CheckCircle, AlertCircle, Loader2, Database, X } from 'lucide-react'
 import { getSupabase, isConfigured } from '../lib/supabase.js'
 import { invalidateAll } from '../lib/storage.js'
@@ -139,6 +140,7 @@ export default function MigrateData({ onClose, onDone }) {
         .forEach(k => localStorage.removeItem(k))
     } catch (e) {
       setStatus('error')
+      reportHandled(e, { view: 'migrate-data' })
       setError(e.message)
     }
   }

@@ -15,6 +15,7 @@ import { groupParsed } from '../lib/voiceUpdateRecords.js'
 import { withRetry, isNetworkError } from '../lib/net.js'
 import { suggestName, rememberName } from '../lib/petMeds.js'
 import { friendlyError } from '../lib/errors.js'
+import { reportHandled } from '../lib/errorReport.js'
 import { trackEvent } from '../lib/analytics.js'
 
 // Which storage function each kind writes through, named in the pure module so
@@ -243,8 +244,8 @@ function Review({ parsed, pet, onBack, onSaved }) {
       const left = pending.length - n
       setError(
         n === 0
-          ? `${friendlyError(e)} Nothing was saved — press Save to try again.`
-          : `${friendlyError(e)} ${n} record${n === 1 ? '' : 's'} saved before that, and ${n === 1 ? 'it is' : 'they are'} ticked off below — pressing Save again sends only the remaining ${left}, so nothing is written twice.`)
+          ? `${friendlyError(e, { view: 'voice-update' })} Nothing was saved — press Save to try again.`
+          : `${friendlyError(e, { view: 'voice-update' })} ${n} record${n === 1 ? '' : 's'} saved before that, and ${n === 1 ? 'it is' : 'they are'} ticked off below — pressing Save again sends only the remaining ${left}, so nothing is written twice.`)
       setSaving(false)
     }
   }
@@ -354,7 +355,7 @@ export default function VoiceUpdate({ pet, onClose, onSaved }) {
     setText(prev => (prev.trim() ? `${prev.trim()} ${t}` : t))
   }
 
-  const voice = useVoiceRecorder(append, 'auto')
+  const voice = useVoiceRecorder(append, 'auto', 'voice-update')
 
   async function parse() {
     if (!text.trim()) return
@@ -369,7 +370,13 @@ export default function VoiceUpdate({ pet, onClose, onSaved }) {
           gender: pet.gender, dob: pet.dob, weight: pet.weight,
         },
       }))
-    } catch (e) { setError(e.message) }
+    } catch (e) {
+      // A parse that fails leaves the transcript on screen, so nothing is lost
+      // and the user just sees a message -- which is exactly the shape of fault
+      // that used to leave no trace anywhere.
+      reportHandled(e, { view: 'voice-update' })
+      setError(e.message)
+    }
     finally { setParsing(false) }
   }
 

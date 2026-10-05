@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Users, UserPlus, Trash2, X, Loader2, AlertCircle, Copy, Check } from 'lucide-react'
 import { getSupabase } from '../lib/supabase.js'
 import { trackEvent } from '../lib/analytics.js'
+import { reportHandled } from '../lib/errorReport.js'
 
 // ── Supabase helpers ──────────────────────────────────────────────────────────
 
@@ -96,7 +97,12 @@ export default function PetSharing({ pet, onClose }) {
     setLoading(true)
     getMembers(pet.id)
       .then(setMembers)
-      .catch(e => setError(friendly(e.message)))
+      // The report, not just the message. This exact catch block swallowed
+      // `ReferenceError: Can't find variable: supabase` on every single open of
+      // the share panel -- friendly() passed it through, the user read it, and
+      // because nothing rethrew it window.onerror never fired and client_errors
+      // held no row for it at all. A customer had to report it.
+      .catch(e => { reportHandled(e, { view: 'sharing' }); setError(friendly(e.message)) })
       .finally(() => setLoading(false))
   }
   useEffect(load, [pet.id])
@@ -125,6 +131,7 @@ export default function PetSharing({ pet, onClose }) {
       setEmail('')
       load()
     } catch (err) {
+      reportHandled(err, { view: 'sharing' })
       setInviteErr(friendly(err.message))
     } finally {
       setInviting(false)
@@ -133,7 +140,10 @@ export default function PetSharing({ pet, onClose }) {
 
   async function handleRemove(id) {
     if (!confirm('Remove this person from the pet?')) return
-    await removeMember(id).catch(e => alert(friendly(e.message)))
+    await removeMember(id).catch(e => {
+      reportHandled(e, { view: 'sharing' })
+      alert(friendly(e.message))
+    })
     load()
   }
 

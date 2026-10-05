@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { reportHandled } from '../lib/errorReport.js'
 import { Plus, Trash2, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { getWeightLogs, saveWeightLog, deleteWeightLog } from '../lib/storage.js'
 import { format, parseISO } from 'date-fns'
@@ -96,7 +97,8 @@ export default function WeightLog({ pet }) {
   const [saving, setSaving]     = useState(false)
 
   function load() {
-    getWeightLogs(pet.id).then(setLogs).catch(console.error)
+    getWeightLogs(pet.id).then(setLogs)
+      .catch(e => { console.error(e); reportHandled(e, { view: 'weight' }) })
   }
 
   useEffect(load, [pet.id])

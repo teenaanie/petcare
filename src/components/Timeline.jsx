@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { reportHandled } from '../lib/errorReport.js'
 import { Stethoscope, Syringe, AlertTriangle, Bell, Calendar, CheckCircle, Clock, AlertCircle, TriangleAlert } from 'lucide-react'
 import { getMedicalHistory, getVaccinations, getAllergies, getReminders } from '../lib/storage.js'
 import { format, parseISO, isValid, isBefore, addDays } from 'date-fns'
@@ -252,7 +253,7 @@ export default function Timeline({ pet }) {
       getReminders(pet.id),
     ]).then(([medical, vaccinations, allergies, reminders]) => {
       setEvents(buildEvents(medical, vaccinations, allergies, reminders))
-    }).catch(console.error)
+    }).catch(e => { console.error(e); reportHandled(e, { view: 'timeline' }) })
   }
 
   useEffect(load, [pet.id])

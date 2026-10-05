@@ -3,6 +3,7 @@ import { Share2, ChevronRight, Upload, Camera, FileText, Loader2, CheckCircle, A
 import { saveMedicalRecord, saveVaccination, saveAllergy, saveReminder, saveMedicine, saveBill, saveWeightLog } from '../lib/storage.js'
 import { withRetry } from '../lib/net.js'
 import { friendlyError } from '../lib/errors.js'
+import { reportHandled } from '../lib/errorReport.js'
 import { format, isPast, parseISO } from 'date-fns'
 import { aiComplete } from '../lib/ai.js'
 import { shareTargetLikelySupported } from '../lib/shareTarget.js'
@@ -314,6 +315,10 @@ export default function DocumentScanner({ pet, session, initialFiles = null }) {
         .finally(() => setLoadingQuestions(false))
 
     } catch (e) {
+      // A scan that fails has already cost the user a photo and a wait, so it
+      // is worth knowing about. A quota message or a stopped request is not a
+      // defect and is dropped inside reportHandled.
+      reportHandled(e, { view: 'scanner' })
       setError(e.message)
     } finally {
       setLoading(false)
@@ -344,7 +349,7 @@ export default function DocumentScanner({ pet, session, initialFiles = null }) {
       // "Load failed" is Safari's wording for a dropped request and means
       // nothing to anyone. friendlyError says what actually happened, and logs
       // the original so a real fault is still debuggable.
-      setSaveErrors(e => ({ ...e, [key]: friendlyError(err) }))
+      setSaveErrors(e => ({ ...e, [key]: friendlyError(err, { view: 'scanner' }) }))
     } finally {
       setSavingSet(s => { const n = new Set(s); n.delete(key); return n })
     }

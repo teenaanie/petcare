@@ -5,6 +5,7 @@ import { format, subDays, parseISO, isValid, isAfter } from 'date-fns'
 import { aiComplete } from '../lib/ai.js'
 import { copyText, COPY_FAILED } from '../lib/clipboard.js'
 import { trackEvent } from '../lib/analytics.js'
+import { reportHandled } from '../lib/errorReport.js'
 
 const PERIODS = [
   { label: '2 weeks', days: 14 },
@@ -124,6 +125,7 @@ export default function HealthSummary({ pet, onClose }) {
       setSummary(result)
       trackEvent('health_brief_generated', { species: pet?.species || '' })
     } catch (e) {
+      reportHandled(e, { view: 'health-summary' })
       setError(e.message)
     } finally {
       setLoading(false)

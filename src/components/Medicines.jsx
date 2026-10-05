@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { reportHandled } from '../lib/errorReport.js'
 import { Pill, Plus, Trash2, Check, Clock, AlertCircle, CheckCircle, X } from 'lucide-react'
 import { getMedicines, saveMedicine, deleteMedicine, markMedicineDone } from '../lib/storage.js'
 import { format, parseISO, isValid, isBefore, addDays } from 'date-fns'
@@ -212,7 +213,8 @@ export default function Medicines({ pet }) {
   const [meds, setMeds] = useState([])
   const [showForm, setShowForm] = useState(false)
 
-  function load() { getMedicines(pet.id).then(setMeds).catch(console.error) }
+  function load() { getMedicines(pet.id).then(setMeds)
+      .catch(e => { console.error(e); reportHandled(e, { view: 'medicines' }) }) }
   useEffect(load, [pet.id])
 
   async function handleSave(form) {

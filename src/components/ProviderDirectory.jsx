@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
+import { reportHandled } from '../lib/errorReport.js'
 import { Search, MapPin, Phone, Clock, ExternalLink, MessageCircle, Stethoscope, Scissors, ShoppingBag, Home, Camera, Flower2, Loader2, AlertCircle, ClipboardCheck, ChevronDown, ChevronRight, Footprints, GraduationCap } from 'lucide-react'
 // MapPin used in ProviderCard address row
 import { getProviders, getProviderFacets } from '../lib/storage.js'
@@ -305,7 +306,7 @@ export default function ProviderDirectory({ onPrepForStay }) {
   useEffect(() => {
     getProviderFacets({ area: query.area })
       .then(setFacets)
-      .catch(e => setError(e.message))
+      .catch(e => { reportHandled(e, { view: 'providers' }); setError(e.message) })
   }, [query.area])
 
   // First page — refetched whenever a filter changes
@@ -325,7 +326,7 @@ export default function ProviderDirectory({ onPrepForStay }) {
           results: count || 0,
         })
       })
-      .catch(e => { if (!cancelled) setError(e.message) })
+      .catch(e => { reportHandled(e, { view: 'providers' }); if (!cancelled) setError(e.message) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [query])
@@ -336,6 +337,7 @@ export default function ProviderDirectory({ onPrepForStay }) {
       const { rows } = await getProviders({ ...query, offset: providers.length, limit: PAGE_SIZE })
       setProviders(prev => [...prev, ...rows])
     } catch (e) {
+      reportHandled(e, { view: 'providers' })
       setError(e.message)
     } finally {
       setLoadingMore(false)

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Phone, Mail, MessageSquare, Loader2, AlertCircle, ArrowLeft, CheckCircle } from 'lucide-react'
 import { getSupabase } from '../lib/supabase.js'
+import { reportHandled } from '../lib/errorReport.js'
 import PippyLogo from './PippyLogo.jsx'
 import Landing from './Landing.jsx'
 
@@ -26,6 +27,11 @@ function isNetworkError(err) {
 }
 
 function friendlyAuthError(err) {
+  // Reported here rather than at the three call sites, since every one of them
+  // is a send-or-resend failure the user is about to read. A rate limit, a
+  // dropped connection and "please sign in" are all dropped inside
+  // reportHandled, so what is left is a provider that is actually misbehaving.
+  reportHandled(err, { view: 'sign-in' })
   if (isNetworkError(err)) {
     return "Couldn't reach the server. Check your connection and try again. If you're on patchy mobile data, switching to Wi-Fi usually helps."
   }

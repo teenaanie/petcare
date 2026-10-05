@@ -13,7 +13,8 @@ define('location',  { pathname: '/', search: '?token=abc', hash: '#x' })
 define('__BUILD_ID__', 'abc1234')
 define('window', undefined)
 
-const { scrub, fingerprint, buildReport, reportError } = await import('../src/lib/errorReport.js')
+const { scrub, fingerprint, buildReport, reportError, reportHandled, isExpected } =
+  await import('../src/lib/errorReport.js')
 
 let pass = 0, fail = 0
 const ok = (name, cond, got) => {
@@ -134,6 +135,201 @@ console.log('\nBrowser housekeeping is not a fault')
   ok('a genuine fault still is', sent.length === 1, sent.length)
 
   globalThis.navigator.sendBeacon = realBeacon
+}
+
+console.log('\nA caught fault is reported, and says so')
+{
+  // The bug this whole section exists for. PetSharing's getMembers() threw
+  // this on EVERY open of the share panel, the component caught it and
+  // rendered it, and because nothing rethrew it client_errors held zero rows.
+  // A customer had to report it.
+  const sent = []
+  const realBeacon = globalThis.navigator.sendBeacon
+  globalThis.navigator.sendBeacon = (u, b) => { sent.push(b); return true }
+
+  reportHandled(new ReferenceError("Can't find variable: supabase"), { view: 'sharing' })
+  ok('a caught fault IS reported', sent.length === 1, sent.length)
+
+  globalThis.navigator.sendBeacon = realBeacon
+}
+
+console.log('\nWhich kind of fault it was')
+{
+  ok('a caught-and-shown fault is marked handled',
+     buildReport(new Error('x'), { kind: 'handled' }).kind === 'handled')
+  ok('a crash is marked uncaught',
+     buildReport(new Error('x')).kind === 'uncaught')
+  // Closed like `view`, for the same reason: a caller must not be able to put
+  // arbitrary text in a stored column.
+  ok('an unrecognised kind reads as a crash',
+     buildReport(new Error('x'), { kind: 'Bruno' }).kind === 'uncaught',
+     buildReport(new Error('x'), { kind: 'Bruno' }).kind)
+  ok('the window listeners still report uncaught',
+     buildReport(new Error('x'), { view: 'sharing' }).kind === 'uncaught')
+}
+
+console.log('\nThings the app is MEANT to hit are not faults')
+{
+  // The Errors tab has been made unreadable once already, by three rows of
+  // service worker housekeeping nobody experienced. A catch block fires on far
+  // more than defects, so every one of these has to be dropped or the tab
+  // fills with the ordinary business of using a phone.
+  const expected = [
+    ['a dropped request',        new Error('Load failed')],
+    ['Chrome\'s wording for it', new Error('Failed to fetch')],
+    ['an AI quota',              Object.assign(new Error('Monthly limit reached'), { limitReached: true })],
+    ['a 429',                    Object.assign(new Error('Server error 429'), { status: 429 })],
+    ['a rate limit by wording',  new Error('Email rate limit exceeded')],
+    ['a cancelled request',      Object.assign(new Error('cancelled'), { name: 'AbortError' })],
+    ['a denied microphone',      Object.assign(new Error('Permission denied'), { name: 'NotAllowedError' })],
+    ['no microphone at all',     Object.assign(new Error('No device'), { name: 'NotFoundError' })],
+    ['an empty result',          Object.assign(new Error('no rows returned'), { code: 'PGRST116' })],
+    ['an address already shared', Object.assign(new Error('duplicate key value'), { code: '23505' })],
+    ['an AI call that timed out', new Error('That took longer than 45 seconds and was stopped. Tap to try again.')],
+    ['an unreachable server',    new Error('Could not reach the server. Check your connection and try again.')],
+    ['nobody signed in yet',     new Error('Please sign in to use this feature.')],
+  ]
+  for (const [label, e] of expected) ok(`${label} is not a fault`, isExpected(e), e.message)
+
+  // And the other half: the things that ARE defects must still get through,
+  // or this filter has quietly turned the reporter back off.
+  const faults = [
+    ['the share panel bug',   new ReferenceError("Can't find variable: supabase")],
+    ['an ordinary TypeError', new TypeError("undefined is not an object (evaluating 'pet.name')")],
+    // Looks like an ordinary "no", but a refusal the user READS means the
+    // screen offered an action they were never allowed to take.
+    ['an RLS refusal',        Object.assign(new Error('new row violates row-level security policy'), { code: '42501' })],
+    // A migration nobody ran. Exactly the sort of thing that should not need a
+    // customer to notice it.
+    ['a missing column',      Object.assign(new Error("column pets.colour does not exist"), { code: '42703' })],
+    ['a missing table',       new Error('relation "public.conditions" does not exist (schema cache)')],
+  ]
+  for (const [label, e] of faults) ok(`${label} IS a fault`, !isExpected(e), e.message)
+
+  ok('a missing error is not a fault', isExpected(null) && isExpected(undefined))
+}
+
+console.log('\nBeing offline makes nothing diagnosable')
+{
+  // While offline every request fails for the same uninteresting reason, so
+  // nothing learned from one is worth a row.
+  const online = globalThis.navigator.onLine
+  globalThis.navigator.onLine = false
+  ok('an offline fault is not reported',
+     isExpected(new TypeError('whatever went wrong here')) === true)
+  globalThis.navigator.onLine = online
+  ok('and is again once back online',
+     isExpected(new TypeError('whatever went wrong here')) === false)
+}
+
+console.log('\nExpected conditions never reach the network')
+{
+  const sent = []
+  const realBeacon = globalThis.navigator.sendBeacon
+  globalThis.navigator.sendBeacon = (u, b) => { sent.push(b); return true }
+
+  reportHandled(new Error('Load failed'), { view: 'medical' })
+  reportHandled(Object.assign(new Error('nope'), { name: 'AbortError' }), { view: 'scanner' })
+  reportHandled(Object.assign(new Error('duplicate key value'), { code: '23505' }), { view: 'sharing' })
+  ok('none of them was sent', sent.length === 0, sent.length)
+
+  // Not a swallow-everything filter: a real one still goes.
+  reportHandled(new TypeError("undefined is not an object (evaluating 'r.dueDate')"),
+                { view: 'reminders' })
+  ok('a real fault beside them still goes', sent.length === 1, sent.length)
+
+  // sendBeacon is handed a Blob, so the body has to be read back out of it.
+  const body = JSON.parse(await sent[0].text())
+  ok('and it carries the screen it happened on', body.view === 'reminders', body.view)
+  ok('and says it was shown to the user', body.kind === 'handled', body.kind)
+
+  globalThis.navigator.sendBeacon = realBeacon
+}
+
+console.log('\nreportHandled never becomes the problem itself')
+{
+  // A reporter that throws inside a catch block replaces the message the user
+  // was about to read with a blank screen. That must not be possible.
+  const realBeacon = globalThis.navigator.sendBeacon
+  globalThis.navigator.sendBeacon = () => { throw new Error('beacon exploded') }
+  let threw = false
+  try { reportHandled(new TypeError('a genuine fault with a dead beacon')) }
+  catch { threw = true }
+  ok('a throwing beacon does not escape', !threw)
+  globalThis.navigator.sendBeacon = realBeacon
+}
+
+console.log('\nThe real friendlyError path, which five screens go through')
+{
+  // Not a stand-in for the reporter: this is the function DocumentScanner,
+  // ConditionJournal, VoiceUpdate, NotificationBell and PetAvatar actually
+  // call, and whose return value is the sentence the pet parent reads. If a
+  // report does not leave here, those screens are silent again.
+  const { friendlyError } = await import('../src/lib/errors.js')
+
+  const sent = []
+  const realBeacon = globalThis.navigator.sendBeacon
+  const realError  = console.error
+  globalThis.navigator.sendBeacon = (u, b) => { sent.push(b); return true }
+  console.error = () => {}   // friendlyError logs by design; not under test
+
+  const shown = friendlyError(
+    new TypeError("undefined is not an object (evaluating 'result.vaccinations')"),
+    { view: 'scanner' })
+
+  console.error = realError
+  globalThis.navigator.sendBeacon = realBeacon
+
+  ok('the user still gets a message', /went wrong in the app/.test(shown), shown)
+  ok('and a report was produced too', sent.length === 1, sent.length)
+
+  const body = JSON.parse(await sent[0].text())
+  ok('attributed to the screen it happened on', body.view === 'scanner', body.view)
+  ok('marked as shown to the user, not a crash', body.kind === 'handled', body.kind)
+  ok('posted to the reporting endpoint', !!body.name && !!body.message, body)
+
+  // The other half of the same function: a dropped connection still gets the
+  // user a message and still produces nothing.
+  const quiet = []
+  const b2 = globalThis.navigator.sendBeacon
+  globalThis.navigator.sendBeacon = (u, b) => { quiet.push(b); return true }
+  console.error = () => {}
+  const offlineMsg = friendlyError(new TypeError('Load failed'), { view: 'scanner' })
+  console.error = realError
+  globalThis.navigator.sendBeacon = b2
+
+  ok('a dropped connection still explains itself', /try once more/.test(offlineMsg), offlineMsg)
+  ok('and still reports nothing', quiet.length === 0, quiet.length)
+}
+
+console.log('\nEvery screen name a caller passes is a real one')
+{
+  // The closed set is a defence, but it fails SILENTLY: a typo does not throw,
+  // it reports as 'unknown', and the fault is then unattributable in exactly
+  // the case you came to the dashboard to read. So the call sites are checked
+  // against the set rather than trusted.
+  const { readFileSync, readdirSync } = await import('node:fs')
+  const { join } = await import('node:path')
+
+  const walk = dir => readdirSync(dir, { withFileTypes: true }).flatMap(d =>
+    d.isDirectory() ? walk(join(dir, d.name))
+      : /\.(js|jsx)$/.test(d.name) ? [join(dir, d.name)] : [])
+
+  const source   = readFileSync('src/lib/errorReport.js', 'utf8')
+  const declared = new Set(
+    [...source.matchAll(/const (?:VIEWS) = new Set\(\[([\s\S]*?)\]\)/g)]
+      .flatMap(m => [...m[1].matchAll(/'([a-z-]+)'/g)].map(x => x[1])))
+
+  ok('the closed set was found in the source', declared.size > 10, declared.size)
+
+  const bad = []
+  for (const file of walk('src')) {
+    const text = readFileSync(file, 'utf8')
+    for (const m of text.matchAll(/view:\s*'([^']*)'/g)) {
+      if (!declared.has(m[1])) bad.push(`${file}: '${m[1]}'`)
+    }
+  }
+  ok('no caller passes a view the set does not know', bad.length === 0, bad)
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`)

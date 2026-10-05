@@ -21,6 +21,8 @@
 // saw nothing wrong with it. So `view` below is a CLOSED SET, not a string —
 // an unrecognised value is dropped rather than forwarded.
 
+import { isNetworkError } from './net.js'
+
 const MAX_PER_SESSION = 10      // an error inside a render loop must not flood
 
 // Browser housekeeping that fails in ways nobody experiences.
@@ -51,7 +53,30 @@ const VIEWS = new Set([
   'scanner', 'reminders', 'boarding', 'voice-update', 'voice-intake',
   'health-summary', 'emergency-card', 'sharing', 'providers', 'my-providers',
   'admin', 'provider-registration', 'shared-import', 'unknown',
+  // Added when the caught-error paths were wired up: each of these screens
+  // shows a fault in its own UI, so a report from one needs somewhere to say
+  // so. A name is added here rather than passed as free text, for the reason
+  // at the top of this file.
+  'delete-account', 'migrate-data', 'notifications', 'boarding-rules',
+  'pet-photo',
 ])
+
+// How a report reached us. Two values, and deliberately a closed set like
+// `view` above rather than a free label.
+//
+//   'uncaught'  nobody handled it: the window-level listeners below caught it,
+//               or an error boundary did. These produce a white screen.
+//   'handled'   a component caught it and showed the user a message. The
+//               feature failed but the app stayed up.
+//
+// The distinction is worth storing because for a year the Errors tab held only
+// the first kind, which are the MINORITY. The PetSharing bug below broke the
+// share panel on every single open and left zero rows, because getMembers()
+// threw, the component caught it and rendered it, and window.onerror never
+// fired. A customer had to report it. On the dashboard these two want reading
+// differently: an uncaught fault is an outage, a handled one is a feature that
+// is quietly broken for everybody who tries it.
+const KINDS = new Set(['uncaught', 'handled'])
 
 /**
  * Strip anything that could identify a person or their animal.
@@ -106,7 +131,7 @@ export function fingerprint({ name, message, stack }) {
 }
 
 /** What actually gets sent. Exported so a test can assert on it directly. */
-export function buildReport(error, { view } = {}) {
+export function buildReport(error, { view, kind } = {}) {
   const e = error || {}
   return {
     name:    String(e.name || 'Error').slice(0, 60),
@@ -114,6 +139,9 @@ export function buildReport(error, { view } = {}) {
     stack:   scrub(e.stack).slice(0, MAX_STACK),
     // A closed set, never a free string. See the note at the top of this file.
     view:    VIEWS.has(view) ? view : 'unknown',
+    // Likewise closed. Anything unrecognised is treated as uncaught, which is
+    // the pessimistic reading and the one that was true before this existed.
+    kind:    KINDS.has(kind) ? kind : 'uncaught',
     // Only the path, never the query or the hash.
     path:    String(location.pathname || '/').slice(0, 80),
     build:   typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev',
@@ -157,7 +185,10 @@ export function reportError(error, opts = {}) {
     if (sentCount >= MAX_PER_SESSION) return
     const raw = String(error?.message || error || '')
     if (IGNORED.some(re => re.test(raw))) return
-    const report = buildReport(error, { view: opts.view || currentView })
+    const report = buildReport(error, {
+      view: opts.view || currentView,
+      kind: opts.kind,
+    })
     const fp = fingerprint(error || {})
     if (seen.has(fp)) return
     seen.add(fp)
@@ -177,6 +208,106 @@ export function reportError(error, opts = {}) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body, keepalive: true,
     }).catch(() => { /* reporting is best effort */ })
+  } catch { /* never let the reporter break the app */ }
+}
+
+// ── Faults a component caught and showed the user ───────────────────────────
+//
+// reportError above is reached by the window-level listeners, so for a year it
+// saw only crashes. The faults that reach a person as a red message in the UI
+// never reached it at all, and those are the majority.
+//
+// So this exists, and the only hard part is the filter. The Errors tab has
+// already been made unreadable once -- its first three rows were all service
+// worker housekeeping nobody experienced -- and a catch block fires on far
+// more than defects. Everything below is a condition the app is SUPPOSED to
+// hit, which a pet parent causes in the ordinary course of using Pippy, and
+// which there is nothing to fix about.
+
+// DOMException names that mean a device or a person said no, not that the code
+// is wrong. A denied microphone permission is a choice; a missing microphone is
+// a laptop.
+const EXPECTED_NAMES = new Set([
+  'AbortError', 'NotAllowedError', 'NotFoundError', 'NotReadableError',
+  'OverconstrainedError', 'SecurityError',
+])
+
+// Postgres and PostgREST answers that are a "no", not a breakage.
+//   PGRST116  no rows where one was expected -- an empty result
+//   23505     unique violation: "that email already has access to this pet"
+//   23514     check violation: a value the schema refuses, i.e. validation
+const EXPECTED_CODES = new Set(['PGRST116', '23505', '23514'])
+
+const EXPECTED_MESSAGES = [
+  // Rate limits and quotas. Hitting the OpenAI cap is the cap working.
+  /\b429\b|too many requests|rate limit|quota (exceeded|reached)|limit reached/i,
+  // Somebody closed the sheet, or the browser stopped a request we started.
+  /\bcancell?ed\b|\baborted\b|user denied|permission (denied|dismissed) by/i,
+  // ai.js rewrites its own timeout into this. A 45-second AI call that does not
+  // come back on a phone train is the network, not a defect.
+  /took longer than \d+ seconds/i,
+  // ai.js rewrites an unreachable server into this before it is ever thrown,
+  // so isNetworkError() cannot see the original TypeError any more.
+  /could not reach the server/i,
+  // Nobody is signed in yet. Expected on every first load of a protected view.
+  /please sign in|not authenticated|no session|jwt expired/i,
+]
+
+/**
+ * Whether a caught error is a condition the app is meant to hit.
+ *
+ * Exported so a test can pin each case down: the cost of getting this wrong is
+ * a dashboard nobody reads, which is the same as no dashboard.
+ *
+ * Two things are deliberately NOT treated as expected, because both look like
+ * an ordinary "no" and neither is:
+ *
+ *   A permissions or row-level-security refusal. A refusal that reaches the
+ *   user means the screen offered an action they were never allowed to take,
+ *   and that is a bug in the screen.
+ *
+ *   A missing table or column ("schema cache", "does not exist"). That is a
+ *   migration nobody ran, which is exactly the sort of thing that should not
+ *   need a customer to notice it.
+ */
+export function isExpected(error) {
+  if (!error) return true
+
+  // Offline is not a defect, and while offline NOTHING is diagnosable -- every
+  // request fails for the same uninteresting reason.
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return true
+
+  // A request that got no reply. Already excluded from friendlyError() for the
+  // same reason: this is the normal weather of a phone, and reporting it would
+  // bury the real faults under thousands of rows of "the wifi went".
+  if (isNetworkError(error)) return true
+
+  // ai.js sets this when the server says the usage cap is reached.
+  if (error.limitReached) return true
+
+  if (EXPECTED_NAMES.has(error.name)) return true
+  if (error.code && EXPECTED_CODES.has(String(error.code))) return true
+  if (error.status === 429 || error.statusCode === 429) return true
+
+  const msg = String(error.message || error)
+  return EXPECTED_MESSAGES.some(re => re.test(msg))
+}
+
+/**
+ * Report a fault that a component caught and showed to the user.
+ *
+ * Call this from a catch block that sets a user-visible error state -- next to
+ * the setError(), not instead of it. Conditions the app is meant to hit are
+ * dropped here rather than at each call site, so a caller does not have to
+ * remember the list; a caller's own validation message is not an error object
+ * and should never be passed in at all.
+ *
+ * Never throws: it is wrapped exactly as reportError is.
+ */
+export function reportHandled(error, opts = {}) {
+  try {
+    if (isExpected(error)) return
+    reportError(error, { ...opts, kind: 'handled' })
   } catch { /* never let the reporter break the app */ }
 }
 

@@ -139,7 +139,7 @@ export default function PetAvatar({ pet, size = 'md', editable = false, onPhotoC
       // This is where "TypeError: Load failed" was going: nowhere. The whole
       // handler was unguarded, so a failed save became an unhandled rejection
       // and the user saw the old photo with no explanation.
-      setPhotoError(friendlyError(err))
+      setPhotoError(friendlyError(err, { view: 'pet-photo' }))
     } finally {
       setBusy(false)
     }

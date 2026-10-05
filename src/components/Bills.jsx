@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { reportHandled } from '../lib/errorReport.js'
 import { Receipt, Plus, Trash2, ChevronDown, ChevronUp, X, TrendingUp } from 'lucide-react'
 import { getBills, saveBill, deleteBill } from '../lib/storage.js'
 import { format, parseISO, isValid } from 'date-fns'
@@ -283,7 +284,8 @@ export default function Bills({ pet }) {
   const [bills, setBills] = useState([])
   const [showForm, setShowForm] = useState(false)
 
-  function load() { getBills(pet.id).then(setBills).catch(console.error) }
+  function load() { getBills(pet.id).then(setBills)
+      .catch(e => { console.error(e); reportHandled(e, { view: 'bills' }) }) }
   useEffect(load, [pet.id])
 
   async function handleSave(form) {
