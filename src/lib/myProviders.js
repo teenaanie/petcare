@@ -15,7 +15,7 @@
 // pet_id null means the whole household; set means that pet overrides the
 // household choice, for a pet that sees its own specialist.
 
-import { supabase, isConfigured } from './supabase.js'
+import { getSupabase, isConfigured } from './supabase.js'
 
 const KEY = 'mypetcare_user_providers'   // localStorage fallback, as elsewhere
 
@@ -47,6 +47,7 @@ function toRow(p, userId) {
 
 export async function getMyProviders() {
   if (!isConfigured) return lsGet()
+  const supabase = await getSupabase()
   const { data, error } = await supabase
     .from('user_providers').select('*')
     .order('category').order('is_primary', { ascending: false }).order('name')
@@ -59,7 +60,7 @@ export async function getMyProviders() {
  * the old one first turns what would be a constraint violation into the
  * behaviour a user expects: picking a new primary demotes the previous one.
  */
-async function clearPrimary(userId, category, petId, exceptId) {
+async function clearPrimary(supabase, userId, category, petId, exceptId) {
   let q = supabase.from('user_providers')
     .update({ is_primary: false })
     .eq('user_id', userId).eq('category', category).eq('is_primary', true)
@@ -84,10 +85,11 @@ export async function saveMyProvider(p) {
     return all[idx >= 0 ? idx : all.length - 1]
   }
 
+  const supabase = await getSupabase()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Please sign in.')
 
-  if (p.isPrimary) await clearPrimary(user.id, p.category, p.petId, p.id)
+  if (p.isPrimary) await clearPrimary(supabase, user.id, p.category, p.petId, p.id)
 
   const row = toRow(p, user.id)
   const q = p.id
@@ -107,6 +109,7 @@ export async function saveMyProvider(p) {
 
 export async function deleteMyProvider(id) {
   if (!isConfigured) { lsSet(lsGet().filter(r => r.id !== id)); return }
+  const supabase = await getSupabase()
   const { error } = await supabase.from('user_providers').delete().eq('id', id)
   if (error) throw error
 }

@@ -8,7 +8,7 @@
 // Callers pass structured data; the server composes the prompt. See
 // api/_lib/ai-complete.js.
 
-import { supabase } from './supabase.js'
+import { getSupabase } from './supabase.js'
 import { transcriptionPrompt } from './petMeds.js'
 
 // The proxies need to know who is asking, both to reject anonymous callers and
@@ -17,7 +17,8 @@ import { transcriptionPrompt } from './petMeds.js'
 // through every component that wants an AI feature.
 async function authHeaders(session) {
   let token = session?.access_token
-  if (!token && supabase) {
+  const supabase = !token ? await getSupabase() : null
+  if (supabase) {
     const { data } = await supabase.auth.getSession()
     token = data?.session?.access_token
   }

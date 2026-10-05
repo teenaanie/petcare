@@ -1,6 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { Edit2, Trash2, Calendar, Weight, Phone, Sparkles, ShieldAlert, Users, Mic, Loader2 } from 'lucide-react'
-import { supabase, isConfigured } from '../lib/supabase.js'
+import { getSupabase, isConfigured } from '../lib/supabase.js'
 import { prefetchTab } from '../lib/prefetchTab.js'
 function ModalLoading() {
   return (
@@ -197,10 +197,12 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
   const [session, setSession]             = useState(null)
 
   useEffect(() => {
-    // `supabase` is null when the app is running on localStorage only, so this
-    // has to be guarded — otherwise opening any pet throws before it renders.
+    // getSupabase() resolves to null when the app is running on localStorage
+    // only, so this has to be guarded — otherwise opening any pet throws
+    // before it renders.
     if (!isConfigured) return
-    supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
+    getSupabase().then(supabase => supabase.auth.getSession())
+      .then(({ data: { session } }) => setSession(session))
   }, [])
 
   async function handleDelete() {

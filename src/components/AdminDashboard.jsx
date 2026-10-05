@@ -4,7 +4,7 @@ import { getAdminUsers, getPets, getMedicalHistory, getVaccinations, getMedicine
 import PetAvatar from './PetAvatar.jsx'
 import BoardingRulesPanel from './BoardingRulesPanel.jsx'
 import { PROVIDER_TYPES, SERVICES, SPECIALIZATIONS } from '../lib/taxonomy.js'
-import { supabase } from '../lib/supabase.js'
+import { getSupabase } from '../lib/supabase.js'
 import { THRESHOLDS, breaches, pctOf, byWeek, MB } from '../lib/usageLimits.js'
 
 // ── User Card ────────────────────────────────────────────────────────────────
@@ -451,6 +451,7 @@ function UsagePanel() {
     let alive = true
     async function load() {
       try {
+        const supabase = await getSupabase()
         const { data, error: e } = await supabase.rpc('get_usage_metrics_for_admin')
         if (e) throw e
         const row = Array.isArray(data) ? data[0] : data
@@ -552,7 +553,8 @@ function ErrorsPanel() {
   useEffect(() => {
     let alive = true
     setLoading(true)
-    supabase.rpc('get_client_errors_for_admin', { days })
+    getSupabase()
+      .then(supabase => supabase.rpc('get_client_errors_for_admin', { days }))
       .then(({ data, error: e }) => {
         if (!alive) return
         if (e) throw e

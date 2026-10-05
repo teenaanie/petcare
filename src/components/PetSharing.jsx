@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Users, UserPlus, Trash2, X, Loader2, AlertCircle, Copy, Check } from 'lucide-react'
-import { supabase } from '../lib/supabase.js'
+import { getSupabase } from '../lib/supabase.js'
 import { trackEvent } from '../lib/analytics.js'
 
 // ── Supabase helpers ──────────────────────────────────────────────────────────
@@ -24,6 +24,7 @@ async function inviteMember(petId, email, role = 'viewer') {
   // The new row's id comes back because the invite email is sent by id: the
   // server re-reads the row and emails the address IT finds, rather than one
   // passed in a request body.
+  const supabase = await getSupabase()
   const { data, error } = await supabase.from('pet_members').insert({
     pet_id: petId,
     email,
@@ -42,6 +43,7 @@ async function inviteMember(petId, email, role = 'viewer') {
  */
 async function sendInviteEmail(memberId) {
   try {
+    const supabase = await getSupabase()
     const { data } = await supabase.auth.getSession()
     const token = data?.session?.access_token
     if (!token) return { sent: false }
@@ -72,6 +74,7 @@ function friendly(message = '') {
 }
 
 async function removeMember(memberId) {
+  const supabase = await getSupabase()
   const { error } = await supabase.from('pet_members').delete().eq('id', memberId)
   if (error) throw error
 }

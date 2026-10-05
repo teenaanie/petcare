@@ -1,7 +1,7 @@
 // storage.js — uses Supabase when configured, falls back to localStorage.
 // This means all devices stay in sync automatically once Supabase is connected.
 
-import { supabase, isConfigured } from './supabase.js'
+import { getSupabase, isConfigured } from './supabase.js'
 import { deletePetPhotos } from './conditions.js'
 import { createReadCache } from './readCache.js'
 
@@ -50,6 +50,7 @@ export { installAwayInvalidation }
 export const getPets = (filterUserId = null) => cached('pets', filterUserId, () => _getPets(filterUserId))
 async function _getPets(filterUserId = null) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     let q = supabase.from('pets').select('*').order('created_at', { ascending: false })
     if (filterUserId) q = q.eq('user_id', filterUserId)
     const { data, error } = await q
@@ -61,6 +62,7 @@ async function _getPets(filterUserId = null) {
 
 export async function getAdminUsers() {
   if (!isConfigured) return []
+  const supabase = await getSupabase()
   const { data, error } = await supabase.rpc('get_all_users_for_admin')
   if (error) throw error
   return data || []
@@ -69,6 +71,7 @@ export async function getAdminUsers() {
 export const savePet = (pet) => bust('pets', () => _savePet(pet))
 async function _savePet(pet) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     const { data: { user } } = await supabase.auth.getUser()
     const row = { ...toSnake(pet) }
     // Only set user_id on insert (don't overwrite on update)
@@ -102,6 +105,7 @@ async function _savePet(pet) {
 export const deletePet = (id) => bust('*', () => _deletePet(id))
 async function _deletePet(id) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     // Photos first, and the row only if they went. Deleting the row cascades
     // the condition threads that name these files, so doing it the other way
     // round would leave images in the bucket with nothing pointing at them —
@@ -123,6 +127,7 @@ async function _deletePet(id) {
 export const getMedicalHistory = (petId) => cached('medical_records', petId, () => _getMedicalHistory(petId))
 async function _getMedicalHistory(petId) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     let q = supabase.from('medical_records').select('*').order('date', { ascending: false, nullsFirst: false })
     if (petId) q = q.eq('pet_id', petId)
     const { data, error } = await q
@@ -136,6 +141,7 @@ async function _getMedicalHistory(petId) {
 export const saveMedicalRecord = (record) => bust('medical_records', () => _saveMedicalRecord(record))
 async function _saveMedicalRecord(record) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     const row = {
       pet_id:        record.petId,
       date:          record.date || null,
@@ -171,6 +177,7 @@ async function _saveMedicalRecord(record) {
 export const deleteMedicalRecord = (id) => bust('medical_records', () => _deleteMedicalRecord(id))
 async function _deleteMedicalRecord(id) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     const { error } = await supabase.from('medical_records').delete().eq('id', id)
     if (error) throw error
     return
@@ -183,6 +190,7 @@ async function _deleteMedicalRecord(id) {
 export const getVaccinations = (petId) => cached('vaccinations', petId, () => _getVaccinations(petId))
 async function _getVaccinations(petId) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     let q = supabase.from('vaccinations').select('*').order('date_given', { ascending: false, nullsFirst: false })
     if (petId) q = q.eq('pet_id', petId)
     const { data, error } = await q
@@ -196,6 +204,7 @@ async function _getVaccinations(petId) {
 export const markVaccinationDone = (id, isDone) => bust('vaccinations', () => _markVaccinationDone(id, isDone))
 async function _markVaccinationDone(id, isDone) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     const { data, error } = await supabase.from('vaccinations').update({ is_done: isDone }).eq('id', id).select().single()
     if (error) throw error
     return fromSnakeVax(data)
@@ -208,6 +217,7 @@ async function _markVaccinationDone(id, isDone) {
 export const saveVaccination = (record) => bust('vaccinations', () => _saveVaccination(record))
 async function _saveVaccination(record) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     const row = {
       pet_id:       record.petId,
       name:         record.name,
@@ -242,6 +252,7 @@ async function _saveVaccination(record) {
 export const deleteVaccination = (id) => bust('vaccinations', () => _deleteVaccination(id))
 async function _deleteVaccination(id) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     const { error } = await supabase.from('vaccinations').delete().eq('id', id)
     if (error) throw error
     return
@@ -254,6 +265,7 @@ async function _deleteVaccination(id) {
 export const getAllergies = (petId) => cached('allergies', petId, () => _getAllergies(petId))
 async function _getAllergies(petId) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     let q = supabase.from('allergies').select('*').order('created_at', { ascending: false })
     if (petId) q = q.eq('pet_id', petId)
     const { data, error } = await q
@@ -267,6 +279,7 @@ async function _getAllergies(petId) {
 export const saveAllergy = (record) => bust('allergies', () => _saveAllergy(record))
 async function _saveAllergy(record) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     const row = {
       pet_id:        record.petId,
       allergen:      record.allergen,
@@ -300,6 +313,7 @@ async function _saveAllergy(record) {
 export const deleteAllergy = (id) => bust('allergies', () => _deleteAllergy(id))
 async function _deleteAllergy(id) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     const { error } = await supabase.from('allergies').delete().eq('id', id)
     if (error) throw error
     return
@@ -312,6 +326,7 @@ async function _deleteAllergy(id) {
 export const getReminders = (petId) => cached('reminders', petId, () => _getReminders(petId))
 async function _getReminders(petId) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     let q = supabase.from('reminders').select('*').order('due_date', { ascending: true, nullsFirst: false })
     if (petId) q = q.eq('pet_id', petId)
     const { data, error } = await q
@@ -347,6 +362,7 @@ async function _markReminderDone(id, isDone) {
 export const saveReminder = (record) => bust('reminders', () => _saveReminder(record))
 async function _saveReminder(record) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     const row = {
       pet_id:    record.petId,
       type:      record.type,
@@ -381,6 +397,7 @@ async function _saveReminder(record) {
 export const deleteReminder = (id) => bust('reminders', () => _deleteReminder(id))
 async function _deleteReminder(id) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     const { error } = await supabase.from('reminders').delete().eq('id', id)
     if (error) throw error
     return
@@ -393,6 +410,7 @@ async function _deleteReminder(id) {
 export const getWeightLogs = (petId) => cached('weight_logs', petId, () => _getWeightLogs(petId))
 async function _getWeightLogs(petId) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     let q = supabase.from('weight_logs').select('*').order('date', { ascending: true })
     if (petId) q = q.eq('pet_id', petId)
     const { data, error } = await q
@@ -406,6 +424,7 @@ async function _getWeightLogs(petId) {
 export const saveWeightLog = (log) => bust('weight_logs', () => _saveWeightLog(log))
 async function _saveWeightLog(log) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     const row = { pet_id: log.petId, date: log.date, weight: parseFloat(log.weight), notes: log.notes || null }
     if (log.id) {
       const { data, error } = await supabase.from('weight_logs').update(row).eq('id', log.id).select().single()
@@ -431,6 +450,7 @@ async function _saveWeightLog(log) {
 export const deleteWeightLog = (id) => bust('weight_logs', () => _deleteWeightLog(id))
 async function _deleteWeightLog(id) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     const { error } = await supabase.from('weight_logs').delete().eq('id', id)
     if (error) throw error
     return
@@ -443,6 +463,7 @@ async function _deleteWeightLog(id) {
 export const getMedicines = (petId) => cached('medicines', petId, () => _getMedicines(petId))
 async function _getMedicines(petId) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     let q = supabase.from('medicines').select('*').order('start_date', { ascending: false, nullsFirst: false })
     if (petId) q = q.eq('pet_id', petId)
     const { data, error } = await q
@@ -456,6 +477,7 @@ async function _getMedicines(petId) {
 export const saveMedicine = (med) => bust('medicines', () => _saveMedicine(med))
 async function _saveMedicine(med) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     const row = {
       pet_id: med.petId, name: med.name, dosage: med.dosage || null,
       frequency: med.frequency || null, category: med.category || 'Other',
@@ -486,13 +508,14 @@ async function _saveMedicine(med) {
 
 export const deleteMedicine = (id) => bust('medicines', () => _deleteMedicine(id))
 async function _deleteMedicine(id) {
-  if (isConfigured) { const { error } = await supabase.from('medicines').delete().eq('id', id); if (error) throw error; return }
+  if (isConfigured) { const supabase = await getSupabase(); const { error } = await supabase.from('medicines').delete().eq('id', id); if (error) throw error; return }
   lsSet(KEYS.medicines, lsGet(KEYS.medicines).filter(r => r.id !== id))
 }
 
 export const markMedicineDone = (id, isDone) => bust('medicines', () => _markMedicineDone(id, isDone))
 async function _markMedicineDone(id, isDone) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     const { data, error } = await supabase.from('medicines').update({ is_done: isDone }).eq('id', id).select().single()
     if (error) throw error
     return fromSnakeMedicine(data)
@@ -507,6 +530,7 @@ async function _markMedicineDone(id, isDone) {
 export const getBills = (petId) => cached('bills', petId, () => _getBills(petId))
 async function _getBills(petId) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     let q = supabase.from('bills').select('*').order('date', { ascending: false, nullsFirst: false })
     if (petId) q = q.eq('pet_id', petId)
     const { data, error } = await q
@@ -520,6 +544,7 @@ async function _getBills(petId) {
 export const saveBill = (bill) => bust('bills', () => _saveBill(bill))
 async function _saveBill(bill) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     const row = {
       pet_id: bill.petId, date: bill.date || null, clinic: bill.clinic || null,
       invoice_number: bill.invoiceNumber || null, line_items: bill.lineItems || [],
@@ -549,12 +574,13 @@ async function _saveBill(bill) {
 
 export const deleteBill = (id) => bust('bills', () => _deleteBill(id))
 async function _deleteBill(id) {
-  if (isConfigured) { const { error } = await supabase.from('bills').delete().eq('id', id); if (error) throw error; return }
+  if (isConfigured) { const supabase = await getSupabase(); const { error } = await supabase.from('bills').delete().eq('id', id); if (error) throw error; return }
   lsSet(KEYS.bills, lsGet(KEYS.bills).filter(r => r.id !== id))
 }
 
 export async function getFeedback() {
   if (!isConfigured) return []
+  const supabase = await getSupabase()
   const { data, error } = await supabase
     .from('feedback')
     .select('*')
@@ -577,6 +603,7 @@ export async function getProviders({
   offset = 0,
 } = {}) {
   if (!isConfigured) return { rows: [], count: 0 }
+  const supabase = await getSupabase()
 
   const { data, error } = await supabase.rpc('search_providers', {
     approved_only: approvedOnly,
@@ -596,6 +623,7 @@ export async function getProviders({
 
 export async function getProviderFacets({ approvedOnly = true, area = null } = {}) {
   if (!isConfigured) return { total: 0, types: {}, areas: [] }
+  const supabase = await getSupabase()
   const { data, error } = await supabase.rpc('provider_facets', {
     approved_only: approvedOnly,
     filter_area: area,
@@ -607,6 +635,7 @@ export async function getProviderFacets({ approvedOnly = true, area = null } = {
 export const saveProvider = (provider) => bust('boarders', () => _saveProvider(provider))
 async function _saveProvider(provider) {
   if (!isConfigured) return provider
+  const supabase = await getSupabase()
   const { id, ...rest } = provider
   if (id) {
     const { data, error } = await supabase.from('providers').update(rest).eq('id', id).select().single()
@@ -621,6 +650,7 @@ async function _saveProvider(provider) {
 export const deleteProvider = (id) => bust('boarders', () => _deleteProvider(id))
 async function _deleteProvider(id) {
   if (!isConfigured) return
+  const supabase = await getSupabase()
   const { error } = await supabase.from('providers').delete().eq('id', id)
   if (error) throw error
 }
@@ -635,6 +665,7 @@ async function _deleteProvider(id) {
 export const getBoardingTrips = (petId) => cached('boarding_trips', petId, () => _getBoardingTrips(petId))
 async function _getBoardingTrips(petId) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     let q = supabase.from('boarding_trips').select('*').order('start_date', { ascending: false, nullsFirst: false })
     if (petId) q = q.eq('pet_id', petId)
     const { data, error } = await q
@@ -648,6 +679,7 @@ async function _getBoardingTrips(petId) {
 export const saveBoardingTrip = (trip) => bust('boarding_trips', () => _saveBoardingTrip(trip))
 async function _saveBoardingTrip(trip) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     const row = {
       pet_id:        trip.petId,
       provider_id:   trip.providerId || null,
@@ -685,6 +717,7 @@ async function _saveBoardingTrip(trip) {
 export const deleteBoardingTrip = (id) => bust('boarding_trips', () => _deleteBoardingTrip(id))
 async function _deleteBoardingTrip(id) {
   if (isConfigured) {
+    const supabase = await getSupabase()
     const { error } = await supabase.from('boarding_trips').delete().eq('id', id)
     if (error) throw error
     return
