@@ -101,6 +101,11 @@ Each one is idempotent, so re-running is safe:
 | `provider_accounts.sql` | Provider sign-in: `provider_accounts`, `is_provider_member()`, `email_is_mine()`, and the claim RPCs |
 | `provider_feedback.sql` | `feedback.provider_id` and `is_provider_claimant()`, so a provider — including a suspended one — can send a message |
 
+`npm run test:provider-alert` covers the serverless function that emails the
+admins when a business sends one of those messages. It needs no database and no
+network: it stands up a stand-in for Supabase and intercepts the outbound mail,
+so it asserts on what was actually sent rather than on a status code.
+
 The last two have a harness, so you do not have to take their policies on
 trust. It builds a throwaway PostgreSQL 16, runs both files against it, and then
 attacks the policies as `anon` and as `authenticated`:

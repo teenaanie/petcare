@@ -14,8 +14,14 @@
 --
 -- This file puts it under version control and moves the list into a table, so
 -- approving a provider claim stops being a thing only one person can ever do.
--- Behaviour is unchanged on the day it runs: the seed below inserts exactly the
--- address the old body hardcoded.
+-- On the day it first ran, behaviour was unchanged: the seed inserted exactly
+-- the address the old body hardcoded. It now seeds a second one.
+--
+-- Being in this table is not a small thing. It confers read of EVERY user's
+-- email and phone through get_all_users_for_admin(), and read of every pet,
+-- medical record, vaccination, medicine and bill in the database through the
+-- "Admin reads all ..." policies on those tables. Add an address here only for
+-- someone who should have all of that.
 --
 -- Read this before changing anything here. is_admin() is SECURITY DEFINER and
 -- already gates get_all_users_for_admin(), which returns EVERY user's email and
@@ -56,8 +62,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS admins_email_uniq
 INSERT INTO public.admins (user_id, email, note)
 SELECT (SELECT u.id FROM auth.users u WHERE lower(u.email::text) = lower(seed.addr) LIMIT 1),
        seed.addr,
-       'Seeded from the address is_admin() hardcoded before this file existed.'
-FROM (VALUES ('teena.anie9@gmail.com')) AS seed(addr)
+       seed.note
+FROM (VALUES
+  ('teena.anie9@gmail.com', 'Seeded from the address is_admin() hardcoded before this file existed.'),
+  ('tins08@gmail.com',      'Added 2026-10-05 at the owner''s request.')
+) AS seed(addr, note)
 WHERE NOT EXISTS (
   SELECT 1 FROM public.admins a WHERE lower(a.email) = lower(seed.addr)
 );
@@ -198,6 +207,11 @@ CREATE POLICY admins_select ON public.admins
 -- Checked on the LIVE project after applying, 2026-10-03:
 --
 --   seeded row is bound by user_id, not email ........ true (the owner's uuid)
+--   second admin added 2026-10-05 .................... tins08@gmail.com, bound
+--                                                      by user_id; is_admin()
+--                                                      true for them, and
+--                                                      get_all_users_for_admin()
+--                                                      returns rows
 --   is_admin() as the owner .......................... true
 --   is_admin() as another signed-in user ............. false
 --   is_admin() as anonymous .......................... false, NOT an error

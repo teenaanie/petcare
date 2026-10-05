@@ -29,12 +29,40 @@ export default function ProviderFeedback({ userId, providerId, context, open: in
   const [done, setDone]       = useState(false)
   const [error, setError]     = useState(null)
 
+  // Tell the admins a message arrived. Deliberately after the insert and
+  // deliberately unable to fail the send: the row is already saved, and a
+  // provider appealing a suspension should not be told their appeal failed
+  // because an email did. Worst case the message waits to be seen, which is
+  // exactly where it was before this existed.
+  async function alertAdmins(feedbackId) {
+    try {
+      const { data: { session } } = await supabaseProvider.auth.getSession()
+      if (!session) return
+      await fetch('/api/notify-provider-feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ feedbackId }),
+      })
+    } catch (err) {
+      console.error('Could not alert the admins about this message:', err.message)
+    }
+  }
+
   async function submit(e) {
     e.preventDefault()
     if (!message.trim() || saving) return
     setSaving(true); setError(null)
     try {
+      // The id is generated here rather than read back, because `feedback` has
+      // no SELECT policy for the person writing the row — it is admin-only — so
+      // .insert().select() would come back empty. The notifier needs an id to
+      // look up, and this is the only way to know it.
+      const id = crypto.randomUUID()
       const { error } = await supabaseProvider.from('feedback').insert({
+        id,
         user_id:     userId,
         provider_id: providerId ?? null,
         category:    `Provider · ${context}`,
@@ -43,6 +71,7 @@ export default function ProviderFeedback({ userId, providerId, context, open: in
       if (error) throw error
       setDone(true)
       setMessage('')
+      alertAdmins(id)
     } catch (err) {
       // Surfaced, not swallowed. A provider appealing a suspension needs to know
       // whether their message actually went anywhere.

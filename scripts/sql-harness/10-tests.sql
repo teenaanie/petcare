@@ -65,7 +65,11 @@ END $$;
 -- Positive first: prove the identity and role plumbing works at all.
 SELECT t_scalar('owner calls is_admin()',                  'authenticated', '11111111-1111-1111-1111-111111111111', 'select public.is_admin()::text',  'true');
 SELECT t_scalar('owner is bound by user_id, not email',     'authenticated', '11111111-1111-1111-1111-111111111111', 'select (a.user_id is not null)::text from public.admins a limit 1', 'true');
-SELECT t_run   ('owner selects admins',                     'authenticated', '11111111-1111-1111-1111-111111111111', 'select * from public.admins',     'ok:1');
+SELECT t_run   ('an admin sees both admin rows',           'authenticated', '11111111-1111-1111-1111-111111111111', 'select * from public.admins',     'ok:2');
+SELECT t_scalar('every admin row is bound by user_id',    'authenticated', '11111111-1111-1111-1111-111111111111',
+                $q$select (count(*) = 0)::text from public.admins where user_id is null$q$, 'true');
+SELECT t_scalar('the second admin is also an admin',      'authenticated', '55555555-5555-5555-5555-555555555555',
+                'select public.is_admin()::text', 'true');
 
 SELECT t_scalar('another signed-in user calls is_admin()',   'authenticated', '33333333-3333-3333-3333-333333333333', 'select public.is_admin()::text',  'false');
 SELECT t_scalar('anonymous calls is_admin()',               'anon',          NULL,                                   'select public.is_admin()::text',  'false');
