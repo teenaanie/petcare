@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { PawPrint, Plus, Stethoscope, Syringe, AlertTriangle, FileText, Bell, ChevronLeft, GitBranch, Upload, TrendingUp, ChevronRight, Pill, Receipt, LogOut, ShieldCheck, Store, Home, Camera, Heart } from 'lucide-react'
 import { getPets } from '../lib/storage.js'
+import { prefetchTab } from '../lib/prefetchTab.js'
 import MigrateData from './MigrateData.jsx'
 import PetAvatar from './PetAvatar.jsx'
 import PippyLogo from './PippyLogo.jsx'
@@ -82,7 +83,15 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
                   ? { backgroundColor: '#f2b83d', color: '#7a4900' }
                   : { color: '#7a4900' }
                 }
-                onMouseEnter={e => { if (activeTab !== id) e.currentTarget.style.backgroundColor = '#fff9e0' }}
+                // The cursor arrives here well before the click does. Starting
+                // the tab's chunk and its query now takes the two waits that
+                // would otherwise stack up after the press and runs them
+                // during the reach instead.
+                onMouseEnter={e => {
+                  if (activeTab !== id) e.currentTarget.style.backgroundColor = '#fff9e0'
+                  prefetchTab(id, selectedPet?.id)
+                }}
+                onFocus={() => prefetchTab(id, selectedPet?.id)}
                 onMouseLeave={e => { if (activeTab !== id) e.currentTarget.style.backgroundColor = '' }}
               >
                 <Icon className="w-4 h-4 flex-shrink-0" />
