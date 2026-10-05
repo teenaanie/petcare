@@ -13,7 +13,7 @@ define('location',  { pathname: '/', search: '?token=abc', hash: '#x' })
 define('__BUILD_ID__', 'abc1234')
 define('window', undefined)
 
-const { scrub, fingerprint, buildReport } = await import('../src/lib/errorReport.js')
+const { scrub, fingerprint, buildReport, reportError } = await import('../src/lib/errorReport.js')
 
 let pass = 0, fail = 0
 const ok = (name, cond, got) => {
@@ -108,6 +108,32 @@ console.log('\nFingerprinting, so one bug reports once')
 
   ok('a missing stack does not throw',
      typeof fingerprint({ name: 'E', message: 'm' }) === 'string')
+}
+
+console.log('\nBrowser housekeeping is not a fault')
+{
+  // The first three reports Pippy ever collected were all service worker
+  // update failures -- aborted updates and "newestWorker is null" on iOS.
+  // Nobody experienced any of them, and a list of those is a list nobody
+  // reads. Their source is fixed too; this is the net.
+  const sent = []
+  const realBeacon = globalThis.navigator.sendBeacon
+  globalThis.navigator.sendBeacon = (u, b) => { sent.push(b); return true }
+
+  for (const msg of [
+    "Failed to update a ServiceWorker for scope ('https://pippypets.com/') with script ('https://pippypets.com/sw.js'): Operation has been aborted",
+    'newestWorker is null',
+    "Failed to register a ServiceWorker for scope ('https://x/')",
+  ]) reportError(Object.assign(new Error(msg), { name: 'AbortError' }))
+
+  ok('service worker noise is not reported', sent.length === 0, sent.length)
+
+  // The narrowness matters: a real fault that merely mentions a worker, or any
+  // ordinary error, must still get through.
+  reportError(new Error('Cannot read properties of undefined (reading name)'))
+  ok('a genuine fault still is', sent.length === 1, sent.length)
+
+  globalThis.navigator.sendBeacon = realBeacon
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`)

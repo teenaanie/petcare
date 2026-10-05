@@ -18,6 +18,7 @@ const MyProviders = lazy(() => import('./components/MyProviders.jsx'))
 import ConsentBanner from './components/ConsentBanner.jsx'
 import PrivacyNotice from './components/PrivacyNotice.jsx'
 import { startAnalyticsIfConsented } from './lib/analytics.js'
+import { setErrorUser } from './lib/errorReport.js'
 import InstallPrompt from './components/InstallPrompt.jsx'
 import PippyLogo from './components/PippyLogo.jsx'
 import PetPickerModal from './components/PetPickerModal.jsx'
@@ -50,6 +51,9 @@ export default function App() {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
+      // So an error report can say who it happened to. Only the token travels;
+      // the endpoint turns it into a user id and stores nothing else from it.
+      setErrorUser(session?.access_token)
       checkAdmin(session)
       setAuthLoading(false)
       if (session?.user) announceSignupOnce(session.user)
@@ -58,6 +62,7 @@ export default function App() {
     // Listen for auth changes (login / logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
+      setErrorUser(session?.access_token)
       checkAdmin(session)
       // Announces genuinely NEW accounts only — the helper skips a browser that
       // has already reported this user, and the server independently refuses

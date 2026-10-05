@@ -52,11 +52,16 @@ export default async function handler(req) {
 
   // Attribute the report when we can, and carry on when we cannot. An invalid
   // or expired token is not a reason to reject a crash report.
+  // The token may arrive in the body rather than a header: reports are sent
+  // with sendBeacon so they survive the page closing, and sendBeacon cannot set
+  // headers. Verified identically either way.
   let userId = null
-  const auth = req.headers.get('authorization') || ''
-  if (auth.startsWith('Bearer ')) {
+  const header = req.headers.get('authorization') || ''
+  const token = header.startsWith('Bearer ') ? header.slice(7)
+              : (typeof body.token === 'string' ? body.token : null)
+  if (token) {
     try {
-      const { data } = await supabase.auth.getUser(auth.slice(7))
+      const { data } = await supabase.auth.getUser(token)
       userId = data?.user?.id ?? null
     } catch { /* anonymous it is */ }
   }
