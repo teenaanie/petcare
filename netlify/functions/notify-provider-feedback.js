@@ -29,7 +29,7 @@ import { sendEmail, sendPush, emailConfigured, fromDomain } from './_notify.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_KEY
-const APP_URL      = process.env.APP_URL || 'https://teenaspetcare.com'
+const APP_URL      = process.env.APP_URL || 'https://pippypets.com'
 
 const REPLAY_WINDOW_MIN = 10
 
