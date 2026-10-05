@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { reportHandled } from '../lib/errorReport.js'
 import { ShieldCheck, Users, PawPrint, ChevronRight, ChevronLeft, Search, Phone, Mail, Loader2, AlertCircle, Stethoscope, Syringe, Pill, Receipt, Bell, ChevronDown, ChevronUp, Star, MessageSquarePlus, MapPin, Clock, Scissors, ShoppingBag, Home, Camera, Flower2, Plus, Check, X, Trash2, ToggleLeft, ToggleRight, Gauge, HardDrive, Sparkles, Bug, Moon } from 'lucide-react'
 import { getAdminUsers, getPets, getMedicalHistory, getVaccinations, getMedicines, getBills, getReminders, getFeedback, getProviders, saveProvider, deleteProvider } from '../lib/storage.js'
 import PetAvatar from './PetAvatar.jsx'
@@ -247,7 +248,7 @@ function UserPetsView({ user, onBack }) {
     setLoading(true)
     getPets(user.id)
       .then(setPets)
-      .catch(e => setError(e.message))
+      .catch(e => { reportHandled(e, { view: 'admin' }); setError(e.message) })
       .finally(() => setLoading(false))
   }, [user.id])
 
@@ -324,7 +325,7 @@ function FeedbackPanel() {
   useEffect(() => {
     getFeedback()
       .then(setItems)
-      .catch(e => setError(e.message))
+      .catch(e => { reportHandled(e, { view: 'admin' }); setError(e.message) })
       .finally(() => setLoading(false))
   }, [])
 
@@ -470,6 +471,7 @@ function UsagePanel() {
         setMetrics(row)
         setWeeks(byWeek(snaps || []).slice(0, 8))
       } catch (err) {
+        reportHandled(err, { view: 'admin' })
         if (alive) setError(err.message)
       } finally {
         if (alive) setLoading(false)
@@ -563,7 +565,7 @@ function ErrorsPanel() {
         setRows(data || [])
         setError(null)
       })
-      .catch(e => { if (alive) setError(e.message) })
+      .catch(e => { reportHandled(e, { view: 'admin' }); if (alive) setError(e.message) })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
   }, [days])
@@ -578,7 +580,8 @@ function ErrorsPanel() {
     <div className="flex items-start gap-2 p-4 rounded-xl text-sm"
       style={{ backgroundColor: '#fdeaea', color: '#c0392b' }}>
       <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-      <span>{error}. Check that supabase/client_errors.sql has been run.</span>
+      <span>{error}. Check that supabase/client_errors.sql and
+        supabase/client_errors_kind.sql have both been run.</span>
     </div>
   )
 
@@ -610,10 +613,32 @@ function ErrorsPanel() {
                 <span className="font-black text-sm break-words" style={{ color: '#c0392b' }}>
                   {r.name}
                 </span>
-                <span className="text-xs font-black px-2 py-0.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
-                  {r.occurrences}&times;
-                </span>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {/* Which kind of fault this is, because they are read
+                      differently. 'Shown to user' means a component caught it
+                      and rendered a message: the app stayed up and the feature
+                      is quietly broken for everybody who tries it. Those were
+                      invisible here until the caught paths were wired up, which
+                      is how the share panel stayed broken on every open until a
+                      customer said so. A crash is an outage and reads louder.
+                      Rows older than that change have no kind and show nothing,
+                      rather than claiming to be one or the other. */}
+                  {r.kind === 'handled' ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                      style={{ backgroundColor: '#eef3e3', color: '#5f7a3a' }}>
+                      shown to user
+                    </span>
+                  ) : r.kind === 'uncaught' ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                      style={{ backgroundColor: '#fdeaea', color: '#c0392b' }}>
+                      crash
+                    </span>
+                  ) : null}
+                  <span className="text-xs font-black px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
+                    {r.occurrences}&times;
+                  </span>
+                </div>
               </div>
               <p className="text-xs mb-2 break-words" style={{ color: '#7a4900' }}>{r.message}</p>
               <p className="text-[11px]" style={{ color: '#73775b' }}>
@@ -765,7 +790,7 @@ function ProvidersPanel() {
     setLoading(true)
     getProviders({ approvedOnly: false, search: debouncedSearch, limit: ADMIN_PAGE_SIZE, offset: 0 })
       .then(({ rows, count }) => { setProviders(rows); setTotal(count) })
-      .catch(e => setError(e.message))
+      .catch(e => { reportHandled(e, { view: 'admin' }); setError(e.message) })
       .finally(() => setLoading(false))
   }
   useEffect(load, [debouncedSearch])
@@ -922,7 +947,7 @@ export default function AdminDashboard() {
     setLoading(true)
     getAdminUsers()
       .then(setUsers)
-      .catch(e => setError(e.message))
+      .catch(e => { reportHandled(e, { view: 'admin' }); setError(e.message) })
       .finally(() => setLoading(false))
   }, [])
 

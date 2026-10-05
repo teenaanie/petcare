@@ -1,4 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
+import { reportHandled } from '../lib/errorReport.js'
 import { X, Loader2, PawPrint, Share2, AlertCircle } from 'lucide-react'
 import { getPets } from '../lib/storage.js'
 import ChunkErrorBoundary from './ChunkErrorBoundary.jsx'
@@ -37,7 +38,7 @@ export default function SharedImport({ files, session, onClose }) {
         setPets(p)
         if (p.length === 1) setPet(p[0])   // no question worth asking
       })
-      .catch(e => setError(e.message))
+      .catch(e => { reportHandled(e, { view: 'shared-import' }); setError(e.message) })
       .finally(() => setLoading(false))
   }, [])
 

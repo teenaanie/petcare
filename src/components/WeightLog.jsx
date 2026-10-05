@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { reportHandled } from '../lib/errorReport.js'
 import { Plus, Trash2, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { getWeightLogs, saveWeightLog, deleteWeightLog, savePet } from '../lib/storage.js'
 import { weightConflict } from '../lib/currentWeight.js'
@@ -122,6 +123,7 @@ function ProfileMismatch({ pet }) {
       await savePet({ ...pet, weight: conflict.measured })
       setDone(true)
     } catch (e) {
+      reportHandled(e, { view: 'weight' })
       setError(e.message || 'Could not update the profile.')
     } finally {
       setBusy(false)
@@ -162,7 +164,8 @@ export default function WeightLog({ pet }) {
   const [saving, setSaving]     = useState(false)
 
   function load() {
-    getWeightLogs(pet.id).then(setLogs).catch(console.error)
+    getWeightLogs(pet.id).then(setLogs)
+      .catch(e => { console.error(e); reportHandled(e, { view: 'weight' }) })
   }
 
   useEffect(load, [pet.id])

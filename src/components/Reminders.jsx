@@ -7,6 +7,7 @@ import { aiComplete } from '../lib/ai.js'
 import { webSpeechSupported, webSpeechEnabled, WEB_SPEECH_OPT_OUT_KEY } from '../lib/speech.js'
 import { useVoiceRecorder } from '../lib/useVoiceRecorder.js'
 import { trackEvent } from '../lib/analytics.js'
+import { reportHandled } from '../lib/errorReport.js'
 
 // Whisper decodes better when told the language than when left to guess, and it
 // mis-detects Hinglish in particular. 'auto' stays the default because forcing
@@ -88,13 +89,23 @@ export default function Reminders({ pet }) {
         setPushStatus('subscribed')
       }
     } catch (e) {
+      // Not the user declining the permission prompt -- that arrives as a
+      // NotAllowedError and reportHandled drops it. This is push failing for
+      // some other reason, which is worth a look.
+      reportHandled(e, { view: 'reminders' })
       setPushError(e.message)
     } finally {
       setPushBusy(false)
     }
   }
 
-  function load() { getReminders(pet.id).then(setReminders).catch(console.error) }
+  // A load that fails leaves the list empty with no message at all, which is
+  // the most invisible failure in the app: it looks exactly like a pet with no
+  // reminders. Reported for that reason.
+  function load() {
+    getReminders(pet.id).then(setReminders)
+      .catch(e => { console.error(e); reportHandled(e, { view: 'reminders' }) })
+  }
   useEffect(load, [pet.id])
 
   async function handleSubmit(e) {
@@ -123,6 +134,10 @@ export default function Reminders({ pet }) {
       await markReminderDone(r.id, !r.isDone)
       load()
     } catch (e) {
+      // Reported either way. The branch below shows the user the SQL to run,
+      // which is a migration nobody ran -- exactly the thing that should not
+      // need a customer to notice it.
+      reportHandled(e, { view: 'reminders' })
       if (e.message?.includes('column') || e.code === '42703') {
         alert('Please run this SQL in your Supabase SQL Editor first:\n\nALTER TABLE vaccinations ADD COLUMN IF NOT EXISTS is_done boolean DEFAULT false;\nALTER TABLE reminders ADD COLUMN IF NOT EXISTS is_done boolean DEFAULT false;')
       } else {
@@ -163,6 +178,7 @@ export default function Reminders({ pet }) {
       setVoiceMode(false)
       load()
     } catch (e) {
+      reportHandled(e, { view: 'reminders' })
       setVoiceError(e.message)
     } finally {
       setAiParsing(false)
@@ -177,13 +193,14 @@ export default function Reminders({ pet }) {
       setVoiceResult(null)
       load()
     } catch (e) {
+      reportHandled(e, { view: 'reminders' })
       setVoiceError(`Could not undo: ${e.message}`)
     } finally {
       setUndoing(false)
     }
   }
 
-  const voice = useVoiceRecorder(handleTranscript, voiceLang)
+  const voice = useVoiceRecorder(handleTranscript, voiceLang, 'reminders')
 
   return (
     <div>

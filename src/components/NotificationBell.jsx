@@ -87,7 +87,7 @@ export default function NotificationBell({ refresh, onOpenReminder, onChanged, c
     } catch (e) {
       // A bell that cannot load is not worth an alarming message — it is not
       // the thing the user came here to do. Say it quietly, inside the panel.
-      setError(friendlyError(e))
+      setError(friendlyError(e, { view: 'notifications' }))
     } finally {
       setLoading(false)
     }
@@ -127,7 +127,7 @@ export default function NotificationBell({ refresh, onOpenReminder, onChanged, c
       // showing the row as pending. Tell the app so it reloads.
       onChanged?.()
     } catch (e) {
-      setError(friendlyError(e))
+      setError(friendlyError(e, { view: 'notifications' }))
     } finally {
       setBusyId(null)
     }

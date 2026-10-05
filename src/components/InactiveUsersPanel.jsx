@@ -20,6 +20,7 @@
 // sends a question rather than a conclusion.
 
 import { useEffect, useState } from 'react'
+import { reportHandled } from '../lib/errorReport.js'
 import { Loader2, AlertCircle, Mail, Phone, PawPrint, Send, Check, Moon, Clock } from 'lucide-react'
 import { getSupabase } from '../lib/supabase.js'
 
@@ -175,7 +176,7 @@ export default function InactiveUsersPanel() {
         setRows(data || [])
         setError(null)
       })
-      .catch(e => { if (alive) setError(e.message) })
+      .catch(e => { reportHandled(e, { view: 'admin' }); if (alive) setError(e.message) })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
   }, [days])

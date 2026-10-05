@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { reportHandled } from '../lib/errorReport.js'
 import { PawPrint, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 import PippyLogo from './PippyLogo.jsx'
 
@@ -33,6 +34,7 @@ export default function ProviderRegistration() {
       if (!res.ok) throw new Error(data.error || 'Something went wrong, please try again.')
       setStatus('success')
     } catch (err) {
+      reportHandled(err, { view: 'provider-registration' })
       setError(err.message)
       setStatus('error')
     }

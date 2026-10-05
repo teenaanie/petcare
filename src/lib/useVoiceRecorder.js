@@ -17,6 +17,7 @@
 //
 import { useState, useRef, useEffect } from 'react'
 import { transcribeAudio } from './ai.js'
+import { reportHandled } from './errorReport.js'
 import { startWebSpeech, webSpeechSupported, webSpeechEnabled, webSpeechLangFor,
          webSpeechNeedsSolo, noteWebSpeechStarvedRecording } from './speech.js'
 
@@ -85,7 +86,14 @@ const VOICE_RMS = 0.015
 const CALIBRATE_MS  = 500
 const NOISE_FACTOR  = 2.5
 
-export function useVoiceRecorder(onTranscript, language) {
+/**
+ * @param {Function} onTranscript called with the finished text
+ * @param {string}   language      BCP-47 tag, or 'auto'
+ * @param {string}   [view]        which screen is recording, for error reports.
+ *   One of VIEWS in errorReport.js. The hook is used from three screens, and
+ *   without this a transcription fault reports as 'unknown' from all of them.
+ */
+export function useVoiceRecorder(onTranscript, language, view) {
   const [listening, setListening]       = useState(false)
   const [transcript, setTranscript]     = useState('')
   const [transcribing, setTranscribing] = useState(false)
@@ -359,6 +367,10 @@ export function useVoiceRecorder(onTranscript, language) {
           if (text) onTranscript(text)
           else setError('No speech detected — please try again.')
         } catch (e) {
+          // Whisper itself failed. A quota message, a stopped request and a
+          // dropped connection are all dropped inside reportHandled, so what
+          // reaches the Errors tab is transcription genuinely breaking.
+          reportHandled(e, { view })
           setError(e.message)
         } finally {
           setTranscribing(false)
@@ -407,6 +419,9 @@ export function useVoiceRecorder(onTranscript, language) {
       } else if (e.name === 'NotFoundError') {
         setError('No microphone was found. Check that one is connected and selected.')
       } else {
+        // Not a denied permission and not a missing microphone -- both are
+        // handled above. Whatever is left is unexplained.
+        reportHandled(e, { view })
         setError(`Could not start recording: ${e.message}`)
       }
     }

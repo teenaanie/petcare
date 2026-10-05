@@ -1,7 +1,7 @@
 // src/lib/errors.js
 
 import { isNetworkError } from './net.js'
-import { reportError } from './errorReport.js'
+import { reportHandled } from './errorReport.js'
 
 /**
  * Turns a thrown error into something a pet parent can act on.
@@ -26,8 +26,15 @@ import { reportError } from './errorReport.js'
  * Anything that reached the server — a permissions refusal, a validation error —
  * arrives as a normal error with a real message, and is passed through
  * untouched. Only the unreachable case is rewritten.
+ *
+ * @param {Error}  e
+ * @param {object} [opts]
+ * @param {string} [opts.view] which screen this happened on, for the error
+ *   report. One of VIEWS in errorReport.js; anything else is dropped there, so
+ *   never pass free text. Omitting it is safe and reports the fault as
+ *   'unknown', which is what every caller did before this existed.
  */
-export function friendlyError(e) {
+export function friendlyError(e, { view } = {}) {
   const msg = e?.message || String(e ?? '')
 
   // Always leave the real error somewhere a bug report can find it. This used
@@ -36,10 +43,16 @@ export function friendlyError(e) {
   // was trying to debug it from a screenshot of the message.
   if (e) {
     console.error('Pippy error:', e)
-    // A connection that dropped is not a fault worth a report -- it is the
-    // normal weather of mobile, and reporting it would bury the real faults
-    // under thousands of rows of "the wifi went".
-    if (!isNetworkError(e)) reportError(e)
+    // A fault that reaches here is BY DEFINITION one a component caught and is
+    // about to show the user, since the return value of this function is the
+    // message they read. So it is reported as 'handled' rather than as a
+    // crash: on the dashboard the two want reading differently.
+    //
+    // reportHandled drops the conditions the app is meant to hit, the dropped
+    // connection among them -- that is the normal weather of mobile, and
+    // reporting it would bury the real faults under thousands of rows of "the
+    // wifi went".
+    reportHandled(e, { view })
   }
 
   // `e instanceof TypeError` used to be enough on its own to call something a

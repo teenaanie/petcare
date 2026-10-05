@@ -11,6 +11,7 @@ import { savePet, saveVaccination, saveMedicine, saveAllergy } from '../lib/stor
 import { announcePetAdded } from '../lib/notify.js'
 import { saveCondition } from '../lib/conditions.js'
 import { trackEvent } from '../lib/analytics.js'
+import { reportHandled } from '../lib/errorReport.js'
 
 // Onboarding someone who already has a pet and a folder of vet papers. They
 // will not scan twenty documents to get started, but many of them know the
@@ -132,6 +133,7 @@ function Review({ parsed, onBack, onSaved }) {
       onSaved?.(summary)
     } catch (e) {
       // The raw text is still held by the parent, so nothing is lost.
+      reportHandled(e, { view: 'voice-intake' })
       setError(`${e.message} — nothing above was lost, you can try saving again.`)
       setSaving(false)
     }
@@ -261,7 +263,7 @@ export default function VoiceIntake({ onClose, onSaved }) {
   // The microphone lives in one place for the whole app — see
   // src/lib/useVoiceRecorder.js. This screen used to hold its own copy, which
   // had drifted far enough to call two helpers it never imported.
-  const voice = useVoiceRecorder(append, 'auto')
+  const voice = useVoiceRecorder(append, 'auto', 'voice-intake')
 
   async function parse() {
     if (!text.trim()) return
@@ -270,7 +272,7 @@ export default function VoiceIntake({ onClose, onSaved }) {
       setParsed(await aiComplete('voice_intake', { transcript: text.trim() }))
       // That the screen was used, and by which route. Never the transcript.
       trackEvent('voice_intake_used', { mode })
-    } catch (e) { setError(e.message) }
+    } catch (e) { reportHandled(e, { view: 'voice-intake' }); setError(e.message) }
     finally { setParsing(false) }
   }
 

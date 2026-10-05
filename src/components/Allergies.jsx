@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { reportHandled } from '../lib/errorReport.js'
 import { Plus, Trash2, AlertTriangle } from 'lucide-react'
 import { getAllergies, saveAllergy, deleteAllergy } from '../lib/storage.js'
 
@@ -19,7 +20,8 @@ export default function Allergies({ pet }) {
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState(null)
 
-  function load() { getAllergies(pet.id).then(setRecords).catch(console.error) }
+  function load() { getAllergies(pet.id).then(setRecords)
+      .catch(e => { console.error(e); reportHandled(e, { view: 'allergies' }) }) }
   useEffect(load, [pet.id])
 
   function toggleReaction(r) {
@@ -38,6 +40,7 @@ export default function Allergies({ pet }) {
       setShowForm(false)
       load()
     } catch (err) {
+      reportHandled(err, { view: 'allergies' })
       setFormError(err?.message || 'Save failed — check if the allergies table exists in Supabase.')
     } finally {
       setSaving(false)
@@ -46,7 +49,8 @@ export default function Allergies({ pet }) {
 
   async function handleDelete(id) {
     if (confirm('Delete this allergy record?')) {
-      try { await deleteAllergy(id); load() } catch (err) { alert('Delete failed: ' + err.message) }
+      try { await deleteAllergy(id); load() }
+      catch (err) { reportHandled(err, { view: 'allergies' }); alert('Delete failed: ' + err.message) }
     }
   }
 

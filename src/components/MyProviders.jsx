@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { reportHandled } from '../lib/errorReport.js'
 import {
   Plus, Search, Star, Phone, MessageCircle, Globe, MapPin, Pencil, Trash2,
   X, Loader2, Check, Stethoscope, Scissors, ShoppingBag, Home, Camera,
@@ -58,7 +59,7 @@ function AddPanel({ pets, onSaved, onClose }) {
   async function add(entry) {
     setSaving(true); setError(null)
     try { await saveMyProvider(entry); onSaved() }
-    catch (e) { setError(e.message); setSaving(false) }
+    catch (e) { reportHandled(e, { view: 'my-providers' }); setError(e.message); setSaving(false) }
   }
 
   const petOptions = (
@@ -195,7 +196,7 @@ function EditPanel({ entry, pets, onSaved, onClose }) {
   async function save() {
     setSaving(true); setError(null)
     try { await saveMyProvider(form); onSaved() }
-    catch (e) { setError(e.message); setSaving(false) }
+    catch (e) { reportHandled(e, { view: 'my-providers' }); setError(e.message); setSaving(false) }
   }
 
   return (
@@ -356,7 +357,9 @@ export default function MyProviders() {
 
   function load() {
     setLoading(true)
-    getMyProviders().then(setRows).catch(e => setError(e.message)).finally(() => setLoading(false))
+    getMyProviders().then(setRows)
+      .catch(e => { reportHandled(e, { view: 'my-providers' }); setError(e.message) })
+      .finally(() => setLoading(false))
   }
   useEffect(load, [])
   useEffect(() => { getPets().then(setPets).catch(() => setPets([])) }, [])
@@ -367,14 +370,14 @@ export default function MyProviders() {
     if (!confirm(`Remove ${p.nickname || p.name} from your providers?`)) return
     setBusy(true)
     try { await deleteMyProvider(p.id); load() }
-    catch (e) { setError(e.message) }
+    catch (e) { reportHandled(e, { view: 'my-providers' }); setError(e.message) }
     finally { setBusy(false) }
   }
 
   async function handlePrimary(p) {
     setBusy(true)
     try { await setPrimary(p); load() }
-    catch (e) { setError(e.message) }
+    catch (e) { reportHandled(e, { view: 'my-providers' }); setError(e.message) }
     finally { setBusy(false) }
   }
 
