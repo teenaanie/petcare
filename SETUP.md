@@ -102,6 +102,27 @@ Each one is idempotent, so re-running is safe:
 | `provider_feedback.sql` | `feedback.provider_id` and `is_provider_claimant()`, so a provider — including a suspended one — can send a message |
 | `provider_self_registration.sql` | `register_and_claim_provider()` and `approve_provider_claim()`, so a business Google missed can add its listing and claim it in one step |
 
+### Auth email templates
+
+`supabase/email_templates/` holds the bodies to paste into Supabase →
+Authentication → Email Templates. There is one of each **per project**, shared
+by both sign-ins: PhoneAuth.jsx for pet parents at `/` and ProviderAuth.jsx for
+businesses at `/business` call the same `signInWithOtp`, so neither template can
+be written for one audience.
+
+| File | Template | Who sees it |
+| --- | --- | --- |
+| `magic_link.html` | Magic Link | an address Supabase already knows |
+| `confirm_signup.html` | Confirm signup | the first time an address is seen |
+
+Both are code-first with the link secondary, because tapping a link from a
+phone's mail app opens the browser rather than the installed app — and on iOS a
+web app has its own storage, so that leaves the app signed out.
+
+`confirm_signup.html` may not be needed: if "Enable email confirmations" is off,
+a new address gets the Magic Link template and Confirm signup never fires. Check
+by signing in with an address Pippy has never seen before replacing anything.
+
 `npm run test:provider-alert` covers the serverless function that emails the
 admins when a business sends one of those messages, and `npm run test:register`
 covers the public registration endpoint. Neither needs a database or a network:

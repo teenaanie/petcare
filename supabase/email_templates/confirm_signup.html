@@ -1,0 +1,79 @@
+<!-- Supabase → Authentication → Email Templates → Confirm signup
+     Subject line to set alongside this body: Your Pippy sign-in code
+
+     READ THIS BEFORE PASTING IT IN. It may not be needed, and it is shared.
+
+     WHO GETS THIS. Both sign-ins call signInWithOtp with
+     shouldCreateUser: true — PhoneAuth.jsx for pet parents at /, and
+     ProviderAuth.jsx for businesses at /business. Supabase sends the Magic Link
+     template to an address it already knows, and this one, Confirm signup, the
+     first time it sees an address. There is ONE of each per project: this
+     template is not provider-only and cannot be. A pet parent signing up for
+     the first time gets exactly this email, so the wording here stays neutral
+     about which side of the app the person is on. Do not put business or
+     boarding language in it.
+
+     WHETHER IT IS NEEDED AT ALL. If "Enable email confirmations" is OFF in
+     Supabase Auth, a brand-new address is sent the Magic Link template instead
+     and this template never fires. Pippy already has signed-up users, which is
+     evidence the current path works — so the stock template may well be fine,
+     or may already have been customised outside this repo. CHECK FIRST: sign in
+     with an address Pippy has never seen and look at what arrives. Replace the
+     template only if what arrives is the stock Supabase one, because changing a
+     template that is currently working for customers is the bigger risk.
+
+     WHY CODE-FIRST. Same reason as magic_link.html: tapping a link from a
+     phone's mail app opens a browser, not the installed Pippy app, and on iOS
+     an installed web app has its own storage — so signing in via the browser
+     leaves the app itself signed out. Typing the code into the app is the only
+     route that actually signs the app in. Supabase's stock Confirm signup
+     template is link-only, with no {{ .Token }} at all, which is what makes it
+     worth replacing if it is the one going out. -->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#fffef8;padding:32px 16px;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="100%" style="max-width:420px;background-color:#FFFFFF;border:1px solid #ebe3d3;border-radius:20px;overflow:hidden;font-family:Nunito,-apple-system,Segoe UI,Roboto,sans-serif;">
+
+        <!-- Header -->
+        <tr>
+          <td style="background-color:#f2b83d;padding:24px 28px;text-align:center;">
+            <span style="font-size:24px;font-weight:900;color:#7a4900;">pip<span style="color:#FFFFFF;">py</span></span>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:32px 28px;">
+            <h1 style="margin:0 0 12px;font-size:19px;font-weight:800;color:#7a4900;">Welcome to Pippy</h1>
+            <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#7a4900;">
+              Enter this code to finish signing in as <strong>{{ .Email }}</strong>.
+              It expires in 1 hour and can only be used once.
+            </p>
+
+            <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 20px;">
+              <tr>
+                <td style="border-radius:14px;background-color:#fff3c0;padding:18px 34px;text-align:center;">
+                  <div style="font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#73775b;margin-bottom:6px;">Your code</div>
+                  <div style="font-size:34px;font-weight:800;letter-spacing:.2em;color:#7a4900;font-family:ui-monospace,Menlo,Consolas,monospace;">{{ .Token }}</div>
+                </td>
+              </tr>
+            </table>
+
+            <p style="margin:0 0 20px;font-size:12px;line-height:1.6;color:#73775b;text-align:center;">
+              On a computer instead?
+              <a href="{{ .ConfirmationURL }}" style="color:#7a4900;font-weight:700;">Sign in with one tap</a>.
+            </p>
+
+            <p style="margin:0;font-size:12px;line-height:1.6;color:#73775b;border-top:1px solid #ebe3d3;padding-top:16px;">
+              Didn't request this? You can safely ignore this email — no account will be created.
+            </p>
+          </td>
+        </tr>
+      </table>
+
+      <p style="margin:20px 0 0;font-size:11px;color:#73775b;font-family:Nunito,-apple-system,Segoe UI,Roboto,sans-serif;">
+        Pippy — Pet Care
+      </p>
+    </td>
+  </tr>
+</table>
