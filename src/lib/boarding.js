@@ -10,6 +10,7 @@
 // the matching heuristics can be judged before anything is persisted.
 
 import { parseISO, isValid, addDays, differenceInCalendarDays, format } from 'date-fns'
+import { currentWeight } from './currentWeight.js'
 
 // ── Dates ────────────────────────────────────────────────────────────────────
 
@@ -696,7 +697,9 @@ function dayRate(pricing, pet) {
   const bands = pricing.size_bands || []
   if (!bands.length) return { amount: pricing.full_day, label: '' }
 
-  const kg = parseFloat(pet.weight)
+  // The measured weight, not the undated profile figure: a price band is
+  // quoted to the owner and a stale number quotes the wrong one.
+  const { kg } = currentWeight(pet)
   if (!Number.isFinite(kg)) return { amount: null, label: '' }
 
   const sorted = [...bands].sort((a, b) => (a.max_kg ?? Infinity) - (b.max_kg ?? Infinity))

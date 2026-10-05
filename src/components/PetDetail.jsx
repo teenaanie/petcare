@@ -2,6 +2,7 @@ import { useState, useEffect, lazy, Suspense } from 'react'
 import { Edit2, Trash2, Calendar, Weight, Phone, Sparkles, ShieldAlert, Users, Mic, Loader2 } from 'lucide-react'
 import { getSupabase, isConfigured } from '../lib/supabase.js'
 import { prefetchTab } from '../lib/prefetchTab.js'
+import { formatWeight } from '../lib/currentWeight.js'
 import ChunkErrorBoundary from './ChunkErrorBoundary.jsx'
 function ModalLoading() {
   return (
@@ -244,7 +245,7 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
               <p className="text-sm" style={{ color: '#73775b' }}>{pet.species} · {pet.breed}</p>
               <div className="flex flex-wrap gap-2 md:gap-4 mt-1 text-xs md:text-sm" style={{ color: '#73775b' }}>
                 {age !== null && <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {age} yr</span>}
-                {pet.weight && <span className="flex items-center gap-1"><Weight className="w-3.5 h-3.5" /> {pet.weight}kg</span>}
+                {formatWeight(pet) && <span className="flex items-center gap-1"><Weight className="w-3.5 h-3.5" /> {formatWeight(pet)}</span>}
                 {pet.vetPhone && <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" /> {pet.vetPhone}</span>}
               </div>
               <LifeStageBar pet={pet} ageYears={age} />

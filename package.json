@@ -16,6 +16,7 @@
     "test:reminder-feed": "node scripts/test-reminder-feed.mjs",
     "test:net": "node scripts/test-net.mjs",
     "test:read-cache": "node scripts/test-read-cache.mjs",
+    "test:current-weight": "node scripts/test-current-weight.mjs",
     "check:cache-tables": "node scripts/check-cache-tables.mjs",
     "check:supabase-binding": "node scripts/check-supabase-binding.mjs",
     "test:checkin": "node scripts/test-checkin.mjs",

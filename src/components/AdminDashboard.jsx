@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ShieldCheck, Users, PawPrint, ChevronRight, ChevronLeft, Search, Phone, Mail, Loader2, AlertCircle, Stethoscope, Syringe, Pill, Receipt, Bell, ChevronDown, ChevronUp, Star, MessageSquarePlus, MapPin, Clock, Scissors, ShoppingBag, Home, Camera, Flower2, Plus, Check, X, Trash2, ToggleLeft, ToggleRight, Gauge, HardDrive, Sparkles, Bug, Moon } from 'lucide-react'
 import { getAdminUsers, getPets, getMedicalHistory, getVaccinations, getMedicines, getBills, getReminders, getFeedback, getProviders, saveProvider, deleteProvider } from '../lib/storage.js'
 import PetAvatar from './PetAvatar.jsx'
+import { formatWeight } from '../lib/currentWeight.js'
 import BoardingRulesPanel from './BoardingRulesPanel.jsx'
 import InactiveUsersPanel from './InactiveUsersPanel.jsx'
 import { PROVIDER_TYPES, SERVICES, SPECIALIZATIONS } from '../lib/taxonomy.js'
@@ -163,7 +164,7 @@ function PetStatsPanel({ pet, onBack }) {
           <h3 className="text-xl font-black" style={{ color: '#7a4900' }}>{pet.name}</h3>
           <p className="text-sm" style={{ color: '#73775b' }}>
             {pet.species} · {pet.breed}{pet.age ? ` · ${pet.age} yrs` : ''}
-            {pet.weight ? ` · ${pet.weight} kg` : ''}
+            {formatWeight(pet) ? ` · ${formatWeight(pet)}` : ''}
           </p>
         </div>
       </div>
