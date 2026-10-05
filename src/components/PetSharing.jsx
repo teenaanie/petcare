@@ -6,6 +6,7 @@ import { trackEvent } from '../lib/analytics.js'
 // ── Supabase helpers ──────────────────────────────────────────────────────────
 
 async function getMembers(petId) {
+  const supabase = await getSupabase()
   const { data, error } = await supabase
     .from('pet_members')
     .select('id, email, role, created_at')

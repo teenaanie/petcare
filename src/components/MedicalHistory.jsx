@@ -3,7 +3,9 @@ import { Plus, Trash2, Stethoscope, TriangleAlert } from 'lucide-react'
 import { getMedicalHistory, saveMedicalRecord, deleteMedicalRecord } from '../lib/storage.js'
 import { format } from 'date-fns'
 
-const TYPES = ['Checkup', 'Illness', 'Surgery', 'Injury', 'Dental', 'Lab Result', 'Prescription', 'Other']
+// Keep in step with MEDICAL_TYPES in src/lib/voiceUpdateRecords.js, or a
+// record created by voice has a type this screen cannot show or edit.
+const TYPES = ['Checkup', 'Illness', 'Surgery', 'Injury', 'Dental', 'Lab Result', 'Prescription', 'Observation', 'Other']
 
 export default function MedicalHistory({ pet }) {
   const [records, setRecords] = useState([])
