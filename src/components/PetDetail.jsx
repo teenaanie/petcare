@@ -1,6 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { Edit2, Trash2, Calendar, Weight, Phone, Sparkles, ShieldAlert, Users, Mic, Loader2 } from 'lucide-react'
 import { supabase, isConfigured } from '../lib/supabase.js'
+import { prefetchTab } from '../lib/prefetchTab.js'
 function ModalLoading() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center"
@@ -298,6 +299,12 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
             <button
               key={id}
               onClick={() => onTabChange(id)}
+              // On a phone there is no hover, but touchstart still fires
+              // before the tap completes — enough of a head start to have the
+              // chunk and the query under way by the time the tab mounts.
+              onTouchStart={() => prefetchTab(id, pet?.id)}
+              onPointerEnter={() => prefetchTab(id, pet?.id)}
+              onFocus={() => prefetchTab(id, pet?.id)}
               aria-current={activeTab === id ? 'page' : undefined}
               className="px-3 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition-all"
               style={activeTab === id

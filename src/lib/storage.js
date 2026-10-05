@@ -3,6 +3,7 @@
 
 import { supabase, isConfigured } from './supabase.js'
 import { deletePetPhotos } from './conditions.js'
+import { createReadCache } from './readCache.js'
 
 // ── localStorage helpers (fallback) ──────────────────────────────────────────
 
@@ -22,9 +23,27 @@ function lsGet(key)       { try { return JSON.parse(localStorage.getItem(key) ||
 function lsSet(key, data) { localStorage.setItem(key, JSON.stringify(data)) }
 function uid()            { return Date.now().toString(36) + Math.random().toString(36).slice(2) }
 
+// ── Read-through cache ────────────────────────────────────────────────────────
+//
+// Tab switches unmount and remount, so every switch refetched rows that had
+// not changed -- a measured 241 ms round trip to Seoul for a read with no rows
+// in it. The getters below read through `cached` and every writer clears what
+// it touched through `bust`.
+// See src/lib/readCache.js for why the ordering in `bust` is the part that
+// keeps a saved record from being shown stale.
+//
+// Off in local mode: localStorage is synchronous and has nothing to gain.
+
+const { cached, bust, invalidateAll } = createReadCache({ enabled: isConfigured })
+
+/** Forget every cached read. For writes that bypass this module -- the one-off
+ *  localStorage→Supabase migration inserts rows directly. */
+export { invalidateAll }
+
 // ── Pets ──────────────────────────────────────────────────────────────────────
 
-export async function getPets(filterUserId = null) {
+export const getPets = (filterUserId = null) => cached('pets', filterUserId, () => _getPets(filterUserId))
+async function _getPets(filterUserId = null) {
   if (isConfigured) {
     let q = supabase.from('pets').select('*').order('created_at', { ascending: false })
     if (filterUserId) q = q.eq('user_id', filterUserId)
@@ -42,7 +61,8 @@ export async function getAdminUsers() {
   return data || []
 }
 
-export async function savePet(pet) {
+export const savePet = (pet) => bust('pets', () => _savePet(pet))
+async function _savePet(pet) {
   if (isConfigured) {
     const { data: { user } } = await supabase.auth.getUser()
     const row = { ...toSnake(pet) }
@@ -74,7 +94,8 @@ export async function savePet(pet) {
   return pet
 }
 
-export async function deletePet(id) {
+export const deletePet = (id) => bust('*', () => _deletePet(id))
+async function _deletePet(id) {
   if (isConfigured) {
     // Photos first, and the row only if they went. Deleting the row cascades
     // the condition threads that name these files, so doing it the other way
@@ -94,7 +115,8 @@ export async function deletePet(id) {
 
 // ── Medical History ───────────────────────────────────────────────────────────
 
-export async function getMedicalHistory(petId) {
+export const getMedicalHistory = (petId) => cached('medical_records', petId, () => _getMedicalHistory(petId))
+async function _getMedicalHistory(petId) {
   if (isConfigured) {
     let q = supabase.from('medical_records').select('*').order('date', { ascending: false, nullsFirst: false })
     if (petId) q = q.eq('pet_id', petId)
@@ -106,7 +128,8 @@ export async function getMedicalHistory(petId) {
   return petId ? all.filter(r => r.petId === petId) : all
 }
 
-export async function saveMedicalRecord(record) {
+export const saveMedicalRecord = (record) => bust('medical_records', () => _saveMedicalRecord(record))
+async function _saveMedicalRecord(record) {
   if (isConfigured) {
     const row = {
       pet_id:        record.petId,
@@ -140,7 +163,8 @@ export async function saveMedicalRecord(record) {
   return record
 }
 
-export async function deleteMedicalRecord(id) {
+export const deleteMedicalRecord = (id) => bust('medical_records', () => _deleteMedicalRecord(id))
+async function _deleteMedicalRecord(id) {
   if (isConfigured) {
     const { error } = await supabase.from('medical_records').delete().eq('id', id)
     if (error) throw error
@@ -151,7 +175,8 @@ export async function deleteMedicalRecord(id) {
 
 // ── Vaccinations ──────────────────────────────────────────────────────────────
 
-export async function getVaccinations(petId) {
+export const getVaccinations = (petId) => cached('vaccinations', petId, () => _getVaccinations(petId))
+async function _getVaccinations(petId) {
   if (isConfigured) {
     let q = supabase.from('vaccinations').select('*').order('date_given', { ascending: false, nullsFirst: false })
     if (petId) q = q.eq('pet_id', petId)
@@ -163,7 +188,8 @@ export async function getVaccinations(petId) {
   return petId ? all.filter(r => r.petId === petId) : all
 }
 
-export async function markVaccinationDone(id, isDone) {
+export const markVaccinationDone = (id, isDone) => bust('vaccinations', () => _markVaccinationDone(id, isDone))
+async function _markVaccinationDone(id, isDone) {
   if (isConfigured) {
     const { data, error } = await supabase.from('vaccinations').update({ is_done: isDone }).eq('id', id).select().single()
     if (error) throw error
@@ -174,7 +200,8 @@ export async function markVaccinationDone(id, isDone) {
   if (idx >= 0) { all[idx].isDone = isDone; lsSet(KEYS.vaccinations, all) }
 }
 
-export async function saveVaccination(record) {
+export const saveVaccination = (record) => bust('vaccinations', () => _saveVaccination(record))
+async function _saveVaccination(record) {
   if (isConfigured) {
     const row = {
       pet_id:       record.petId,
@@ -207,7 +234,8 @@ export async function saveVaccination(record) {
   return record
 }
 
-export async function deleteVaccination(id) {
+export const deleteVaccination = (id) => bust('vaccinations', () => _deleteVaccination(id))
+async function _deleteVaccination(id) {
   if (isConfigured) {
     const { error } = await supabase.from('vaccinations').delete().eq('id', id)
     if (error) throw error
@@ -218,7 +246,8 @@ export async function deleteVaccination(id) {
 
 // ── Allergies ─────────────────────────────────────────────────────────────────
 
-export async function getAllergies(petId) {
+export const getAllergies = (petId) => cached('allergies', petId, () => _getAllergies(petId))
+async function _getAllergies(petId) {
   if (isConfigured) {
     let q = supabase.from('allergies').select('*').order('created_at', { ascending: false })
     if (petId) q = q.eq('pet_id', petId)
@@ -230,7 +259,8 @@ export async function getAllergies(petId) {
   return petId ? all.filter(r => r.petId === petId) : all
 }
 
-export async function saveAllergy(record) {
+export const saveAllergy = (record) => bust('allergies', () => _saveAllergy(record))
+async function _saveAllergy(record) {
   if (isConfigured) {
     const row = {
       pet_id:        record.petId,
@@ -262,7 +292,8 @@ export async function saveAllergy(record) {
   return record
 }
 
-export async function deleteAllergy(id) {
+export const deleteAllergy = (id) => bust('allergies', () => _deleteAllergy(id))
+async function _deleteAllergy(id) {
   if (isConfigured) {
     const { error } = await supabase.from('allergies').delete().eq('id', id)
     if (error) throw error
@@ -273,7 +304,8 @@ export async function deleteAllergy(id) {
 
 // ── Reminders ─────────────────────────────────────────────────────────────────
 
-export async function getReminders(petId) {
+export const getReminders = (petId) => cached('reminders', petId, () => _getReminders(petId))
+async function _getReminders(petId) {
   if (isConfigured) {
     let q = supabase.from('reminders').select('*').order('due_date', { ascending: true, nullsFirst: false })
     if (petId) q = q.eq('pet_id', petId)
@@ -285,7 +317,8 @@ export async function getReminders(petId) {
   return petId ? all.filter(r => r.petId === petId) : all
 }
 
-export async function markReminderDone(id, isDone) {
+export const markReminderDone = (id, isDone) => bust('reminders', () => _markReminderDone(id, isDone))
+async function _markReminderDone(id, isDone) {
   if (isConfigured) {
     // maybeSingle, not single. An UPDATE that matches no visible row is not a
     // malformed request, and `.single()` reported it as "Cannot coerce the
@@ -306,7 +339,8 @@ export async function markReminderDone(id, isDone) {
   if (idx >= 0) { all[idx].isDone = isDone; lsSet(KEYS.reminders, all) }
 }
 
-export async function saveReminder(record) {
+export const saveReminder = (record) => bust('reminders', () => _saveReminder(record))
+async function _saveReminder(record) {
   if (isConfigured) {
     const row = {
       pet_id:    record.petId,
@@ -339,7 +373,8 @@ export async function saveReminder(record) {
   return record
 }
 
-export async function deleteReminder(id) {
+export const deleteReminder = (id) => bust('reminders', () => _deleteReminder(id))
+async function _deleteReminder(id) {
   if (isConfigured) {
     const { error } = await supabase.from('reminders').delete().eq('id', id)
     if (error) throw error
@@ -350,7 +385,8 @@ export async function deleteReminder(id) {
 
 // ── Weight Logs ───────────────────────────────────────────────────────────────
 
-export async function getWeightLogs(petId) {
+export const getWeightLogs = (petId) => cached('weight_logs', petId, () => _getWeightLogs(petId))
+async function _getWeightLogs(petId) {
   if (isConfigured) {
     let q = supabase.from('weight_logs').select('*').order('date', { ascending: true })
     if (petId) q = q.eq('pet_id', petId)
@@ -362,7 +398,8 @@ export async function getWeightLogs(petId) {
   return petId ? all.filter(r => r.petId === petId) : all
 }
 
-export async function saveWeightLog(log) {
+export const saveWeightLog = (log) => bust('weight_logs', () => _saveWeightLog(log))
+async function _saveWeightLog(log) {
   if (isConfigured) {
     const row = { pet_id: log.petId, date: log.date, weight: parseFloat(log.weight), notes: log.notes || null }
     if (log.id) {
@@ -386,7 +423,8 @@ export async function saveWeightLog(log) {
   return log
 }
 
-export async function deleteWeightLog(id) {
+export const deleteWeightLog = (id) => bust('weight_logs', () => _deleteWeightLog(id))
+async function _deleteWeightLog(id) {
   if (isConfigured) {
     const { error } = await supabase.from('weight_logs').delete().eq('id', id)
     if (error) throw error
@@ -397,7 +435,8 @@ export async function deleteWeightLog(id) {
 
 // ── Medicines ─────────────────────────────────────────────────────────────────
 
-export async function getMedicines(petId) {
+export const getMedicines = (petId) => cached('medicines', petId, () => _getMedicines(petId))
+async function _getMedicines(petId) {
   if (isConfigured) {
     let q = supabase.from('medicines').select('*').order('start_date', { ascending: false, nullsFirst: false })
     if (petId) q = q.eq('pet_id', petId)
@@ -409,7 +448,8 @@ export async function getMedicines(petId) {
   return petId ? all.filter(r => r.petId === petId) : all
 }
 
-export async function saveMedicine(med) {
+export const saveMedicine = (med) => bust('medicines', () => _saveMedicine(med))
+async function _saveMedicine(med) {
   if (isConfigured) {
     const row = {
       pet_id: med.petId, name: med.name, dosage: med.dosage || null,
@@ -439,12 +479,14 @@ export async function saveMedicine(med) {
   return med
 }
 
-export async function deleteMedicine(id) {
+export const deleteMedicine = (id) => bust('medicines', () => _deleteMedicine(id))
+async function _deleteMedicine(id) {
   if (isConfigured) { const { error } = await supabase.from('medicines').delete().eq('id', id); if (error) throw error; return }
   lsSet(KEYS.medicines, lsGet(KEYS.medicines).filter(r => r.id !== id))
 }
 
-export async function markMedicineDone(id, isDone) {
+export const markMedicineDone = (id, isDone) => bust('medicines', () => _markMedicineDone(id, isDone))
+async function _markMedicineDone(id, isDone) {
   if (isConfigured) {
     const { data, error } = await supabase.from('medicines').update({ is_done: isDone }).eq('id', id).select().single()
     if (error) throw error
@@ -457,7 +499,8 @@ export async function markMedicineDone(id, isDone) {
 
 // ── Bills ─────────────────────────────────────────────────────────────────────
 
-export async function getBills(petId) {
+export const getBills = (petId) => cached('bills', petId, () => _getBills(petId))
+async function _getBills(petId) {
   if (isConfigured) {
     let q = supabase.from('bills').select('*').order('date', { ascending: false, nullsFirst: false })
     if (petId) q = q.eq('pet_id', petId)
@@ -469,7 +512,8 @@ export async function getBills(petId) {
   return petId ? all.filter(r => r.petId === petId) : all
 }
 
-export async function saveBill(bill) {
+export const saveBill = (bill) => bust('bills', () => _saveBill(bill))
+async function _saveBill(bill) {
   if (isConfigured) {
     const row = {
       pet_id: bill.petId, date: bill.date || null, clinic: bill.clinic || null,
@@ -498,7 +542,8 @@ export async function saveBill(bill) {
   return bill
 }
 
-export async function deleteBill(id) {
+export const deleteBill = (id) => bust('bills', () => _deleteBill(id))
+async function _deleteBill(id) {
   if (isConfigured) { const { error } = await supabase.from('bills').delete().eq('id', id); if (error) throw error; return }
   lsSet(KEYS.bills, lsGet(KEYS.bills).filter(r => r.id !== id))
 }
@@ -554,7 +599,8 @@ export async function getProviderFacets({ approvedOnly = true, area = null } = {
   return data || { total: 0, types: {}, areas: [] }
 }
 
-export async function saveProvider(provider) {
+export const saveProvider = (provider) => bust('boarders', () => _saveProvider(provider))
+async function _saveProvider(provider) {
   if (!isConfigured) return provider
   const { id, ...rest } = provider
   if (id) {
@@ -567,7 +613,8 @@ export async function saveProvider(provider) {
   return data
 }
 
-export async function deleteProvider(id) {
+export const deleteProvider = (id) => bust('boarders', () => _deleteProvider(id))
+async function _deleteProvider(id) {
   if (!isConfigured) return
   const { error } = await supabase.from('providers').delete().eq('id', id)
   if (error) throw error
@@ -580,7 +627,8 @@ export async function deleteProvider(id) {
 // the key set is fixed by the boarder's policy and is never queried across
 // trips.
 
-export async function getBoardingTrips(petId) {
+export const getBoardingTrips = (petId) => cached('boarding_trips', petId, () => _getBoardingTrips(petId))
+async function _getBoardingTrips(petId) {
   if (isConfigured) {
     let q = supabase.from('boarding_trips').select('*').order('start_date', { ascending: false, nullsFirst: false })
     if (petId) q = q.eq('pet_id', petId)
@@ -592,7 +640,8 @@ export async function getBoardingTrips(petId) {
   return petId ? all.filter(r => r.petId === petId) : all
 }
 
-export async function saveBoardingTrip(trip) {
+export const saveBoardingTrip = (trip) => bust('boarding_trips', () => _saveBoardingTrip(trip))
+async function _saveBoardingTrip(trip) {
   if (isConfigured) {
     const row = {
       pet_id:        trip.petId,
@@ -628,7 +677,8 @@ export async function saveBoardingTrip(trip) {
   return trip
 }
 
-export async function deleteBoardingTrip(id) {
+export const deleteBoardingTrip = (id) => bust('boarding_trips', () => _deleteBoardingTrip(id))
+async function _deleteBoardingTrip(id) {
   if (isConfigured) {
     const { error } = await supabase.from('boarding_trips').delete().eq('id', id)
     if (error) throw error
@@ -640,7 +690,8 @@ export async function deleteBoardingTrip(id) {
 // Every boarder, for the trip planner's search box. Fetched whole and ranked
 // in the browser: Postgres ILIKE can't find "unleesh", and the phonetic
 // matching that can is cheap over a few hundred rows held in memory.
-export async function getBoarders() {
+export const getBoarders = () => cached('boarders', null, _getBoarders)
+async function _getBoarders() {
   if (!isConfigured) return []
   const { rows } = await getProviders({ type: 'Boarder', limit: 500 })
   return rows
