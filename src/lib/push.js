@@ -1,6 +1,6 @@
 // push.js — browser push notification subscribe/unsubscribe helpers.
 
-import { supabase, isConfigured } from './supabase.js'
+import { getSupabase, isConfigured } from './supabase.js'
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY
 
@@ -39,6 +39,7 @@ export async function subscribeToPush() {
   }
 
   if (isConfigured) {
+    const supabase = await getSupabase()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('You must be signed in to enable notifications.')
     const json = sub.toJSON()
@@ -62,6 +63,7 @@ export async function unsubscribeFromPush() {
   const endpoint = sub.endpoint
   await sub.unsubscribe()
   if (isConfigured) {
+    const supabase = await getSupabase()
     await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint)
   }
 }

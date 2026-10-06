@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Users, UserPlus, Trash2, X, Loader2, AlertCircle, Copy, Check } from 'lucide-react'
-import { supabase } from '../lib/supabase.js'
+import { getSupabase } from '../lib/supabase.js'
+import { trackEvent } from '../lib/analytics.js'
+import { reportHandled } from '../lib/errorReport.js'
 
 // ── Supabase helpers ──────────────────────────────────────────────────────────
 
 async function getMembers(petId) {
+  const supabase = await getSupabase()
   const { data, error } = await supabase
     .from('pet_members')
     .select('id, email, role, created_at')
@@ -20,12 +23,41 @@ async function inviteMember(petId, email, role = 'viewer') {
   // (id, is_admin, created_at) — it has no email column, so that query failed
   // every single time and its error was discarded. Access is granted by
   // matching the email anyway: see is_pet_member() in supabase/pet_members.sql.
-  const { error } = await supabase.from('pet_members').insert({
+  // The new row's id comes back because the invite email is sent by id: the
+  // server re-reads the row and emails the address IT finds, rather than one
+  // passed in a request body.
+  const supabase = await getSupabase()
+  const { data, error } = await supabase.from('pet_members').insert({
     pet_id: petId,
     email,
     role,
-  })
+  }).select('id').single()
   if (error) throw error
+  return data?.id
+}
+
+/**
+ * Ask the server to email the person we just invited.
+ *
+ * Returns what actually happened rather than throwing: the invite is already
+ * saved by this point and access is already granted, so a failure here is
+ * worth REPORTING but must not look like the share did not work.
+ */
+async function sendInviteEmail(memberId) {
+  try {
+    const supabase = await getSupabase()
+    const { data } = await supabase.auth.getSession()
+    const token = data?.session?.access_token
+    if (!token) return { sent: false }
+    const res = await fetch('/api/share-invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ memberId }),
+    })
+    return await res.json()
+  } catch {
+    return { sent: false }
+  }
 }
 
 // Postgres errors are written for whoever wrote the schema, not for the person
@@ -44,6 +76,7 @@ function friendly(message = '') {
 }
 
 async function removeMember(memberId) {
+  const supabase = await getSupabase()
   const { error } = await supabase.from('pet_members').delete().eq('id', memberId)
   if (error) throw error
 }
@@ -58,13 +91,18 @@ export default function PetSharing({ pet, onClose }) {
   const [role, setRole]       = useState('viewer')
   const [inviting, setInviting] = useState(false)
   const [inviteErr, setInviteErr] = useState(null)
-  const [copied, setCopied]   = useState(false)
+  const [notice, setNotice]       = useState(null)
 
   function load() {
     setLoading(true)
     getMembers(pet.id)
       .then(setMembers)
-      .catch(e => setError(friendly(e.message)))
+      // The report, not just the message. This exact catch block swallowed
+      // `ReferenceError: Can't find variable: supabase` on every single open of
+      // the share panel -- friendly() passed it through, the user read it, and
+      // because nothing rethrew it window.onerror never fired and client_errors
+      // held no row for it at all. A customer had to report it.
+      .catch(e => { reportHandled(e, { view: 'sharing' }); setError(friendly(e.message)) })
       .finally(() => setLoading(false))
   }
   useEffect(load, [pet.id])
@@ -74,11 +112,26 @@ export default function PetSharing({ pet, onClose }) {
     if (!email.trim()) return
     setInviting(true)
     setInviteErr(null)
+    setNotice(null)
     try {
-      await inviteMember(pet.id, email.trim().toLowerCase(), role)
+      const invited = email.trim().toLowerCase()
+      const memberId = await inviteMember(pet.id, invited, role)
+      // THE event for this screen. `role` is a fixed vocabulary; the invited
+      // address is never sent.
+      trackEvent('pet_shared', { role: role || 'viewer' })
+
+      // The screen said "Send Invite" and sent nothing — it wrote the row and
+      // stopped. Access worked; the person was simply never told.
+      const out = await sendInviteEmail(memberId)
+      setNotice(out?.sent
+        ? { kind: 'ok', text: `Invite emailed to ${invited}.` }
+        : { kind: 'warn', text: `${invited} now has access, but the email could not be sent — ` +
+            'tell them to sign in with that exact address and the pet will be there.' })
+
       setEmail('')
       load()
     } catch (err) {
+      reportHandled(err, { view: 'sharing' })
       setInviteErr(friendly(err.message))
     } finally {
       setInviting(false)
@@ -87,15 +140,11 @@ export default function PetSharing({ pet, onClose }) {
 
   async function handleRemove(id) {
     if (!confirm('Remove this person from the pet?')) return
-    await removeMember(id).catch(e => alert(friendly(e.message)))
+    await removeMember(id).catch(e => {
+      reportHandled(e, { view: 'sharing' })
+      alert(friendly(e.message))
+    })
     load()
-  }
-
-  async function copyLink() {
-    const link = `${window.location.origin}?pet=${pet.id}`
-    await navigator.clipboard.writeText(link).catch(() => {})
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
   }
 
   return (
@@ -139,6 +188,22 @@ export default function PetSharing({ pet, onClose }) {
             </div>
             {inviteErr && (
               <p className="text-xs" style={{ color: '#c0392b' }}>{inviteErr}</p>
+            )}
+
+            {/* Says what actually happened. "Send Invite" used to be a claim
+                the code did not back up — the row was written and no email
+                ever left. If the email fails now, it says so, because the
+                owner is the only one who can tell the person another way. */}
+            {notice && (
+              <p className="text-xs p-2.5 rounded-xl flex items-start gap-2"
+                style={notice.kind === 'ok'
+                  ? { backgroundColor: '#eef3e2', color: '#44562a' }
+                  : { backgroundColor: '#fff3c0', color: '#9a6b12' }}>
+                {notice.kind === 'ok'
+                  ? <Check className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                  : <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />}
+                {notice.text}
+              </p>
             )}
             <button type="submit" disabled={inviting}
               className="btn-primary w-full gap-2 text-sm"

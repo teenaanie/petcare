@@ -101,7 +101,7 @@ process.env.SUPABASE_SERVICE_KEY = 'service-key'
 process.env.RESEND_API_KEY       = 're_test'   // so sendEmail actually calls out
 process.env.FROM_EMAIL           = 'reminders@teenaspetcare.com'
 
-const { default: handler } = await import('../netlify/functions/notify-provider-feedback.js')
+const { default: handler } = await import('../api/_lib/notify-provider-feedback.js')
 
 // ── Harness ──────────────────────────────────────────────────────────────────
 

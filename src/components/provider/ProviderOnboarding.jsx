@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Search, Loader2, AlertCircle, Check, Building2, ArrowLeft, Plus } from 'lucide-react'
-import { supabaseProvider } from '../../lib/supabase.js'
+import { getSupabaseProvider } from '../../lib/supabase.js'
 import { PROVIDER_TYPES } from '../../lib/taxonomy.js'
 
 // Claim your business, or add it if it is not listed.
@@ -75,7 +75,7 @@ export default function ProviderOnboarding({ email, onClaimed }) {
     setSearching(true)
     const t = setTimeout(async () => {
       try {
-        const { data, error } = await supabaseProvider.rpc('search_providers', {
+        const { data, error } = await (await getSupabaseProvider()).rpc('search_providers', {
           approved_only: false, filter_type: null, filter_area: null,
           search_term: q, page_limit: 12, page_offset: 0,
         })
@@ -94,7 +94,7 @@ export default function ProviderOnboarding({ email, onClaimed }) {
   async function claim(providerId) {
     setSaving(true); setError(null)
     try {
-      const { error } = await supabaseProvider.rpc('claim_provider', {
+      const { error } = await (await getSupabaseProvider()).rpc('claim_provider', {
         p_provider_id: providerId,
         p_claimed_type: type,
         p_note: note.trim() || null,
@@ -117,7 +117,7 @@ export default function ProviderOnboarding({ email, onClaimed }) {
     if (saving) return
     setSaving(true); setError(null)
     try {
-      const { error } = await supabaseProvider.rpc('register_and_claim_provider', {
+      const { error } = await (await getSupabaseProvider()).rpc('register_and_claim_provider', {
         p_name: biz.name, p_type: type, p_phone: biz.phone,
         p_area: biz.area || null, p_city: biz.city || null,
         p_address: biz.address || null, p_whatsapp: biz.whatsapp || null,

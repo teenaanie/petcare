@@ -1,9 +1,14 @@
 import { useState, useRef , useEffect } from 'react'
 import { Share2, ChevronRight, Upload, Camera, FileText, Loader2, CheckCircle, AlertCircle, Wand2, Calendar, TriangleAlert, MessageSquare, Copy, Check, Syringe, Pill, Receipt, Weight, X, Plus } from 'lucide-react'
 import { saveMedicalRecord, saveVaccination, saveAllergy, saveReminder, saveMedicine, saveBill, saveWeightLog } from '../lib/storage.js'
+import { withRetry } from '../lib/net.js'
+import { friendlyError } from '../lib/errors.js'
+import { reportHandled } from '../lib/errorReport.js'
 import { format, isPast, parseISO } from 'date-fns'
 import { aiComplete } from '../lib/ai.js'
 import { shareTargetLikelySupported } from '../lib/shareTarget.js'
+import { copyText, COPY_FAILED } from '../lib/clipboard.js'
+import { trackEvent } from '../lib/analytics.js'
 
 const MED_CATS = ['Deworming', 'Flea/Tick', 'Antibiotic', 'Anti-inflammatory', 'Supplement', 'Vaccination', 'Other']
 const CURRENCIES = ['INR', 'USD', 'GBP', 'AUD', 'EUR', 'SGD']
@@ -71,7 +76,7 @@ async function analyzeDocument(file, session) {
   const base64 = isPdf ? await pdfToImageBase64(file) : await fileToBase64(file)
   const mimeType = isPdf ? 'image/png' : (file.type || 'image/jpeg')
 
-  // The parsing prompt lives in netlify/functions/analyze-document.js along with
+  // The parsing prompt lives in api/_lib/analyze-document.js along with
   // the API key. This used to have a second branch that called api.openai.com
   // directly whenever VITE_OPENAI_API_KEY was set — which, once that variable
   // was set in production, silently bypassed this authenticated, rate-limited
@@ -284,6 +289,12 @@ export default function DocumentScanner({ pet, session, initialFiles = null }) {
       result.vaccinations = result.vaccinations || []
 
       setParsed(result)
+      // Counts of what the scan found — never any of the text it read.
+      trackEvent('document_scanned', {
+        vaccinations: (result.vaccinations || []).length,
+        medicines: (result.medicines || []).length,
+        has_bill: !!(result.bill?.clinic || result.bill?.totalAmount),
+      })
       setVaxItems(result.vaccinations.map(v => ({ ...v })))
       setMedItems((result.medicines || []).map(m => ({ ...m })))
       setBillItem(result.bill?.clinic || result.bill?.totalAmount ? { ...result.bill } : null)
@@ -304,6 +315,10 @@ export default function DocumentScanner({ pet, session, initialFiles = null }) {
         .finally(() => setLoadingQuestions(false))
 
     } catch (e) {
+      // A scan that fails has already cost the user a photo and a wait, so it
+      // is worth knowing about. A quota message or a stopped request is not a
+      // defect and is dropped inside reportHandled.
+      reportHandled(e, { view: 'scanner' })
       setError(e.message)
     } finally {
       setLoading(false)
@@ -316,10 +331,25 @@ export default function DocumentScanner({ pet, session, initialFiles = null }) {
     setSavingSet(s => new Set([...s, key]))
     setSaveErrors(e => { const n = { ...e }; delete n[key]; return n })
     try {
-      await fn()
+      // One retry, for the failure actually reported: scanning a document and
+      // then having every record fail to save with "Load failed", with the very
+      // next attempt working. That is a request that never left the phone --
+      // WebKit tears down connections on a backgrounded PWA -- so it cannot
+      // have written anything and repeating it is safe.
+      //
+      // withRetry only repeats network failures. Anything the server ANSWERED,
+      // a refusal or a bad value, is not retried, because it would only be
+      // refused again.
+      //
+      // VoiceUpdate was given this when the same thing happened there. The
+      // scanner saves one record per button rather than a batch, so it needs no
+      // resumable bookkeeping -- but it needed the retry just the same.
+      await withRetry(fn, { attempts: 2 })
     } catch (err) {
-      const msg = err?.message || 'Save failed — check if the Supabase table exists.'
-      setSaveErrors(e => ({ ...e, [key]: msg }))
+      // "Load failed" is Safari's wording for a dropped request and means
+      // nothing to anyone. friendlyError says what actually happened, and logs
+      // the original so a real fault is still debuggable.
+      setSaveErrors(e => ({ ...e, [key]: friendlyError(err, { view: 'scanner' }) }))
     } finally {
       setSavingSet(s => { const n = new Set(s); n.delete(key); return n })
     }
@@ -368,9 +398,10 @@ export default function DocumentScanner({ pet, session, initialFiles = null }) {
     setSavedTimelines(s => new Set([...s, idx]))
   })
 
-  function handleCopyQuestions() {
+  async function handleCopyQuestions() {
     const text = vetQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')
-    navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2500) })
+    if (await copyText(text)) { setCopied(true); setTimeout(() => setCopied(false), 2500) }
+    else alert(COPY_FAILED)
   }
 
   // ── Update helpers ────────────────────────────────────────────────────────

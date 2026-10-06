@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { MessageSquarePlus, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
-import { supabaseProvider } from '../../lib/supabase.js'
+import { getSupabaseProvider } from '../../lib/supabase.js'
 
 // A way for a business to say something back.
 //
@@ -36,7 +36,7 @@ export default function ProviderFeedback({ userId, providerId, context, open: in
   // exactly where it was before this existed.
   async function alertAdmins(feedbackId) {
     try {
-      const { data: { session } } = await supabaseProvider.auth.getSession()
+      const { data: { session } } = await (await getSupabaseProvider()).auth.getSession()
       if (!session) return
       await fetch('/api/notify-provider-feedback', {
         method: 'POST',
@@ -61,7 +61,7 @@ export default function ProviderFeedback({ userId, providerId, context, open: in
       // .insert().select() would come back empty. The notifier needs an id to
       // look up, and this is the only way to know it.
       const id = crypto.randomUUID()
-      const { error } = await supabaseProvider.from('feedback').insert({
+      const { error } = await (await getSupabaseProvider()).from('feedback').insert({
         id,
         user_id:     userId,
         provider_id: providerId ?? null,

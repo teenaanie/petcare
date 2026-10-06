@@ -1,5 +1,5 @@
 {
-  "name": "Pippy — Pet Care",
+  "name": "Pippy \u2014 Pet Care",
   "short_name": "Pippy",
   "description": "Track health, reminders, and records for all your pets",
   "start_url": "/",
@@ -19,12 +19,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
     }
   ],
   "categories": [

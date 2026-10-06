@@ -12,7 +12,7 @@
 // same is_pet_member / is_pet_editor rules as every other record type. The
 // browser never gets a public URL — only a short-lived signed one.
 
-import { supabase, isConfigured } from './supabase.js'
+import { getSupabase, isConfigured } from './supabase.js'
 import { compressImage } from './image.js'
 
 export const BUCKET = 'pet-photos'
@@ -20,10 +20,12 @@ export const STATUSES = ['active', 'monitoring', 'resolved']
 const SIGNED_URL_TTL = 60 * 60   // an hour: long enough to browse, short enough
                                  // that a copied link is not a permanent leak
 
-function requireCloud() {
-  if (!isConfigured) {
+async function requireCloud() {
+  const supabase = await getSupabase()
+  if (!supabase) {
     throw new Error('Photos need the cloud database. Sign in to use the journal.')
   }
+  return supabase
 }
 
 const fromCondition = r => ({
@@ -40,7 +42,7 @@ const fromNote = r => ({
 // ── Conditions ───────────────────────────────────────────────────────────────
 
 export async function getConditions(petId) {
-  requireCloud()
+  const supabase = await requireCloud()
   const { data, error } = await supabase
     .from('conditions').select('*').eq('pet_id', petId)
     .order('status').order('started_on', { ascending: false })
@@ -49,7 +51,7 @@ export async function getConditions(petId) {
 }
 
 export async function saveCondition(c) {
-  requireCloud()
+  const supabase = await requireCloud()
   const row = {
     pet_id: c.petId, title: (c.title || '').trim(), body_part: c.bodyPart || null,
     status: c.status || 'active',
@@ -76,7 +78,7 @@ export async function saveCondition(c) {
  * nothing left pointing at them.
  */
 export async function deleteCondition(condition) {
-  requireCloud()
+  const supabase = await requireCloud()
   const notes = await getNotes(condition.id)
   const paths = notes.flatMap(n => n.photoPaths)
   if (paths.length) await deletePhotos(paths)
@@ -87,7 +89,7 @@ export async function deleteCondition(condition) {
 // ── Notes ────────────────────────────────────────────────────────────────────
 
 export async function getNotes(conditionId) {
-  requireCloud()
+  const supabase = await requireCloud()
   const { data, error } = await supabase
     .from('condition_notes').select('*').eq('condition_id', conditionId)
     .order('observed_on', { ascending: false }).order('created_at', { ascending: false })
@@ -96,7 +98,7 @@ export async function getNotes(conditionId) {
 }
 
 export async function saveNote(n) {
-  requireCloud()
+  const supabase = await requireCloud()
   const row = {
     condition_id: n.conditionId,
     observed_on: n.observedOn || new Date().toISOString().split('T')[0],
@@ -112,7 +114,7 @@ export async function saveNote(n) {
 }
 
 export async function deleteNote(note) {
-  requireCloud()
+  const supabase = await requireCloud()
   if (note.photoPaths?.length) await deletePhotos(note.photoPaths)
   const { error } = await supabase.from('condition_notes').delete().eq('id', note.id)
   if (error) throw error
@@ -121,7 +123,7 @@ export async function deleteNote(note) {
 // ── Photos ───────────────────────────────────────────────────────────────────
 
 export async function uploadPhoto(petId, conditionId, file) {
-  requireCloud()
+  const supabase = await requireCloud()
   const blob = await compressImage(file)
   const path = `${petId}/${conditionId}/${crypto.randomUUID()}.jpg`
   const { error } = await supabase.storage.from(BUCKET)
@@ -138,7 +140,7 @@ export async function uploadPhoto(petId, conditionId, file) {
  * a dozen round trips.
  */
 export async function signedUrls(paths) {
-  requireCloud()
+  const supabase = await requireCloud()
   if (!paths?.length) return {}
   const { data, error } = await supabase.storage.from(BUCKET)
     .createSignedUrls(paths, SIGNED_URL_TTL)
@@ -163,6 +165,7 @@ export async function signedUrls(paths) {
  */
 export async function deletePetPhotos(petId) {
   if (!isConfigured || !petId) return 0
+  const supabase = await requireCloud()
   const paths = []
   const { data: folders, error } = await supabase.storage.from(BUCKET).list(petId, { limit: 1000 })
   if (error) throw error
@@ -178,7 +181,7 @@ export async function deletePetPhotos(petId) {
 }
 
 export async function deletePhotos(paths) {
-  requireCloud()
+  const supabase = await requireCloud()
   if (!paths?.length) return
   const { error } = await supabase.storage.from(BUCKET).remove(paths)
   if (error) throw error

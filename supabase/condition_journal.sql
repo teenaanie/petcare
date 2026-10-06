@@ -95,7 +95,7 @@ CREATE POLICY condition_notes_write ON public.condition_notes FOR ALL
 -- delete, which would also have broken account deletion, since that cascades
 -- through pets. Photo cleanup belongs in the server-side delete path, which can
 -- call the Storage API with the service role. See
--- netlify/functions/delete-account.js step 5.
+-- api/_lib/delete-account.js step 5.
 
 -- Verified against production, impersonating each role:
 --   OWNER read / write ................ true / true

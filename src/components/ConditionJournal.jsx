@@ -10,6 +10,8 @@ import {
   getNotes, saveNote, deleteNote,
   uploadPhoto, signedUrls, STATUSES,
 } from '../lib/conditions.js'
+import { trackEvent } from '../lib/analytics.js'
+import { withRetry } from '../lib/net.js'
 
 // `capture` asks the operating system for its camera app. A laptop has no such
 // app, and desktop browsers handle the attribute inconsistently -- the picker
@@ -85,16 +87,29 @@ function NoteForm({ condition, petId, existing, onSaved, onCancel }) {
   }, [paths])
 
   async function handleFiles(list) {
-    const files = Array.from(list || []).filter(f => f.type.startsWith('image/'))
+    const all = Array.from(list || [])
+    // Some pickers — notably iOS sharing a HEIC, and a few Android file
+    // managers — hand over a File with an EMPTY type. The old filter dropped
+    // those silently: you chose a photo and nothing happened, with no error.
+    // A file with no declared type is now given to the compressor, which knows
+    // how to fail properly if it really is not an image.
+    const files = all.filter(f => !f.type || f.type.startsWith('image/'))
+    const skipped = all.length - files.length
+    if (skipped) {
+      setError(`${skipped} file${skipped === 1 ? ' was' : 's were'} not a photo and ${skipped === 1 ? 'was' : 'were'} skipped.`)
+    }
     if (!files.length) return
     setError(null)
     setUploading(u => u + files.length)
     for (const f of files) {
       try {
-        const path = await uploadPhoto(petId, condition.id, f)
+        // Retried on a dropped request. The upload names its own file with a
+        // fresh uuid, so a repeat cannot overwrite or duplicate an earlier one.
+        const path = await withRetry(() => uploadPhoto(petId, condition.id, f))
+        trackEvent('photo_added', {})
         setPaths(p => [...p, path])
       } catch (e) {
-        setError(`Could not upload ${f.name}: ${e.message}`)
+        setError(`Could not upload ${f.name || 'that photo'}: ${friendlyError(e, { view: 'journal' })}`)
       } finally {
         setUploading(u => u - 1)
       }
@@ -111,7 +126,7 @@ function NoteForm({ condition, petId, existing, onSaved, onCancel }) {
     try {
       await saveNote({ id: existing?.id, conditionId: condition.id, observedOn, description, photoPaths: paths })
       onSaved()
-    } catch (e) { setError(friendlyError(e)); setSaving(false) }
+    } catch (e) { setError(friendlyError(e, { view: 'journal' })); setSaving(false) }
   }
 
   return (
@@ -215,7 +230,7 @@ function ConditionDetail({ condition, petId, onBack, onChanged, startWithPhoto =
         const all = ns.flatMap(n => n.photoPaths)
         if (all.length) setUrls(await signedUrls(all).catch(() => ({})))
       })
-      .catch(e => setError(friendlyError(e)))
+      .catch(e => setError(friendlyError(e, { view: 'journal' })))
       .finally(() => setLoading(false))
   }
   useEffect(load, [condition.id])
@@ -223,12 +238,12 @@ function ConditionDetail({ condition, petId, onBack, onChanged, startWithPhoto =
   async function removeNote(n) {
     if (!confirm('Delete this observation and its photos? This cannot be undone.')) return
     try { await deleteNote(n); load(); onChanged?.() }
-    catch (e) { setError(friendlyError(e)) }
+    catch (e) { setError(friendlyError(e, { view: 'journal' })) }
   }
 
   async function setStatus(status) {
     try { await saveCondition({ ...condition, status }); onChanged?.(true) }
-    catch (e) { setError(friendlyError(e)) }
+    catch (e) { setError(friendlyError(e, { view: 'journal' })) }
   }
 
   const span = notes.length > 1
@@ -349,7 +364,7 @@ function NewCondition({ petId, onSaved, onCancel }) {
   async function save() {
     setSaving(true); setError(null)
     try { onSaved(await saveCondition({ petId, title, bodyPart, startedOn, status: 'active' })) }
-    catch (e) { setError(friendlyError(e)); setSaving(false) }
+    catch (e) { setError(friendlyError(e, { view: 'journal' })); setSaving(false) }
   }
 
   return (
@@ -411,7 +426,7 @@ export default function ConditionJournal({ pet }) {
       }
       const urls = await signedUrls(Object.values(latest)).catch(() => ({}))
       setCovers(Object.fromEntries(Object.entries(latest).map(([k, v]) => [k, urls[v]])))
-    } catch (e) { setError(friendlyError(e)) }
+    } catch (e) { setError(friendlyError(e, { view: 'journal' })) }
     finally { setLoading(false) }
   }
   useEffect(() => { load() }, [pet.id])
@@ -419,7 +434,7 @@ export default function ConditionJournal({ pet }) {
   async function remove(c) {
     if (!confirm(`Delete “${c.title}” and every photo in it? This cannot be undone.`)) return
     try { await deleteCondition(c); setOpen(null); load() }
-    catch (e) { setError(friendlyError(e)) }
+    catch (e) { setError(friendlyError(e, { view: 'journal' })) }
   }
 
   if (open) {

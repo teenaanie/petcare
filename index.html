@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/pippy-mark.svg" />
+    <link rel="icon" type="image/png" href="/icon-192.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Pippy — Pet Care</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -51,11 +51,18 @@
 
         window.addEventListener('load', function () {
           navigator.serviceWorker.register('/sw.js').then(function (reg) {
-            reg.update()
+            // Caught, not because the failure matters but because it does not.
+            // An update that aborts -- the tab closed, another update was
+            // already running, iOS had no worker to compare against -- is
+            // routine housekeeping the user never sees. Left unhandled it
+            // becomes an unhandledrejection, which the error reporter then
+            // faithfully records: the first three reports Pippy ever collected
+            // were all this, from these two lines.
+            reg.update().catch(function () {})
             // And whenever the user comes back to the tab, so a long-lived tab
             // picks up a deploy without being closed.
             document.addEventListener('visibilitychange', function () {
-              if (document.visibilityState === 'visible') reg.update()
+              if (document.visibilityState === 'visible') reg.update().catch(function () {})
             })
           }).catch(function () {})
         })

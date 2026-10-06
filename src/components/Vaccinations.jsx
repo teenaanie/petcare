@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { reportHandled } from '../lib/errorReport.js'
 import { Plus, Trash2, Syringe, CheckCircle, AlertCircle, Clock, Check, Loader2 } from 'lucide-react'
 import { getVaccinations, saveVaccination, deleteVaccination, markVaccinationDone } from '../lib/storage.js'
 import { format, addDays, isBefore } from 'date-fns'
@@ -26,7 +27,8 @@ export default function Vaccinations({ pet }) {
   const [form, setForm] = useState({ name: 'Rabies', dateGiven: '', nextDue: '', batchNumber: '', vet: '', notes: '' })
   const [togglingId, setTogglingId] = useState(null)
 
-  function load() { getVaccinations(pet.id).then(setRecords).catch(console.error) }
+  function load() { getVaccinations(pet.id).then(setRecords)
+      .catch(e => { console.error(e); reportHandled(e, { view: 'vaccinations' }) }) }
   useEffect(load, [pet.id])
 
   async function handleSubmit(e) {
@@ -47,6 +49,10 @@ export default function Vaccinations({ pet }) {
       await markVaccinationDone(r.id, !r.isDone)
       load()
     } catch (e) {
+      // Reported either way. The branch below shows the user the SQL to run,
+      // which is a migration nobody ran -- exactly the thing that should not
+      // need a customer to notice it.
+      reportHandled(e, { view: 'vaccinations' })
       if (e.message?.includes('column') || e.code === '42703') {
         alert('Please run this SQL in your Supabase SQL Editor first:\n\nALTER TABLE vaccinations ADD COLUMN IF NOT EXISTS is_done boolean DEFAULT false;\nALTER TABLE reminders ADD COLUMN IF NOT EXISTS is_done boolean DEFAULT false;')
       } else {

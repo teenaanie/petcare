@@ -3,6 +3,8 @@ import { X, Share2, Download, ShieldAlert, MessageCircle } from 'lucide-react'
 import { getMedicalHistory, getVaccinations, getAllergies } from '../lib/storage.js'
 import { format, parseISO, isValid } from 'date-fns'
 import { getMyProviders, telLink } from '../lib/myProviders.js'
+import { copyText, COPY_FAILED } from '../lib/clipboard.js'
+import { currentWeight, describeWeight, weightConflict } from '../lib/currentWeight.js'
 
 function fmt(str) {
   if (!str) return null
@@ -39,8 +41,9 @@ export default function EmergencyCard({ pet, onClose }) {
     if (navigator.share) {
       try { await navigator.share({ title: `${pet.name}'s Emergency Card`, text }) } catch {}
     } else {
-      await navigator.clipboard.writeText(text)
-      alert('Emergency card copied to clipboard!')
+      alert(await copyText(text)
+        ? 'Emergency card copied to clipboard!'
+        : COPY_FAILED)
     }
   }
 
@@ -83,12 +86,16 @@ export default function EmergencyCard({ pet, onClose }) {
   const vetPhone = vet?.phone || vet?.whatsapp || pet.vetPhone || null
 
   function buildText() {
+    // Both figures when they disagree: this card is read by a vet, and a
+    // weight here may be used to work out a dose.
+    const conflict = weightConflict(pet)
     const lines = [
       `🐾 EMERGENCY PET CARD — ${pet.name.toUpperCase()}`,
       `${'─'.repeat(40)}`,
       `Species: ${pet.species}  Breed: ${pet.breed || '—'}`,
       age !== null ? `Age: ${age} years` : '',
-      pet.weight ? `Weight: ${pet.weight} kg` : '',
+      describeWeight(pet) ? `Weight: ${describeWeight(pet)}` : '',
+      conflict ? `  ⚠ profile says ${conflict.profile} kg — please confirm on the scale` : '',
       vetPhone ? `Vet: ${[vetName, vetPhone].filter(Boolean).join(' — ')}` : '',
       '',
       allergies.length ? `⚠️ ALLERGIES: ${allergies.map(a => a.allergen).join(', ')}` : '✅ No known allergies',
@@ -141,7 +148,16 @@ export default function EmergencyCard({ pet, onClose }) {
                 </p>
                 <div className="flex flex-wrap gap-3 mt-1 text-xs font-bold" style={{ color: '#73775b' }}>
                   {age !== null && <span>Age: {age} yr</span>}
-                  {pet.weight && <span>Weight: {pet.weight} kg</span>}
+                  {currentWeight(pet).kg !== null &&
+                    <span>Weight: {describeWeight(pet)}</span>}
+                  {/* On screen as well as in the shared text. This is the card
+                      someone holds up to a vet, and a weight here may decide a
+                      dose, so a disagreement must be visible here too. */}
+                  {weightConflict(pet) && (
+                    <span style={{ color: '#c0392b' }}>
+                      ⚠ profile says {weightConflict(pet).profile} kg — confirm on the scale
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

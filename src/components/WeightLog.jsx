@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import { reportHandled } from '../lib/errorReport.js'
 import { Plus, Trash2, TrendingUp, TrendingDown, Minus } from 'lucide-react'
-import { getWeightLogs, saveWeightLog, deleteWeightLog } from '../lib/storage.js'
+import { getWeightLogs, saveWeightLog, deleteWeightLog, savePet } from '../lib/storage.js'
+import { weightConflict } from '../lib/currentWeight.js'
 import { format, parseISO } from 'date-fns'
 
 // ── SVG Line Chart ────────────────────────────────────────────────────────────
@@ -89,6 +91,72 @@ function WeightChart({ logs }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
+/**
+ * The profile weight and the latest reading disagree.
+ *
+ * Shown rather than silently reconciled, and the owner chooses. Automatic
+ * reconciliation was the first idea and the live data killed it: one pet has a
+ * 40 kg profile and a 3.8 kg reading (a Labrador, so the reading looks like 38
+ * mistyped), and another's latest reading is from 2024, so the profile is the
+ * better figure. "Latest wins" would have been wrong in both, in opposite
+ * directions -- and the losing number is printed on the emergency card a vet
+ * reads to work out a dose.
+ *
+ * So: state the difference, offer the obvious fix, and let a person decide.
+ */
+function ProfileMismatch({ pet }) {
+  const [busy, setBusy]   = useState(false)
+  const [done, setDone]   = useState(false)
+  const [error, setError] = useState(null)
+  const conflict = weightConflict(pet)
+
+  if (!conflict || done) return null
+
+  async function useMeasured() {
+    setBusy(true); setError(null)
+    try {
+      // The WHOLE pet with the weight changed, not { id, weight }.
+      // toSnake() writes `dob: pet.dob || null` and `photo: pet.photo || null`,
+      // so a partial object does not omit those columns -- it sets them to
+      // NULL. A partial save here would have quietly deleted the pet's date of
+      // birth and its photo.
+      await savePet({ ...pet, weight: conflict.measured })
+      setDone(true)
+    } catch (e) {
+      reportHandled(e, { view: 'weight' })
+      setError(e.message || 'Could not update the profile.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="p-3 rounded-xl text-xs" style={{ backgroundColor: '#fff9e0', border: '1px solid #f2d98d' }}>
+      <p style={{ color: '#7a4900' }}>
+        The profile says <strong>{conflict.profile} kg</strong>, but the latest
+        reading is <strong>{conflict.measured} kg</strong>
+        {conflict.on && <> on {format(parseISO(conflict.on), 'd MMM yyyy')}</>}.
+        Pippy shows the reading, including on the emergency card.
+      </p>
+      {error && <p className="mt-1" style={{ color: '#c0392b' }}>{error}</p>}
+      <div className="flex items-center gap-2 mt-2">
+        <button onClick={useMeasured} disabled={busy}
+          className="font-bold px-2.5 py-1 rounded-lg"
+          style={{ backgroundColor: '#ffde59', color: '#7a4900', opacity: busy ? 0.6 : 1 }}>
+          {busy ? 'Updating…' : `Set the profile to ${conflict.measured} kg`}
+        </button>
+        <button onClick={() => setDone(true)} className="font-bold px-2 py-1 rounded-lg"
+          style={{ color: '#73775b' }}>
+          Leave it
+        </button>
+      </div>
+      <p className="mt-1.5" style={{ color: '#9a9a86' }}>
+        If the reading looks wrong, correct or delete it in the list below instead.
+      </p>
+    </div>
+  )
+}
+
 export default function WeightLog({ pet }) {
   const [logs, setLogs]         = useState([])
   const [showForm, setShowForm] = useState(false)
@@ -96,7 +164,8 @@ export default function WeightLog({ pet }) {
   const [saving, setSaving]     = useState(false)
 
   function load() {
-    getWeightLogs(pet.id).then(setLogs).catch(console.error)
+    getWeightLogs(pet.id).then(setLogs)
+      .catch(e => { console.error(e); reportHandled(e, { view: 'weight' }) })
   }
 
   useEffect(load, [pet.id])
@@ -149,6 +218,8 @@ export default function WeightLog({ pet }) {
 
   return (
     <div className="space-y-4">
+      <ProfileMismatch pet={pet} />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

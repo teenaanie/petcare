@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { PawPrint, Plus, Calendar, Weight, Store, ChevronRight, Sparkles } from 'lucide-react'
 import { getPets } from '../lib/storage.js'
+import { reportHandled } from '../lib/errorReport.js'
+import { formatWeight } from '../lib/currentWeight.js'
 import { format } from 'date-fns'
 import PetAvatar from './PetAvatar.jsx'
 import VoiceIntake from './VoiceIntake.jsx'
@@ -11,7 +13,8 @@ export default function PetList({ refresh, onSelectPet, onAddPet, onFindServices
   const [reloads, setReloads] = useState(0)
 
   useEffect(() => {
-    getPets().then(setPets).catch(console.error)
+    getPets().then(setPets)
+      .catch(e => { console.error(e); reportHandled(e, { view: 'pet-list' }) })
   }, [refresh, reloads])
 
   if (pets.length === 0) {
@@ -113,10 +116,10 @@ export default function PetList({ refresh, onSelectPet, onAddPet, onFindServices
                   {format(new Date(pet.dob), 'MMM d, yyyy')}
                 </span>
               )}
-              {pet.weight && (
+              {formatWeight(pet) && (
                 <span className="flex items-center gap-1">
                   <Weight className="w-3.5 h-3.5" />
-                  {pet.weight} kg
+                  {formatWeight(pet)}
                 </span>
               )}
             </div>

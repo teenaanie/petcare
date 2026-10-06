@@ -1,14 +1,17 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import {
-  Mic, MicOff, Keyboard, Loader2, X, Check, AlertCircle, Sparkles,
+  Loader2, X, Check, AlertCircle, Sparkles,
   ChevronLeft, PawPrint, Syringe, Pill, AlertTriangle, Camera,
 } from 'lucide-react'
-import { aiComplete, transcribeAudio } from '../lib/ai.js'
-import {
-  startWebSpeech, webSpeechSupported, webSpeechEnabled, webSpeechLangFor,
-} from '../lib/speech.js'
+import { aiComplete } from '../lib/ai.js'
+import { useVoiceRecorder } from '../lib/useVoiceRecorder.js'
+import { voiceLikelyAvailable } from '../lib/speech.js'
+import VoicePanel from './VoicePanel.jsx'
 import { savePet, saveVaccination, saveMedicine, saveAllergy } from '../lib/storage.js'
+import { announcePetAdded } from '../lib/notify.js'
 import { saveCondition } from '../lib/conditions.js'
+import { trackEvent } from '../lib/analytics.js'
+import { reportHandled } from '../lib/errorReport.js'
 
 // Onboarding someone who already has a pet and a folder of vet papers. They
 // will not scan twenty documents to get started, but many of them know the
@@ -89,6 +92,10 @@ function Review({ parsed, onBack, onSaved }) {
           color: p.color || '', notes: p.notes || '',
         })
         summary.pets++
+        // This screen creates pets too, so it announces them as well —
+        // otherwise a pet added by voice would never be reported.
+        announcePetAdded(saved?.id)
+        trackEvent('pet_added', { species: saved?.species || '', method: 'voice' })
 
         for (let j = 0; j < (p.vaccinations || []).length; j++) {
           if (!picked[`vac-${i}-${j}`]) continue
@@ -126,6 +133,7 @@ function Review({ parsed, onBack, onSaved }) {
       onSaved?.(summary)
     } catch (e) {
       // The raw text is still held by the parent, so nothing is lost.
+      reportHandled(e, { view: 'voice-intake' })
       setError(`${e.message} — nothing above was lost, you can try saving again.`)
       setSaving(false)
     }
@@ -234,29 +242,15 @@ function Review({ parsed, onBack, onSaved }) {
 // ── The screen ───────────────────────────────────────────────────────────────
 
 export default function VoiceIntake({ onClose, onSaved }) {
-  const [mode, setMode]       = useState('type')   // 'speak' | 'type'
-  const [text, setText]       = useState('')
-  const [partial, setPartial] = useState('')
-  const [listening, setListening]   = useState(false)
-  const [transcribing, setTranscribing] = useState(false)
+  // Opens on Speak. This screen exists because talking is faster than typing,
+  // so making the user pick "Speak" first was a tap spent asking whether they
+  // meant what they had just opened. Typing is one tap away and still a
+  // first-class mode; a device that cannot record opens on it instead.
+  const [mode, setMode] = useState(() => (voiceLikelyAvailable() ? 'speak' : 'type'))
+  const [text, setText]     = useState('')
   const [parsing, setParsing] = useState(false)
-  const [parsed, setParsed]   = useState(null)
-  const [error, setError]     = useState(null)
-  const [micDenied, setMicDenied] = useState(false)
-
-  const recRef    = useRef(null)
-  const speechRef = useRef(null)
-  const streamRef = useRef(null)
-  const chunksRef = useRef([])
-  const startRef  = useRef(0)
-  const soloRef   = useRef(false)   // this attempt is recognition-only
-  const fallbackRef = useRef(false) // a solo attempt heard nothing; record this time
-
-  function release() {
-    streamRef.current?.getTracks().forEach(t => t.stop())
-    streamRef.current = null
-  }
-  useEffect(() => () => { speechRef.current?.abort(); release() }, [])
+  const [parsed, setParsed] = useState(null)
+  const [error, setError]   = useState(null)
 
   // Appending, not replacing: recording again should add a second pet to what
   // is already in the box, not wipe it.
@@ -266,138 +260,23 @@ export default function VoiceIntake({ onClose, onSaved }) {
     setText(prev => (prev.trim() ? `${prev.trim()} ${t}` : t))
   }
 
-  async function startRecording() {
-    setError(null); setPartial('')
-    let usedRecognition = false
-
-    // ── Free path: recognition on its own ────────────────────────────────
-    // No getUserMedia, no MediaRecorder, nothing to compete with. This is what
-    // makes WebKit usable without paying for Whisper. If it hears nothing the
-    // next tap records instead, so a miss costs one more tap, not the feature.
-    const bcp47Solo = webSpeechLangFor('auto')
-    if (!fallbackRef.current && webSpeechSupported() && webSpeechEnabled()
-        && bcp47Solo && webSpeechNeedsSolo()) {
-      const handle = startWebSpeech({ lang: bcp47Solo, onPartial: setPartial })
-      if (handle) {
-        speechRef.current = handle
-        soloRef.current = true
-        setListening(true)
-        return
-      }
-      // Constructor refused; fall through and record.
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      streamRef.current = stream
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : 'audio/webm'
-      const rec = new MediaRecorder(stream, { mimeType })
-      recRef.current = rec
-      chunksRef.current = []
-      rec.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-
-      rec.onstop = async () => {
-        release()
-        const elapsed = Date.now() - startRef.current
-        const blob = new Blob(chunksRef.current, { type: mimeType })
-
-        // Whatever the browser heard, first — free and already finished.
-        let web = { text: '' }
-        if (speechRef.current) {
-          speechRef.current.stop()
-          web = await speechRef.current.result
-          speechRef.current = null
-        }
-        setPartial('')
-
-        // Not treated as a denial: getUserMedia had already succeeded, so the
-        // microphone is allowed. Recognition says 'not-allowed' when the
-        // browser's speech service is blocked, which is Whisper's cue, not a
-        // reason to switch the user to typing and bin their recording.
-        if (web.denied) {
-          console.warn('Speech recognition reported not-allowed; using Whisper for this recording.')
-        }
-        if (web.text) { append(web.text); return }
-
-        if (!chunksRef.current.length || blob.size < MIN_BYTES || elapsed < MIN_MS) {
-          // An empty recording while recognition was ALSO running is the
-          // signature of the two fighting over the microphone. The audio for
-          // this attempt is gone, but the next one need not be: remember it and
-          // stop using recognition on this device, so the retry goes straight
-          // to Whisper and works.
-          if (usedRecognition) {
-            noteWebSpeechStarvedRecording()
-            setError('That did not record — your browser was using the microphone for its own speech recognition. Turned that off; tap the mic and try once more.')
-          } else {
-            setError('That recording came through empty — check which microphone is selected, or type it instead.')
-          }
-          return
-        }
-
-        // Whisper fills the same box, so the user cannot tell which ran.
-        setTranscribing(true)
-        try { append(await transcribeAudio(blob)) }
-        catch (e) { setError(`${e.message} You can type it instead.`) }
-        finally { setTranscribing(false) }
-      }
-
-      // Partials are shown separately and never written into the box — a
-      // mid-sentence pause would otherwise scramble what the user is editing.
-      const bcp47 = webSpeechLangFor('auto')
-      speechRef.current = (webSpeechSupported() && webSpeechEnabled() && bcp47)
-        ? startWebSpeech({ lang: bcp47, onPartial: setPartial })
-        : null
-      // Captured now: speechRef is cleared by the time onstop inspects things.
-      usedRecognition = !!speechRef.current
-
-      rec.start(250)
-      startRef.current = Date.now()
-      setListening(true)
-    } catch (e) {
-      release()
-      setMicDenied(true); setMode('type')
-      setError(e.name === 'NotAllowedError'
-        ? 'Microphone access was refused, so I switched to typing. Everything works the same from here.'
-        : `Could not start the microphone (${e.message}). Type it instead.`)
-    }
-  }
-
-  function stopRecording() {
-    // Solo: there is no recording to process, only what was heard.
-    if (soloRef.current) {
-      soloRef.current = false
-      setListening(false)
-      const handle = speechRef.current
-      speechRef.current = null
-      if (!handle) return
-      handle.stop()
-      handle.result.then(web => {
-        setPartial('')
-        if (web.text) { append(web.text); return }
-        // Heard nothing. Nothing was recorded either, so there is nothing to
-        // send to Whisper — ask for one more go, and record that one.
-        fallbackRef.current = true
-        setError("Didn't catch that. Tap the mic and try again — Pippy will listen a different way this time.")
-      })
-      return
-    }
-
-    if (recRef.current?.state === 'recording') recRef.current.stop()
-    else { speechRef.current?.abort(); speechRef.current = null; release() }
-    setListening(false)
-  }
+  // The microphone lives in one place for the whole app — see
+  // src/lib/useVoiceRecorder.js. This screen used to hold its own copy, which
+  // had drifted far enough to call two helpers it never imported.
+  const voice = useVoiceRecorder(append, 'auto', 'voice-intake')
 
   async function parse() {
     if (!text.trim()) return
     setParsing(true); setError(null)
     try {
       setParsed(await aiComplete('voice_intake', { transcript: text.trim() }))
-    } catch (e) { setError(e.message) }
+      // That the screen was used, and by which route. Never the transcript.
+      trackEvent('voice_intake_used', { mode })
+    } catch (e) { reportHandled(e, { view: 'voice-intake' }); setError(e.message) }
     finally { setParsing(false) }
   }
 
-  const busy = listening || transcribing || parsing
+  const busy = voice.listening || voice.transcribing || parsing
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -424,46 +303,10 @@ export default function VoiceIntake({ onClose, onSaved }) {
                 It's fine to be vague, and fine to leave things out — you can add the rest later.
               </p>
 
-              {/* Both modes are first-class. Typing is not a fallback: it is
-                  better in a quiet office, on a poor mic, or when the details
-                  are already in a WhatsApp message to paste. */}
-              <div className="flex gap-2">
-                {[['speak', 'Speak', Mic], ['type', 'Type or paste', Keyboard]].map(([id, label, Icon]) => (
-                  <button type="button" key={id} onClick={() => setMode(id)} disabled={busy || (id === 'speak' && micDenied)}
-                    className="flex-1 text-sm font-bold px-3 py-2 rounded-xl flex items-center justify-center gap-1.5 disabled:opacity-50"
-                    style={mode === id
-                      ? { backgroundColor: '#f2b83d', color: '#7a4900' }
-                      : { backgroundColor: '#ebe3d3', color: '#7a4900' }}>
-                    <Icon className="w-4 h-4" /> {label}
-                  </button>
-                ))}
-              </div>
-
-              {mode === 'speak' && !micDenied && (
-                <div className="flex flex-col items-center gap-2 py-2">
-                  <button type="button" onClick={listening ? stopRecording : startRecording} disabled={transcribing}
-                    className={`w-16 h-16 rounded-full flex items-center justify-center shadow-lg ${listening ? 'animate-pulse' : ''}`}
-                    style={{ backgroundColor: listening ? '#c0392b' : '#c9891f' }}>
-                    {transcribing ? <Loader2 className="w-7 h-7 text-white animate-spin" />
-                      : listening ? <MicOff className="w-7 h-7 text-white" />
-                      : <Mic className="w-7 h-7 text-white" />}
-                  </button>
-                  <p className="text-xs font-bold" style={{ color: '#7a4900' }}>
-                    {transcribing ? 'Writing it down…' : listening ? 'Listening — tap to stop' : 'Tap and start talking'}
-                  </p>
-                  {partial && (
-                    <p className="text-xs italic text-center px-3" style={{ color: '#a08f7a' }}>“{partial}”</p>
-                  )}
-                  <p className="text-[11px] text-center" style={{ color: '#a08f7a' }}>
-                    What you say lands in the box below — read it over and fix anything misheard before continuing.
-                  </p>
-                </div>
-              )}
-
-              <textarea
-                className="input w-full text-sm" rows={mode === 'speak' ? 6 : 9}
-                placeholder={EXAMPLE}
-                value={text} onChange={e => setText(e.target.value)} disabled={listening} />
+              <VoicePanel
+                voice={voice} mode={mode} onModeChange={setMode}
+                text={text} onTextChange={setText}
+                placeholder={EXAMPLE} parsing={parsing} />
 
               {error && (
                 <p className="text-sm p-3 rounded-xl flex items-start gap-2"

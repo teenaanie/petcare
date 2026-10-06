@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
-import { PawPrint, Phone, Mail, MessageSquare, Loader2, AlertCircle, ArrowLeft, CheckCircle } from 'lucide-react'
-import { supabase } from '../lib/supabase.js'
+import { Phone, Mail, MessageSquare, Loader2, AlertCircle, ArrowLeft, CheckCircle } from 'lucide-react'
+import { getSupabase } from '../lib/supabase.js'
+import { reportHandled } from '../lib/errorReport.js'
 import PippyLogo from './PippyLogo.jsx'
+import Landing from './Landing.jsx'
 
 const COUNTRY_CODES = [
   { code: '+91',  label: '🇮🇳 +91' },
@@ -25,13 +27,33 @@ function isNetworkError(err) {
 }
 
 function friendlyAuthError(err) {
+  // Reported here rather than at the three call sites, since every one of them
+  // is a send-or-resend failure the user is about to read. A rate limit, a
+  // dropped connection and "please sign in" are all dropped inside
+  // reportHandled, so what is left is a provider that is actually misbehaving.
+  reportHandled(err, { view: 'sign-in' })
   if (isNetworkError(err)) {
-    return "Couldn't reach the server. Check your connection and try again — if you're on patchy mobile data, switching to Wi-Fi usually helps."
+    return "Couldn't reach the server. Check your connection and try again. If you're on patchy mobile data, switching to Wi-Fi usually helps."
   }
   return err?.message || 'Could not send code. Please try again.'
 }
 
-export default function PhoneAuth() {
+// Phone sign-in is switched off: sending an SMS code needs an SMS provider,
+// and one is not configured. Showing the tab would offer a way in that cannot
+// work — a code that never arrives reads as the app being broken, not as a
+// setting being off.
+//
+// The phone flow itself is LEFT IN PLACE rather than deleted, because this is
+// a configuration state and not a decision about the product. Turning it back
+// on is this one line, plus an SMS provider in the Supabase dashboard.
+//
+// One account signs in by phone and has no email address on it (checked
+// 2026-09-28: 1 of 15 users, last seen 25 August, one pet, no records). While
+// this is false, that account cannot get in. Giving it an email address in the
+// Supabase dashboard is the way to bring it across.
+const PHONE_LOGIN_ENABLED = false
+
+export default function PhoneAuth({ onShowPrivacy }) {
   const [method, setMethod]           = useState('email')
   const [step, setStep]               = useState('entry')
   const [countryCode, setCountryCode] = useState('+91')
@@ -48,7 +70,10 @@ export default function PhoneAuth() {
       const saved = sessionStorage.getItem(SESSION_KEY)
       if (saved) {
         const { method: m, sentTo: s, step: st } = JSON.parse(saved)
-        if (st === 'otp' && s) {
+        // A half-finished phone flow in sessionStorage would otherwise come
+        // back after a refresh and strand the user on a code that can never
+        // arrive.
+        if (st === 'otp' && s && (m !== 'phone' || PHONE_LOGIN_ENABLED)) {
           setMethod(m); setSentTo(s); setStep('otp')
         }
       }
@@ -72,6 +97,7 @@ export default function PhoneAuth() {
   // ── Step 1: Send OTP ────────────────────────────────────────────────────────
 
   async function sendOtp() {
+    const supabase = await getSupabase()
     if (method === 'phone') {
       const { error } = await supabase.auth.signInWithOtp({ phone: formattedPhone })
       if (error) throw error
@@ -125,6 +151,7 @@ export default function PhoneAuth() {
       const params = method === 'phone'
         ? { phone: sentTo, token: otp, type: 'sms' }
         : { email: sentTo, token: otp, type: 'email' }
+      const supabase = await getSupabase()
       const { error } = await supabase.auth.verifyOtp(params)
       if (error) throw error
       clearOtpState()  // clean up on success
@@ -138,6 +165,7 @@ export default function PhoneAuth() {
   async function handleResend() {
     setLoading(true); setError(null); setOtp('')
     try {
+      const supabase = await getSupabase()
       if (method === 'phone') {
         const { error } = await supabase.auth.signInWithOtp({ phone: sentTo })
         if (error) throw error
@@ -153,24 +181,15 @@ export default function PhoneAuth() {
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
+  //
+  // Two screens, deliberately different. The entry step IS the landing page:
+  // someone arriving here has never seen Pippy and needs a reason before a
+  // form. Once a code is on its way, the landing goes away — at that point the
+  // only job on screen is typing six digits, and anything else is in the way.
 
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4"
-      style={{ backgroundColor: '#FFFEF8' }}>
-
-      {/* Logo */}
-      <div className="flex items-center gap-3 mb-10">
-        <PippyLogo size="lg" className="shadow-sm" />
-        <span className="text-4xl font-black tracking-tight" style={{ color: '#7a4900', fontFamily: 'Nunito, sans-serif' }}>
-          pip<span style={{ color: '#f2b83d' }}>py</span>
-        </span>
-      </div>
-
-      <div className="w-full max-w-sm">
-        <div className="card">
-
-          {/* ── Method toggle ──────────────────────────────────────────── */}
-          {step === 'entry' && (
+  const entryForm = (
+    <>
+      {PHONE_LOGIN_ENABLED && (
             <div className="flex rounded-xl p-1 mb-6" style={{ backgroundColor: '#ebe3d3' }}>
               <button
                 onClick={() => switchMethod('phone')}
@@ -189,25 +208,8 @@ export default function PhoneAuth() {
                 <Mail className="w-4 h-4" /> Email
               </button>
             </div>
-          )}
+      )}
 
-          {/* ── Entry step ─────────────────────────────────────────────── */}
-          {step === 'entry' && (
-            <>
-              <div className="text-center mb-6">
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                  style={{ backgroundColor: '#fff3c0' }}>
-                  {method === 'phone'
-                    ? <Phone className="w-7 h-7" style={{ color: '#7a4900' }} />
-                    : <Mail className="w-7 h-7" style={{ color: '#7a4900' }} />}
-                </div>
-                <h1 className="text-xl font-black mb-1" style={{ color: '#7a4900' }}>Welcome to Pippy</h1>
-                <p className="text-sm" style={{ color: '#73775b' }}>
-                  {method === 'phone'
-                    ? 'Enter your phone number to get started'
-                    : 'Enter your email to get started'}
-                </p>
-              </div>
 
               <form onSubmit={handleSend} className="space-y-4">
                 {method === 'phone' ? (
@@ -251,8 +253,25 @@ export default function PhoneAuth() {
                     : <><MessageSquare className="w-4 h-4" /> Send Code</>}
                 </button>
               </form>
-            </>
-          )}
+    </>
+  )
+
+  if (step === 'entry') return <Landing onShowPrivacy={onShowPrivacy}>{entryForm}</Landing>
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-4"
+      style={{ backgroundColor: '#FFFEF8' }}>
+
+      {/* Logo */}
+      <div className="flex items-center gap-3 mb-10">
+        <PippyLogo size="lg" className="shadow-sm" />
+        <span className="text-4xl font-black tracking-tight" style={{ color: '#7a4900', fontFamily: 'Nunito, sans-serif' }}>
+          pip<span style={{ color: '#f2b83d' }}>py</span>
+        </span>
+      </div>
+
+      <div className="w-full max-w-sm">
+        <div className="card">
 
           {/* ── OTP step: Phone ────────────────────────────────────────── */}
           {step === 'otp' && method === 'phone' && (
@@ -348,7 +367,7 @@ export default function PhoneAuth() {
                 </button>
 
                 <p className="text-xs text-center px-3 py-2 rounded-xl" style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
-                  Using the Pippy app? Type the code here — tapping the email link
+                  Using the Pippy app? Type the code here. Tapping the email link
                   opens your browser instead, which signs you in there, not in the app.
                 </p>
 
@@ -371,29 +390,16 @@ export default function PhoneAuth() {
 
         <p className="text-center text-xs mt-6" style={{ color: '#73775b' }}>
           Your data is private and secure. Only you can see your pets&apos; records.
+          {onShowPrivacy && (
+            <>
+              {' · '}
+              <button type="button" onClick={onShowPrivacy} className="underline">
+                Privacy &amp; Terms
+              </button>
+            </>
+          )}
         </p>
 
-        {/* The way across to the provider shell, and the mirror of the line
-            ProviderAuth already carries back to here. Without it, a boarder
-            told "go to pippypets.com" lands on the pet-parent sign-in with no
-            sign that /business exists — it was reachable only by being handed
-            the URL. This is the one place that reliably catches them, because
-            it is the first screen a signed-out visitor sees.
-
-            On a phone, the analytics consent banner is fixed to the bottom and
-            measures about 330px — nearly 40% of the screen — so it covers this
-            line until it is answered. Padding the page to clear it was tried
-            and reverted: it needed ~280px, which left the sign-in jammed
-            against the top for everyone once the banner was gone. The banner is
-            a one-tap first-run gate, so the cost is one tap for a first-time
-            visitor and nothing at all afterwards. If that ever stops being
-            acceptable, shrink the banner rather than move this. */}
-        <p className="text-center text-xs mt-2" style={{ color: '#73775b' }}>
-          Run a boarding or grooming business?{' '}
-          <a href="/business" className="underline" style={{ color: '#b08d57' }}>
-            Sign in to your business account
-          </a>.
-        </p>
       </div>
     </div>
   )

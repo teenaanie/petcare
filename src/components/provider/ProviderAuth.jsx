@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Mail, Phone, Loader2, AlertCircle, ArrowLeft } from 'lucide-react'
-import { supabaseProvider } from '../../lib/supabase.js'
+import { getSupabaseProvider } from '../../lib/supabase.js'
 import PippyLogo from '../PippyLogo.jsx'
 
 // Sign-in for the provider shell.
@@ -74,13 +74,13 @@ export default function ProviderAuth() {
 
   async function sendOtp() {
     if (method === 'phone') {
-      const { error } = await supabaseProvider.auth.signInWithOtp({ phone: formattedPhone })
+      const { error } = await (await getSupabaseProvider()).auth.signInWithOtp({ phone: formattedPhone })
       if (error) throw error
       return formattedPhone
     }
     // Code entry, not a magic link: a link opened from a mail app signs you in
     // in that browser, not in the installed PWA. Same reasoning as PhoneAuth.
-    const { error } = await supabaseProvider.auth.signInWithOtp({
+    const { error } = await (await getSupabaseProvider()).auth.signInWithOtp({
       email,
       options: { shouldCreateUser: true, emailRedirectTo: window.location.origin + '/business' },
     })
@@ -120,7 +120,7 @@ export default function ProviderAuth() {
       const params = method === 'phone'
         ? { phone: sentTo, token: otp, type: 'sms' }
         : { email: sentTo, token: otp, type: 'email' }
-      const { error } = await supabaseProvider.auth.verifyOtp(params)
+      const { error } = await (await getSupabaseProvider()).auth.verifyOtp(params)
       if (error) throw error
       clearOtpState()
     } catch (err) {

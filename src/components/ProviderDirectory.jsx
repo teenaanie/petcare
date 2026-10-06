@@ -1,9 +1,11 @@
 import { useEffect, useState, useMemo } from 'react'
+import { reportHandled } from '../lib/errorReport.js'
 import { Search, MapPin, Phone, Clock, ExternalLink, MessageCircle, Stethoscope, Scissors, ShoppingBag, Home, Camera, Flower2, Loader2, AlertCircle, ClipboardCheck, ChevronDown, ChevronRight, Footprints, GraduationCap } from 'lucide-react'
 // MapPin used in ProviderCard address row
 import { getProviders, getProviderFacets } from '../lib/storage.js'
 import { resolvePolicy, hasCustomPolicy, REQUIREMENT_CATALOG, GENERIC_PROVENANCE } from '../lib/boarding.js'
 import { visitPrepFor } from '../lib/visitPrep.js'
+import { trackEvent } from '../lib/analytics.js'
 
 // Category colours are drawn from the brand's secondary palette — azure,
 // yellow-green, orange-yellow and coral — rather than generic UI colours.
@@ -304,7 +306,7 @@ export default function ProviderDirectory({ onPrepForStay }) {
   useEffect(() => {
     getProviderFacets({ area: query.area })
       .then(setFacets)
-      .catch(e => setError(e.message))
+      .catch(e => { reportHandled(e, { view: 'providers' }); setError(e.message) })
   }, [query.area])
 
   // First page — refetched whenever a filter changes
@@ -316,8 +318,15 @@ export default function ProviderDirectory({ onPrepForStay }) {
         if (cancelled) return
         setProviders(rows)
         setTotal(count)
+        // Whether a search happened and how well it went — the words typed
+        // are NOT sent. A pet parent's search terms are their business.
+        trackEvent('provider_searched', {
+          searched: !!(query.search || '').trim(),
+          type: query.type || '',
+          results: count || 0,
+        })
       })
-      .catch(e => { if (!cancelled) setError(e.message) })
+      .catch(e => { reportHandled(e, { view: 'providers' }); if (!cancelled) setError(e.message) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [query])
@@ -328,6 +337,7 @@ export default function ProviderDirectory({ onPrepForStay }) {
       const { rows } = await getProviders({ ...query, offset: providers.length, limit: PAGE_SIZE })
       setProviders(prev => [...prev, ...rows])
     } catch (e) {
+      reportHandled(e, { view: 'providers' })
       setError(e.message)
     } finally {
       setLoadingMore(false)

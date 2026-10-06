@@ -91,7 +91,7 @@ process.env.SUPABASE_SERVICE_KEY = 'service-key'
 process.env.RESEND_API_KEY       = 're_test'
 process.env.FROM_EMAIL           = 'reminders@pippypets.com'
 
-const { default: handler } = await import('../netlify/functions/register-provider.js')
+const { default: handler } = await import('../api/_lib/register-provider.js')
 
 let failed = 0
 function check(label, got, want) {

@@ -10,12 +10,28 @@
     "test:recurrence": "node scripts/test-recurrence.mjs",
     "check:exclusions": "node scripts/check-exclusions.mjs",
     "test:speech": "node scripts/test-speech.mjs",
-    "test:notify": "node scripts/test-notify.mjs",
     "test:provider-alert": "node scripts/test-provider-alert.mjs",
     "test:register": "node scripts/test-register-provider.mjs",
     "test:sql": "bash scripts/sql-harness/run.sh",
     "check:drift": "node scripts/check-drift.mjs",
-    "test:dates": "node scripts/test-dates.mjs"
+    "test:dates": "node scripts/test-dates.mjs",
+    "test:voice-update": "node scripts/test-voice-update.mjs",
+    "test:reminder-feed": "node scripts/test-reminder-feed.mjs",
+    "test:net": "node scripts/test-net.mjs",
+    "test:read-cache": "node scripts/test-read-cache.mjs",
+    "test:current-weight": "node scripts/test-current-weight.mjs",
+    "check:cache-tables": "node scripts/check-cache-tables.mjs",
+    "check:supabase-binding": "node scripts/check-supabase-binding.mjs",
+    "test:checkin": "node scripts/test-checkin.mjs",
+    "test:chunk-errors": "node scripts/test-chunk-errors.mjs",
+    "test:pet-meds": "node scripts/test-pet-meds.mjs",
+    "test:analytics": "node scripts/test-analytics.mjs",
+    "check:shadowing": "node scripts/check-shadowing.mjs",
+    "test:share-invite": "node scripts/test-share-invite.mjs",
+    "test:usage-limits": "node scripts/test-usage-limits.mjs",
+    "test:error-report": "node scripts/test-error-report.mjs",
+    "check:suspense": "node scripts/check-suspense.mjs",
+    "test:health-prompt": "node scripts/test-health-prompt.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
@@ -24,7 +40,6 @@
     "pdfjs-dist": "^4.0.379",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.22.0",
     "web-push": "^3.6.7"
   },
   "devDependencies": {

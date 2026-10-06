@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
+import { reportHandled } from '../lib/errorReport.js'
 import { Plus, Trash2, Stethoscope, TriangleAlert } from 'lucide-react'
 import { getMedicalHistory, saveMedicalRecord, deleteMedicalRecord } from '../lib/storage.js'
 import { format } from 'date-fns'
 
-const TYPES = ['Checkup', 'Illness', 'Surgery', 'Injury', 'Dental', 'Lab Result', 'Prescription', 'Other']
+// Keep in step with MEDICAL_TYPES in src/lib/voiceUpdateRecords.js, or a
+// record created by voice has a type this screen cannot show or edit.
+const TYPES = ['Checkup', 'Illness', 'Surgery', 'Injury', 'Dental', 'Lab Result', 'Prescription', 'Observation', 'Other']
 
 export default function MedicalHistory({ pet }) {
   const [records, setRecords] = useState([])
@@ -12,7 +15,8 @@ export default function MedicalHistory({ pet }) {
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState(null)
 
-  function load() { getMedicalHistory(pet.id).then(setRecords).catch(console.error) }
+  function load() { getMedicalHistory(pet.id).then(setRecords)
+      .catch(e => { console.error(e); reportHandled(e, { view: 'medical' }) }) }
   useEffect(load, [pet.id])
 
   async function handleSubmit(e) {
@@ -24,6 +28,7 @@ export default function MedicalHistory({ pet }) {
       setShowForm(false)
       load()
     } catch (err) {
+      reportHandled(err, { view: 'medical' })
       setFormError(err?.message || 'Save failed — check your Supabase tables.')
     } finally {
       setSaving(false)
@@ -32,7 +37,8 @@ export default function MedicalHistory({ pet }) {
 
   async function handleDelete(id) {
     if (confirm('Delete this record?')) {
-      try { await deleteMedicalRecord(id); load() } catch (err) { alert('Delete failed: ' + err.message) }
+      try { await deleteMedicalRecord(id); load() }
+      catch (err) { reportHandled(err, { view: 'medical' }); alert('Delete failed: ' + err.message) }
     }
   }
 

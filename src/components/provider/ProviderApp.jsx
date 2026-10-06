@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Ban, Clock, LogOut, RefreshCw } from 'lucide-react'
-import { supabaseProvider, isConfigured } from '../../lib/supabase.js'
+import { getSupabaseProvider, isConfigured } from '../../lib/supabase.js'
 import PippyLogo from '../PippyLogo.jsx'
 import ProviderAuth from './ProviderAuth.jsx'
 import ProviderOnboarding from './ProviderOnboarding.jsx'
@@ -9,7 +9,7 @@ import ProviderFeedback from './ProviderFeedback.jsx'
 // The provider shell. Mounted only at /business (see src/main.jsx), lazily, so
 // a pet parent never downloads it.
 //
-// Its session comes from supabaseProvider, which is the same project and the
+// Its session comes from getSupabaseProvider(), which is the same project and the
 // same anon key under a different storageKey. A boarder signed into the pet app
 // still signs in here, and signing out here leaves the pet app alone. That
 // separation is in the UI and the session only — both carry the same
@@ -65,22 +65,36 @@ export default function ProviderApp() {
 
   useEffect(() => {
     if (!isConfigured) { setLoading(false); return }
-    supabaseProvider.auth.getSession().then(({ data }) => {
-      setSession(data.session)
+    // The client is built on first use now, so boot is async. `cancelled`
+    // matters: the shell can unmount while the chunk is still downloading, and
+    // a subscription created after that would never otherwise be torn down.
+    let cancelled = false
+    let subscription = null
+    getSupabaseProvider().then(client => {
+      if (cancelled || !client) return
+      client.auth.getSession().then(({ data }) => {
+        if (cancelled) return
+        setSession(data.session)
+        setLoading(false)
+      })
+      subscription = client.auth.onAuthStateChange((_e, s) => {
+        setSession(s)
+        if (!s) setAccounts(null)
+      }).data.subscription
+      if (cancelled) subscription.unsubscribe()
+    }).catch(e => {
+      if (cancelled) return
+      setError(e.message || 'Could not load the sign-in.')
       setLoading(false)
     })
-    const { data: { subscription } } = supabaseProvider.auth.onAuthStateChange((_e, s) => {
-      setSession(s)
-      if (!s) setAccounts(null)
-    })
-    return () => subscription.unsubscribe()
+    return () => { cancelled = true; subscription?.unsubscribe() }
   }, [])
 
   const loadAccounts = useCallback(async () => {
     if (!session) return
     setError(null)
     try {
-      const { data, error } = await supabaseProvider.rpc('my_provider_accounts')
+      const { data, error } = await (await getSupabaseProvider()).rpc('my_provider_accounts')
       if (error) throw error
       setAccounts(data || [])
     } catch (e) {
@@ -92,7 +106,7 @@ export default function ProviderApp() {
   useEffect(() => { loadAccounts() }, [loadAccounts])
 
   async function signOut() {
-    await supabaseProvider.auth.signOut()
+    await (await getSupabaseProvider()).auth.signOut()
   }
 
   if (!isConfigured) {

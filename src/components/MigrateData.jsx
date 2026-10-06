@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { reportHandled } from '../lib/errorReport.js'
 import { Upload, CheckCircle, AlertCircle, Loader2, Database, X } from 'lucide-react'
-import { supabase, isConfigured } from '../lib/supabase.js'
+import { getSupabase, isConfigured } from '../lib/supabase.js'
+import { invalidateAll } from '../lib/storage.js'
 
 // Read everything that exists in localStorage
 function readLocalData() {
@@ -17,6 +19,7 @@ function readLocalData() {
 }
 
 async function migrateToSupabase(localData, onProgress) {
+  const supabase = await getSupabase()
   const idMap = {} // old localStorage id → new Supabase uuid
 
   // ── Pets ──
@@ -126,6 +129,10 @@ export default function MigrateData({ onClose, onDone }) {
     setError(null)
     try {
       await migrateToSupabase(local, setProgress)
+      // These rows went in through supabase directly rather than storage.js,
+      // so nothing cleared the read cache. Without this the app would keep
+      // serving the empty pre-migration lists until the TTL lapsed.
+      invalidateAll()
       setStatus('done')
       // Clear localStorage so there's no confusion going forward
       Object.keys(localStorage)
@@ -133,6 +140,7 @@ export default function MigrateData({ onClose, onDone }) {
         .forEach(k => localStorage.removeItem(k))
     } catch (e) {
       setStatus('error')
+      reportHandled(e, { view: 'migrate-data' })
       setError(e.message)
     }
   }

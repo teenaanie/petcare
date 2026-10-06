@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { MessageSquarePlus, X, Star, Loader2, CheckCircle } from 'lucide-react'
-import { supabase } from '../lib/supabase.js'
+import { getSupabase } from '../lib/supabase.js'
 
 const CATEGORIES = ['Document Scanning', 'Reminders', 'Health Timeline', 'Pet Records', 'General']
 
@@ -24,6 +24,7 @@ export default function FeedbackButton({ user }) {
     if (!message.trim()) return
     setLoading(true)
     try {
+      const supabase = await getSupabase()
       await supabase.from('feedback').insert({
         user_id:  user?.id || null,
         rating:   rating || null,

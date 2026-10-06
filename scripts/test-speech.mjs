@@ -177,5 +177,42 @@ check("explicit 'hi' maps to hi-IN", webSpeechLangFor('hi') === 'hi-IN')
 check("unknown code returns null so Whisper takes it", webSpeechLangFor('zz') === null)
 
 const failed = results.filter(r => !r).length
+
+// ── Stopping by itself ───────────────────────────────────────────────────────
+//
+// The voice panel used to take three taps: Speak, mic to start, mic to stop.
+// Two of those were the app's bookkeeping rather than the user's intent. The
+// third went away by listening for the end of the sentence — timing logic, and
+// timing logic that is wrong cuts people off mid-word.
+//
+// The rule is reproduced here rather than imported because useVoiceRecorder.js
+// needs a browser (MediaRecorder, AudioContext) that plain node does not have.
+// It must be kept in step with SILENCE_MS / NO_SPEECH_MS in that file.
+{
+  const SILENCE_MS = 2500, NO_SPEECH_MS = 12_000
+
+  // The decision the watcher makes on every 250ms tick.
+  const shouldStop = ({ heardAnything, sinceVoice, sinceStart }) =>
+    heardAnything ? sinceVoice >= SILENCE_MS : sinceStart >= NO_SPEECH_MS
+
+  // Mid-sentence pauses must NOT end the recording. "He had his rabies shot
+  // ... last March" is a real pause, and cutting it loses the second half.
+  check('a 400ms breath does not stop it',
+    shouldStop({ heardAnything: true, sinceVoice: 400, sinceStart: 3000 }) === false)
+  check('a 2s thinking pause does not stop it',
+    shouldStop({ heardAnything: true, sinceVoice: 2000, sinceStart: 9000 }) === false)
+  check('2.5s of silence after speech stops it',
+    shouldStop({ heardAnything: true, sinceVoice: 2500, sinceStart: 9000 }) === true)
+
+  // Someone who taps and then takes a moment to find their words must not be
+  // cut off — the short rule only applies once they have actually spoken.
+  check('11s of finding the words does not stop it',
+    shouldStop({ heardAnything: false, sinceVoice: 11000, sinceStart: 11000 }) === false)
+  check('but a mic left open does eventually stop',
+    shouldStop({ heardAnything: false, sinceVoice: 12000, sinceStart: 12000 }) === true)
+  check('after speech the short rule applies, not the long one',
+    shouldStop({ heardAnything: true, sinceVoice: 3000, sinceStart: 3000 }) === true)
+}
+
 console.log(failed ? `\n${failed} FAILED` : '\nall passed')
 process.exit(failed ? 1 : 0)

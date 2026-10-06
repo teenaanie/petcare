@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { PawPrint, Plus, Stethoscope, Syringe, AlertTriangle, FileText, Bell, ChevronLeft, GitBranch, Upload, TrendingUp, ChevronRight, Pill, Receipt, LogOut, ShieldCheck, Store, Home, Camera, Heart } from 'lucide-react'
 import { getPets } from '../lib/storage.js'
+import { prefetchTab } from '../lib/prefetchTab.js'
 import MigrateData from './MigrateData.jsx'
 import PetAvatar from './PetAvatar.jsx'
 import PippyLogo from './PippyLogo.jsx'
 import DeleteAccount from './DeleteAccount.jsx'
+import NotificationBell from './NotificationBell.jsx'
 
 const tabs = [
   { id: 'timeline',      label: 'Timeline',          icon: GitBranch },
@@ -20,7 +22,7 @@ const tabs = [
   { id: 'boarding',      label: 'Boarding Prep',     icon: Home },
 ]
 
-export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab, onTabChange, refresh, onRefresh, isOpen, onClose, user, isAdmin, onSignOut, adminView, onToggleAdmin, servicesView, onToggleServices, myProvidersView, onToggleMyProviders, onShowPrivacy }) {
+export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab, onTabChange, refresh, onRefresh, isOpen, onClose, user, isAdmin, onSignOut, adminView, onToggleAdmin, servicesView, onToggleServices, myProvidersView, onToggleMyProviders, onShowPrivacy, onOpenReminder, onRemindersChanged }) {
   const [pets, setPets]               = useState([])
   const [showMigrate, setShowMigrate] = useState(false)
   const [showDelete, setShowDelete]   = useState(false)
@@ -60,10 +62,14 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
           <div className="px-4 py-4 flex items-center gap-3 flex-shrink-0"
             style={{ borderBottom: '1px solid #ebe3d3' }}>
             <PetAvatar pet={selectedPet} size="md" />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="font-black text-base truncate" style={{ color: '#7a4900' }}>{selectedPet.name}</div>
               <div className="text-xs truncate" style={{ color: '#73775b' }}>{selectedPet.species} · {selectedPet.breed}</div>
             </div>
+            {/* The bell follows you into a pet — it reports every pet's
+                reminders, not this one's, so it must not disappear here. */}
+            <NotificationBell refresh={refresh} onOpenReminder={onOpenReminder} onChanged={onRemindersChanged}
+              align="left" className="flex-shrink-0 hidden md:block" />
           </div>
 
           {/* Tabs */}
@@ -77,7 +83,15 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
                   ? { backgroundColor: '#f2b83d', color: '#7a4900' }
                   : { color: '#7a4900' }
                 }
-                onMouseEnter={e => { if (activeTab !== id) e.currentTarget.style.backgroundColor = '#fff9e0' }}
+                // The cursor arrives here well before the click does. Starting
+                // the tab's chunk and its query now takes the two waits that
+                // would otherwise stack up after the press and runs them
+                // during the reach instead.
+                onMouseEnter={e => {
+                  if (activeTab !== id) e.currentTarget.style.backgroundColor = '#fff9e0'
+                  prefetchTab(id, selectedPet?.id)
+                }}
+                onFocus={() => prefetchTab(id, selectedPet?.id)}
                 onMouseLeave={e => { if (activeTab !== id) e.currentTarget.style.backgroundColor = '' }}
               >
                 <Icon className="w-4 h-4 flex-shrink-0" />
@@ -143,6 +157,11 @@ export default function Sidebar({ selectedPet, onSelectPet, onAddPet, activeTab,
               <span className="text-2xl font-black tracking-tight" style={{ color: '#7a4900', fontFamily: 'Nunito, sans-serif' }}>
                 pip<span style={{ color: '#f2b83d' }}>py</span>
               </span>
+              {/* Desktop has no top bar of its own, so the bell lives beside
+                  the logo — the one place on screen at every moment. Hidden on
+                  mobile, where MobileHeader already shows one. */}
+              <NotificationBell refresh={refresh} onOpenReminder={onOpenReminder} onChanged={onRemindersChanged}
+                align="left" className="ml-auto hidden md:block" />
             </div>
           </div>
 

@@ -3,6 +3,9 @@ import { Sparkles, X, Loader2, AlertCircle, Copy, Check, ChevronDown, Heart, Ale
 import { getMedicalHistory, getVaccinations, getMedicines, getWeightLogs, getReminders, getAllergies } from '../lib/storage.js'
 import { format, subDays, parseISO, isValid, isAfter } from 'date-fns'
 import { aiComplete } from '../lib/ai.js'
+import { copyText, COPY_FAILED } from '../lib/clipboard.js'
+import { trackEvent } from '../lib/analytics.js'
+import { reportHandled } from '../lib/errorReport.js'
 
 const PERIODS = [
   { label: '2 weeks', days: 14 },
@@ -18,7 +21,7 @@ function safeDate(str) {
 // ── AI call ───────────────────────────────────────────────────────────────────
 
 // The prompt that turns this into a health brief is composed server-side, in
-// netlify/functions/ai-complete.js, next to the API key. We send the records.
+// api/_lib/ai-complete.js, next to the API key. We send the records.
 async function generateHealthSummary(pet, data, periodLabel) {
   // Only the fields the brief actually uses. Sending the whole pet would upload
   // pet.photo — a base64 data URL, often megabytes — on every generation.
@@ -104,7 +107,13 @@ export default function HealthSummary({ pet, onClose }) {
         records: records.filter(r => inPeriod(r.date)),
         vaccinations: vaccinations.filter(v => inPeriod(v.dateGiven)),
         medicines: medicines.filter(m => !m.isDone || inPeriod(m.startDate) || inPeriod(m.endDate)),
-        weightLogs: weightLogs.filter(w => inPeriod(w.date)),
+        // Deliberately NOT filtered to the chosen period. A weight trend is
+        // historical by definition, so cutting the history to 30 days can leave
+        // a single reading and no trend to find -- which is how a brief ended up
+        // comparing one real reading against the stale profile weight and
+        // reporting a fall that never happened. The last dozen readings are a
+        // few hundred bytes and give the trend something to stand on.
+        weightLogs: weightLogs.slice(-12),
         allergies, // always include allergies regardless of period
         upcomingReminders: reminders.filter(r => {
           const d = safeDate(r.dueDate)
@@ -114,17 +123,21 @@ export default function HealthSummary({ pet, onClose }) {
 
       const result = await generateHealthSummary(pet, data, label)
       setSummary(result)
+      trackEvent('health_brief_generated', { species: pet?.species || '' })
     } catch (e) {
+      reportHandled(e, { view: 'health-summary' })
       setError(e.message)
     } finally {
       setLoading(false)
     }
   }
 
-  function handleCopyQuestions() {
+  async function handleCopyQuestions() {
     if (!summary?.vetQuestions) return
     const text = summary.vetQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')
-    navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2500) })
+    // Only claim it copied if it did — see src/lib/clipboard.js.
+    if (await copyText(text)) { setCopied(true); setTimeout(() => setCopied(false), 2500) }
+    else alert(COPY_FAILED)
   }
 
   return (

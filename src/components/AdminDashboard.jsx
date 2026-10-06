@@ -1,9 +1,14 @@
 import { useEffect, useState } from 'react'
-import { ShieldCheck, Users, PawPrint, ChevronRight, ChevronLeft, Search, Phone, Mail, Loader2, AlertCircle, Stethoscope, Syringe, Pill, Receipt, Bell, ChevronDown, ChevronUp, Star, MessageSquarePlus, MapPin, Clock, Scissors, ShoppingBag, Home, Camera, Flower2, Plus, Check, X, Trash2, ToggleLeft, ToggleRight, Building2 } from 'lucide-react'
+import { reportHandled } from '../lib/errorReport.js'
+import { ShieldCheck, Users, PawPrint, ChevronRight, ChevronLeft, Search, Phone, Mail, Loader2, AlertCircle, Stethoscope, Syringe, Pill, Receipt, Bell, ChevronDown, ChevronUp, Star, MessageSquarePlus, MapPin, Clock, Scissors, ShoppingBag, Home, Camera, Flower2, Plus, Check, X, Trash2, ToggleLeft, ToggleRight, Gauge, HardDrive, Sparkles, Bug, Moon, Building2 } from 'lucide-react'
 import { getAdminUsers, getPets, getMedicalHistory, getVaccinations, getMedicines, getBills, getReminders, getFeedback, getProviders, saveProvider, deleteProvider, getProviderClaims, setProviderClaimStatus } from '../lib/storage.js'
 import PetAvatar from './PetAvatar.jsx'
+import { formatWeight } from '../lib/currentWeight.js'
 import BoardingRulesPanel from './BoardingRulesPanel.jsx'
+import InactiveUsersPanel from './InactiveUsersPanel.jsx'
 import { PROVIDER_TYPES, SERVICES, SPECIALIZATIONS } from '../lib/taxonomy.js'
+import { getSupabase } from '../lib/supabase.js'
+import { THRESHOLDS, breaches, pctOf, byWeek, MB } from '../lib/usageLimits.js'
 
 // ── User Card ────────────────────────────────────────────────────────────────
 
@@ -160,7 +165,7 @@ function PetStatsPanel({ pet, onBack }) {
           <h3 className="text-xl font-black" style={{ color: '#7a4900' }}>{pet.name}</h3>
           <p className="text-sm" style={{ color: '#73775b' }}>
             {pet.species} · {pet.breed}{pet.age ? ` · ${pet.age} yrs` : ''}
-            {pet.weight ? ` · ${pet.weight} kg` : ''}
+            {formatWeight(pet) ? ` · ${formatWeight(pet)}` : ''}
           </p>
         </div>
       </div>
@@ -243,7 +248,7 @@ function UserPetsView({ user, onBack }) {
     setLoading(true)
     getPets(user.id)
       .then(setPets)
-      .catch(e => setError(e.message))
+      .catch(e => { reportHandled(e, { view: 'admin' }); setError(e.message) })
       .finally(() => setLoading(false))
   }, [user.id])
 
@@ -320,7 +325,7 @@ function FeedbackPanel() {
   useEffect(() => {
     getFeedback()
       .then(setItems)
-      .catch(e => setError(e.message))
+      .catch(e => { reportHandled(e, { view: 'admin' }); setError(e.message) })
       .finally(() => setLoading(false))
   }, [])
 
@@ -407,6 +412,251 @@ function FeedbackPanel() {
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+
+// ── Usage Panel ──────────────────────────────────────────────────────────────
+//
+// What Pippy costs and how much room is left. The live figures come from
+// get_usage_metrics_for_admin(), which is SECURITY DEFINER because
+// pg_database_size and storage.objects are not readable by an ordinary
+// signed-in user. It returns TOTALS only -- no per-user figures and no
+// addresses, so this screen cannot become a way to see who did what.
+
+function Meter({ metricKey, value }) {
+  const t = THRESHOLDS[metricKey]
+  const pct = pctOf(metricKey, value)
+  const over = Number(value || 0) > t.limit
+  return (
+    <div className="mb-4">
+      <div className="flex items-baseline justify-between mb-1.5">
+        <span className="text-sm font-bold" style={{ color: '#7a4900' }}>{t.label}</span>
+        <span className="text-sm font-black" style={{ color: over ? '#c0392b' : '#7a4900' }}>
+          {t.fmt(value)}
+        </span>
+      </div>
+      <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: '#ebe3d3' }}>
+        {/* Minimum 2% so a real but tiny value is still visibly present rather
+            than looking like zero. */}
+        <div className="h-full rounded-full transition-all"
+          style={{ width: `${Math.max(pct, value > 0 ? 2 : 0)}%`,
+                   backgroundColor: over ? '#c0392b' : pct > 75 ? '#f2b83d' : '#8cb369' }} />
+      </div>
+      <p className="text-xs mt-1" style={{ color: '#73775b' }}>
+        {pct}% of the {t.fmt(t.limit)} alert threshold{t.note ? ` \u00b7 ${t.note}` : ''}
+      </p>
+    </div>
+  )
+}
+
+function UsagePanel() {
+  const [metrics, setMetrics] = useState(null)
+  const [weeks, setWeeks]     = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState(null)
+
+  useEffect(() => {
+    let alive = true
+    async function load() {
+      try {
+        const supabase = await getSupabase()
+        const { data, error: e } = await supabase.rpc('get_usage_metrics_for_admin')
+        if (e) throw e
+        const row = Array.isArray(data) ? data[0] : data
+        // The function returns no rows rather than an error when the caller is
+        // not an admin, so an empty result is a permission problem and not an
+        // absence of usage.
+        if (!row) throw new Error('No metrics returned. Check that usage_tracking.sql has been run and that your account is an admin.')
+        const { data: snaps } = await supabase
+          .from('usage_snapshots')
+          .select('day, openai_cost_mtd_usd, openai_calls_mtd, db_bytes, storage_bytes, photo_bytes, pets_total')
+          .order('day', { ascending: false })
+          .limit(70)
+        if (!alive) return
+        setMetrics(row)
+        setWeeks(byWeek(snaps || []).slice(0, 8))
+      } catch (err) {
+        reportHandled(err, { view: 'admin' })
+        if (alive) setError(err.message)
+      } finally {
+        if (alive) setLoading(false)
+      }
+    }
+    load()
+    return () => { alive = false }
+  }, [])
+
+  if (loading) return (
+    <div className="flex items-center justify-center gap-2 py-16" style={{ color: '#73775b' }}>
+      <Loader2 className="w-5 h-5 animate-spin" /> <span>Reading usage\u2026</span>
+    </div>
+  )
+
+  if (error) return (
+    <div className="flex items-start gap-2 p-4 rounded-xl text-sm"
+      style={{ backgroundColor: '#fdeaea', color: '#c0392b' }}>
+      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /> <span>{error}</span>
+    </div>
+  )
+
+  const over = breaches(metrics)
+
+  return (
+    <div>
+      {over.length > 0 && (
+        <div className="p-3 rounded-xl mb-4 text-sm font-bold"
+          style={{ backgroundColor: '#fdeaea', color: '#c0392b' }}>
+          {over.map(b => <div key={b.key}>{b.text}</div>)}
+        </div>
+      )}
+
+      <div className="card mb-4">
+        <Meter metricKey="openai_cost_mtd_usd" value={metrics.openai_cost_mtd_usd} />
+        <Meter metricKey="db_bytes"            value={metrics.db_bytes} />
+        <Meter metricKey="storage_bytes"       value={metrics.storage_bytes} />
+        <p className="text-xs pt-1" style={{ color: '#73775b' }}>
+          Spend is Pippy&apos;s own estimate from logged token counts, not OpenAI&apos;s bill.
+          The cap on the OpenAI account is the real backstop.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 mb-4">
+        <StatChip icon={Sparkles}  label="AI calls this month" count={metrics.openai_calls_mtd} />
+        <StatChip icon={Sparkles}  label="Spend all time"      count={`$${Number(metrics.openai_cost_all_usd || 0).toFixed(4)}`} />
+        <StatChip icon={Users}     label="Users"               count={metrics.users_total} />
+        <StatChip icon={PawPrint}  label="Pets"                count={metrics.pets_total} />
+        <StatChip icon={HardDrive} label="Photos in database"  count={`${(Number(metrics.photo_bytes || 0) / 1024).toFixed(0)} kB`} />
+      </div>
+
+      <Section icon={Gauge} title="By week" count={weeks.length} color="#7a4900">
+        {weeks.length === 0 ? (
+          <EmptyRow label="No snapshots yet. The nightly job writes one a day; the first week appears after it has run." />
+        ) : weeks.map(w => (
+          <Row key={w.weekStart}
+            primary={`Week of ${w.weekStart}`}
+            secondary={`$${Number(w.openai_cost_mtd_usd).toFixed(4)} \u00b7 ${w.openai_calls_mtd} calls`}
+            tertiary={`${(w.db_bytes / MB).toFixed(1)} MB db \u00b7 ${(w.storage_bytes / MB).toFixed(1)} MB files`} />
+        ))}
+      </Section>
+    </div>
+  )
+}
+
+
+// ── Errors Panel ─────────────────────────────────────────────────────────────
+//
+// What is breaking in people's browsers. Grouped by fingerprint, so one fault
+// hitting fifty people is one row rather than fifty -- which is the difference
+// between a list you read and a list you ignore.
+//
+// Nothing here identifies anyone: the browser scrubs every report before
+// sending and the endpoint scrubs again. Addresses, ids, phone numbers, query
+// strings and tokens are all replaced before storage.
+
+function ErrorsPanel() {
+  const [rows, setRows]       = useState([])
+  const [days, setDays]       = useState(7)
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState(null)
+
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    getSupabase()
+      .then(supabase => supabase.rpc('get_client_errors_for_admin', { days }))
+      .then(({ data, error: e }) => {
+        if (!alive) return
+        if (e) throw e
+        setRows(data || [])
+        setError(null)
+      })
+      .catch(e => { reportHandled(e, { view: 'admin' }); if (alive) setError(e.message) })
+      .finally(() => { if (alive) setLoading(false) })
+    return () => { alive = false }
+  }, [days])
+
+  if (loading) return (
+    <div className="flex items-center justify-center gap-2 py-16" style={{ color: '#73775b' }}>
+      <Loader2 className="w-5 h-5 animate-spin" /> <span>Reading error reports\u2026</span>
+    </div>
+  )
+
+  if (error) return (
+    <div className="flex items-start gap-2 p-4 rounded-xl text-sm"
+      style={{ backgroundColor: '#fdeaea', color: '#c0392b' }}>
+      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+      <span>{error}. Check that supabase/client_errors.sql and
+        supabase/client_errors_kind.sql have both been run.</span>
+    </div>
+  )
+
+  return (
+    <div>
+      <div className="flex gap-1 rounded-xl p-1 mb-4 w-fit" style={{ backgroundColor: '#ebe3d3' }}>
+        {[1, 7, 30].map(d => (
+          <button key={d} onClick={() => setDays(d)}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+            style={days === d ? { backgroundColor: '#f2b83d', color: '#7a4900' } : { color: '#73775b' }}>
+            {d === 1 ? 'Today' : `${d} days`}
+          </button>
+        ))}
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="text-center py-16">
+          <Bug className="w-12 h-12 mx-auto mb-3 opacity-20" style={{ color: '#7a4900' }} />
+          <p className="text-sm" style={{ color: '#73775b' }}>
+            No errors reported in this period. That is the good outcome.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {rows.map(r => (
+            <div key={r.fingerprint} className="p-3 rounded-xl"
+              style={{ backgroundColor: '#ffffff', border: '1px solid #ebe3d3' }}>
+              <div className="flex items-start justify-between gap-3 mb-1">
+                <span className="font-black text-sm break-words" style={{ color: '#c0392b' }}>
+                  {r.name}
+                </span>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {/* Which kind of fault this is, because they are read
+                      differently. 'Shown to user' means a component caught it
+                      and rendered a message: the app stayed up and the feature
+                      is quietly broken for everybody who tries it. Those were
+                      invisible here until the caught paths were wired up, which
+                      is how the share panel stayed broken on every open until a
+                      customer said so. A crash is an outage and reads louder.
+                      Rows older than that change have no kind and show nothing,
+                      rather than claiming to be one or the other. */}
+                  {r.kind === 'handled' ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                      style={{ backgroundColor: '#eef3e3', color: '#5f7a3a' }}>
+                      shown to user
+                    </span>
+                  ) : r.kind === 'uncaught' ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                      style={{ backgroundColor: '#fdeaea', color: '#c0392b' }}>
+                      crash
+                    </span>
+                  ) : null}
+                  <span className="text-xs font-black px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
+                    {r.occurrences}&times;
+                  </span>
+                </div>
+              </div>
+              <p className="text-xs mb-2 break-words" style={{ color: '#7a4900' }}>{r.message}</p>
+              <p className="text-[11px]" style={{ color: '#73775b' }}>
+                {r.view} &middot; {r.browser} &middot; build {r.build} &middot;{' '}
+                {r.users_affected} {r.users_affected === 1 ? 'person' : 'people'} &middot;{' '}
+                last {new Date(r.last_seen).toLocaleString()}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -727,7 +977,7 @@ function ProvidersPanel() {
     setLoading(true)
     getProviders({ approvedOnly: false, search: debouncedSearch, limit: ADMIN_PAGE_SIZE, offset: 0 })
       .then(({ rows, count }) => { setProviders(rows); setTotal(count) })
-      .catch(e => setError(e.message))
+      .catch(e => { reportHandled(e, { view: 'admin' }); setError(e.message) })
       .finally(() => setLoading(false))
   }
   useEffect(load, [debouncedSearch])
@@ -878,13 +1128,13 @@ export default function AdminDashboard() {
   const [error, setError]         = useState(null)
   const [search, setSearch]       = useState('')
   const [selectedUser, setSelectedUser] = useState(null)
-  const [tab, setTab]             = useState('users')   // users | feedback | providers | claims | boarding
+  const [tab, setTab]             = useState('users')   // users | quiet | feedback | providers | claims | boarding | usage | errors
 
   useEffect(() => {
     setLoading(true)
     getAdminUsers()
       .then(setUsers)
-      .catch(e => setError(e.message))
+      .catch(e => { reportHandled(e, { view: 'admin' }); setError(e.message) })
       .finally(() => setLoading(false))
   }, [])
 
@@ -913,12 +1163,18 @@ export default function AdminDashboard() {
 
         {/* Tab switcher */}
         {!selectedUser && (
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-1 rounded-xl p-1 mb-5" style={{ backgroundColor: '#ebe3d3' }}>
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-1 rounded-xl p-1 mb-5" style={{ backgroundColor: '#ebe3d3' }}>
             <button
               onClick={() => setTab('users')}
               className="flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
               style={tab === 'users' ? { backgroundColor: '#f2b83d', color: '#7a4900' } : { color: '#73775b' }}>
               <Users className="w-4 h-4" /> Users
+            </button>
+            <button
+              onClick={() => setTab('quiet')}
+              className="flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
+              style={tab === 'quiet' ? { backgroundColor: '#f2b83d', color: '#7a4900' } : { color: '#73775b' }}>
+              <Moon className="w-4 h-4" /> Quiet
             </button>
             <button
               onClick={() => setTab('feedback')}
@@ -944,10 +1200,28 @@ export default function AdminDashboard() {
               style={tab === 'boarding' ? { backgroundColor: '#f2b83d', color: '#7a4900' } : { color: '#73775b' }}>
               <Home className="w-4 h-4" /> Boarding
             </button>
+            <button
+              onClick={() => setTab('usage')}
+              className="flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
+              style={tab === 'usage' ? { backgroundColor: '#f2b83d', color: '#7a4900' } : { color: '#73775b' }}>
+              <Gauge className="w-4 h-4" /> Usage
+            </button>
+            <button
+              onClick={() => setTab('errors')}
+              className="flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
+              style={tab === 'errors' ? { backgroundColor: '#f2b83d', color: '#7a4900' } : { color: '#73775b' }}>
+              <Bug className="w-4 h-4" /> Errors
+            </button>
           </div>
         )}
 
-        {tab === 'boarding' && !selectedUser ? (
+        {tab === 'quiet' && !selectedUser ? (
+          <InactiveUsersPanel />
+        ) : tab === 'errors' && !selectedUser ? (
+          <ErrorsPanel />
+        ) : tab === 'usage' && !selectedUser ? (
+          <UsagePanel />
+        ) : tab === 'boarding' && !selectedUser ? (
           <BoardingRulesPanel />
         ) : tab === 'claims' && !selectedUser ? (
           <ClaimsPanel />
