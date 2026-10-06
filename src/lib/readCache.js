@@ -93,13 +93,21 @@ export function createReadCache({ enabled = true, ttlMs = DEFAULT_TTL_MS, now = 
    *
    * It clears on failure too: a write that threw may have applied anyway.
    * Pass '*' for a write whose effects cross tables -- deleting a pet cascades
-   * in Postgres.
+   * in Postgres -- or an array to name several, for a write that feeds a value
+   * another table's reads are built from.
    */
   function bust(table, run) {
     if (!enabled) return run()
     return Promise.resolve().then(run).finally(() => {
-      if (table === '*') cache.clear()
-      else cache.delete(table)
+      // An array, because one write can invalidate a table it does not itself
+      // touch. getPets() carries each pet's latest weight, derived from
+      // weight_logs -- so recording a weight has to clear `pets` as well, or
+      // the pet card keeps showing the previous figure. That is the exact bug
+      // the derived weight was added to fix, reappearing for the length of the
+      // TTL.
+      const tables = Array.isArray(table) ? table : [table]
+      if (tables.includes('*')) cache.clear()
+      else for (const t of tables) cache.delete(t)
     })
   }
 
