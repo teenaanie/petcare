@@ -258,7 +258,11 @@ export function voiceUpdatePrompt({ transcript = '', pet = {} }) {
     pet.breed && `Breed: ${pet.breed}`,
     pet.gender && `Sex: ${pet.gender}`,
     pet.dob && `Date of birth: ${pet.dob}`,
-    pet.weight && `Weight on file: ${pet.weight} kg`,
+    // Deliberately labelled, not just stated. A bare "Weight on file: 1.3 kg"
+    // sitting in the context was read as a weight to record: a voice update
+    // about a medical visit came back offering a 1.3 kg weight the owner had
+    // never mentioned, which is the profile figure echoed straight back.
+    pet.weight && `Weight already on file (CONTEXT ONLY, never record this as a new weight): ${pet.weight} kg`,
   ].filter(Boolean).join('\n')
 
   return `Today is ${today} (Asia/Kolkata).
@@ -304,8 +308,9 @@ RULES — the first is the one that matters most:
 
 1. NEVER INVENT A VALUE. If the owner does not give a date, leave it EMPTY; do
    not assume the visit was today unless they said so ("today", "this morning",
-   "just got back"). Weights and observations are the only exceptions, and
-   rules 6 and 8 say why. If they say "some tablets" with no name, that is a medicine
+   "just got back"). Weights and observations are the only exceptions TO THE
+   DATE RULE, and rules 6 and 8 say why — that is permission to fill in a DATE
+   the owner did not give, never permission to invent the value itself. If they say "some tablets" with no name, that is a medicine
    with an empty name — which is not worth saving, so put it in "unclear"
    instead. An empty field is always better than a plausible guess. These
    records are shown to a vet.
@@ -339,6 +344,13 @@ RULES — the first is the one that matters most:
    it is said. Weights and observations (rule 8) are the ONLY two places you may
    fill in a date the owner did not give; everywhere else an absent date stays
    empty.
+
+   ONLY CREATE A "weights" ENTRY WHEN THE OWNER SAYS A WEIGHT IN THE TEXT
+   ABOVE. The profile section lists the weight already on file; that is there so
+   you understand the animal, and it is NOT something to record. If the owner
+   did not say a weight, "weights" is an empty array. A weight the owner never
+   said is a false measurement in a record a vet reads, and it is worse than no
+   record at all — it looks like the animal was weighed when it was not.
 
 7. A total the owner mentions in passing ("it came to about two thousand") is
    the "cost" on the medical record. Only create a "bills" entry when they are

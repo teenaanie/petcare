@@ -318,6 +318,43 @@ console.log('\nThe medical history screen can show and edit what voice creates')
      missing.length === 0, missing)
 }
 
+console.log('\nThe prompt does not let the profile weight become a record')
+{
+  // Reported from testing: a voice update about a medical visit came back
+  // offering a weight the owner had never mentioned -- the figure already on
+  // the pet's profile, handed to the model as context and echoed straight back
+  // as a new measurement.
+  //
+  // Two things invited it. The context line stated the weight flatly, and rule
+  // 1's carve-out ("weights and observations are the only exceptions" to NEVER
+  // INVENT A VALUE) reads as permission to invent the weight itself, when it
+  // was only ever meant to permit filling in a DATE.
+  const p = voiceUpdatePrompt({
+    transcript: 'took her to Dr Sharma, mild ear infection, drops twice a day',
+    pet: { name: 'Daisy', species: 'Cat', weight: 1.3 },
+  })
+  const t = p.replace(/\s+/g, ' ')
+
+  ok('a weight is only recorded when the owner says one',
+     /ONLY CREATE A "weights" ENTRY WHEN THE OWNER SAYS A WEIGHT/.test(t))
+  ok('an unsaid weight means an empty array',
+     /"weights" is an empty array/.test(t))
+  ok('the profile weight is labelled as context, not as data to record',
+     /CONTEXT ONLY, never record this as a new weight/.test(t), 
+     t.match(/Weight already on file[^\n]*/)?.[0])
+  ok('the figure is still given, so a misheard weight can be sanity-checked',
+     /1\.3 kg/.test(t))
+  ok('the date carve-out no longer reads as licence to invent the value',
+     /only exceptions TO THE DATE RULE/.test(t) &&
+     /never permission to invent the value itself/.test(t))
+  ok('and it says why a false weight is worse than no record',
+     /looks like the animal was weighed when it was not/.test(t))
+
+  // A pet with no weight on file must not grow a context line at all.
+  const none = voiceUpdatePrompt({ transcript: 'x', pet: { name: 'Daisy' } })
+  ok('no weight on file means no weight line', !/Weight already on file/.test(none))
+}
+
 console.log('\nThe prompt actually asks for observations')
 {
   // The client could handle an observation all along. What was missing was the
