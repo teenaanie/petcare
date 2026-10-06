@@ -3,6 +3,7 @@ import { Users, UserPlus, Trash2, X, Loader2, AlertCircle, Copy, Check } from 'l
 import { getSupabase } from '../lib/supabase.js'
 import { trackEvent } from '../lib/analytics.js'
 import { reportHandled } from '../lib/errorReport.js'
+import { inviteMember, friendlyShareError as friendly } from '../lib/petSharing.js'
 
 // ── Supabase helpers ──────────────────────────────────────────────────────────
 
@@ -15,25 +16,6 @@ async function getMembers(petId) {
     .order('created_at', { ascending: true })
   if (error) throw error
   return data || []
-}
-
-async function inviteMember(petId, email, role = 'viewer') {
-  // The invite is stored against the email alone. There used to be a lookup
-  // here against profiles to resolve a user_id first, but profiles holds only
-  // (id, is_admin, created_at) — it has no email column, so that query failed
-  // every single time and its error was discarded. Access is granted by
-  // matching the email anyway: see is_pet_member() in supabase/pet_members.sql.
-  // The new row's id comes back because the invite email is sent by id: the
-  // server re-reads the row and emails the address IT finds, rather than one
-  // passed in a request body.
-  const supabase = await getSupabase()
-  const { data, error } = await supabase.from('pet_members').insert({
-    pet_id: petId,
-    email,
-    role,
-  }).select('id').single()
-  if (error) throw error
-  return data?.id
 }
 
 /**
@@ -58,21 +40,6 @@ async function sendInviteEmail(memberId) {
   } catch {
     return { sent: false }
   }
-}
-
-// Postgres errors are written for whoever wrote the schema, not for the person
-// trying to share their dog with their sister.
-function friendly(message = '') {
-  if (/permission denied|row-level security|violates row-level/i.test(message)) {
-    return "You don't have permission to change who can see this pet — only its owner can."
-  }
-  if (/duplicate key|unique constraint/i.test(message)) {
-    return 'That email already has access to this pet.'
-  }
-  if (/does not exist|schema cache|column/i.test(message)) {
-    return 'Sharing isn\'t set up on this database yet. Run supabase/pet_members.sql in the Supabase SQL editor.'
-  }
-  return message
 }
 
 async function removeMember(memberId) {
@@ -102,7 +69,7 @@ export default function PetSharing({ pet, onClose }) {
       // the share panel -- friendly() passed it through, the user read it, and
       // because nothing rethrew it window.onerror never fired and client_errors
       // held no row for it at all. A customer had to report it.
-      .catch(e => { reportHandled(e, { view: 'sharing' }); setError(friendly(e.message)) })
+      .catch(e => { reportHandled(e, { view: 'sharing' }); setError(friendly(e)) })
       .finally(() => setLoading(false))
   }
   useEffect(load, [pet.id])
@@ -115,7 +82,8 @@ export default function PetSharing({ pet, onClose }) {
     setNotice(null)
     try {
       const invited = email.trim().toLowerCase()
-      const memberId = await inviteMember(pet.id, invited, role)
+      const supabase = await getSupabase()
+      const memberId = await inviteMember(supabase, pet.id, invited, role)
       // THE event for this screen. `role` is a fixed vocabulary; the invited
       // address is never sent.
       trackEvent('pet_shared', { role: role || 'viewer' })
@@ -132,7 +100,7 @@ export default function PetSharing({ pet, onClose }) {
       load()
     } catch (err) {
       reportHandled(err, { view: 'sharing' })
-      setInviteErr(friendly(err.message))
+      setInviteErr(friendly(err))
     } finally {
       setInviting(false)
     }
@@ -142,7 +110,7 @@ export default function PetSharing({ pet, onClose }) {
     if (!confirm('Remove this person from the pet?')) return
     await removeMember(id).catch(e => {
       reportHandled(e, { view: 'sharing' })
-      alert(friendly(e.message))
+      alert(friendly(e))
     })
     load()
   }
