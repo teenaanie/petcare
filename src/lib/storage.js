@@ -133,6 +133,52 @@ export async function getAdminUsers() {
   return data || []
 }
 
+// ── Provider claims (admin only) ─────────────────────────────────────────────
+//
+// A business claiming its directory listing lands status='pending' and a human
+// decides. Both calls below are gated in the database, not here:
+// admin_provider_claims() returns zero rows to a non-admin, and
+// provider_accounts' UPDATE policy is is_admin() on both USING and WITH CHECK.
+// Nothing in this file is a permission check.
+
+export async function getProviderClaims() {
+  if (!isConfigured) return []
+  const supabase = await getSupabase()
+  const { data, error } = await supabase.rpc('admin_provider_claims')
+  if (error) throw error
+  return data || []
+}
+
+export async function setProviderClaimStatus(id, status) {
+  if (!isConfigured) throw new Error('Supabase is not configured.')
+  const supabase = await getSupabase()
+
+  // Approving is its own RPC because it does two things: activates the account
+  // AND publishes the listing, if that listing was self-registered and still
+  // unpublished. As two client-side updates the second could fail on its own,
+  // leaving an active account whose business is invisible in the directory and
+  // nothing saying so. Suspending and returning to pending touch only the
+  // account, so they stay plain updates.
+  if (status === 'active') {
+    const { error } = await supabase.rpc('approve_provider_claim', { p_account_id: id })
+    if (error) throw error
+    return
+  }
+
+  const now = new Date().toISOString()
+
+  // Suspending KEEPS the grant stamp, because "who approved this, and when" is
+  // the thing you want most once an account has turned out to be trouble. Only
+  // a return to pending clears all three, which is the one case where no
+  // approval has happened. ('active' never reaches here — see above.)
+  const row = { status }
+  if (status === 'suspended') Object.assign(row, { revoked_at: now })
+  if (status === 'pending')   Object.assign(row, { granted_by: null, granted_at: null, revoked_at: null })
+
+  const { error } = await supabase.from('provider_accounts').update(row).eq('id', id)
+  if (error) throw error
+}
+
 export const savePet = (pet) => bust('pets', () => _savePet(pet))
 async function _savePet(pet) {
   if (isConfigured) {
@@ -646,10 +692,14 @@ async function _deleteBill(id) {
 
 export async function getFeedback() {
   if (!isConfigured) return []
+  // Embed the business a provider's message is about. feedback.provider_id is a
+  // real FK to providers, which is what lets PostgREST do this join, and the
+  // admin reads providers through "Admin manages providers". A pet parent's
+  // row has provider_id null and comes back with providers: null, unchanged.
   const supabase = await getSupabase()
   const { data, error } = await supabase
     .from('feedback')
-    .select('*')
+    .select('*, providers(name, type, area)')
     .order('created_at', { ascending: false })
   if (error) throw error
   return data || []

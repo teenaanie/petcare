@@ -389,7 +389,7 @@ export default function PhoneAuth({ onShowPrivacy }) {
         </div>
 
         <p className="text-center text-xs mt-6" style={{ color: '#73775b' }}>
-          Your data is private and secure. Only you can see your pets' records.
+          Your data is private and secure. Only you can see your pets&apos; records.
           {onShowPrivacy && (
             <>
               {' · '}
@@ -399,6 +399,7 @@ export default function PhoneAuth({ onShowPrivacy }) {
             </>
           )}
         </p>
+
       </div>
     </div>
   )

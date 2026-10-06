@@ -97,6 +97,50 @@ Each one is idempotent, so re-running is safe:
 | `boarding.sql` | Boarding prep — the pet boarding profile, `providers.boarding_policy`, and `boarding_trips` |
 | `fix_pet_members_select.sql` | Lets the sharing dialog read `pet_members` (its policy read `auth.users` inline, which the calling role can't) |
 | `provider_taxonomy.sql` | `providers.services` / `.specializations`, and the Dog Walking + Training types |
+| `admins.sql` | The `admins` table and `is_admin()`. Must come before `provider_accounts.sql`, which calls it |
+| `provider_accounts.sql` | Provider sign-in: `provider_accounts`, `is_provider_member()`, `email_is_mine()`, and the claim RPCs |
+| `provider_feedback.sql` | `feedback.provider_id` and `is_provider_claimant()`, so a provider — including a suspended one — can send a message |
+| `provider_self_registration.sql` | `register_and_claim_provider()` and `approve_provider_claim()`, so a business Google missed can add its listing and claim it in one step |
+
+### Auth email templates
+
+`supabase/email_templates/` holds the bodies to paste into Supabase →
+Authentication → Email Templates. There is one of each **per project**, shared
+by both sign-ins: PhoneAuth.jsx for pet parents at `/` and ProviderAuth.jsx for
+businesses at `/business` call the same `signInWithOtp`, so neither template can
+be written for one audience.
+
+| File | Template | Who sees it |
+| --- | --- | --- |
+| `magic_link.html` | Magic Link | an address Supabase already knows |
+| `confirm_signup.html` | Confirm signup | the first time an address is seen |
+
+Both are code-first with the link secondary, because tapping a link from a
+phone's mail app opens the browser rather than the installed app — and on iOS a
+web app has its own storage, so that leaves the app signed out.
+
+`confirm_signup.html` may not be needed: if "Enable email confirmations" is off,
+a new address gets the Magic Link template and Confirm signup never fires. Check
+by signing in with an address Pippy has never seen before replacing anything.
+
+`npm run test:provider-alert` covers the serverless function that emails the
+admins when a business sends one of those messages, and `npm run test:register`
+covers the public registration endpoint. Neither needs a database or a network:
+each stands up a stand-in for Supabase and intercepts the outbound mail, so they
+assert on what was actually sent and written rather than on a status code.
+
+The last two have a harness, so you do not have to take their policies on
+trust. It builds a throwaway PostgreSQL 16, runs both files against it, and then
+attacks the policies as `anon` and as `authenticated`:
+
+```bash
+npm run test:sql
+```
+
+It needs a local PostgreSQL 16 (`initdb` and `psql` on `PATH`, or `PGBIN` set),
+creates its cluster fresh and destroys it afterwards, and never touches the live
+project. Run it before applying either file, and after editing either one — it
+found a real hole in `provider_accounts.sql` that reading the file had missed.
 
 The base block below also predates the `medicines`, `bills` and `weight_logs`
 tables and the `is_done` columns on `vaccinations`, `medicines` and `reminders`.

@@ -4,12 +4,11 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { maskEmail } from './_redact.js'
+import { sendEmail } from './_email.js'
+import { adminEmails } from './_admins.js'
 
 const SUPABASE_URL   = process.env.SUPABASE_URL
 const SERVICE_KEY    = process.env.SUPABASE_SERVICE_KEY
-const RESEND_API_KEY = process.env.RESEND_API_KEY
-const FROM_EMAIL     = process.env.FROM_EMAIL || 'Pippy <reminders@pippypets.com>'
-const ADMIN_EMAIL    = 'teena.anie9@gmail.com'
 
 const PROVIDER_TYPES = ['Vet', 'Groomer', 'Store', 'Boarder', 'Special Services', 'Pet Loss & Memorial Services']
 
@@ -26,24 +25,6 @@ function cleanString(value, maxLen) {
 
 function isValidUrl(value) {
   return typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://')) && value.length <= 500
-}
-
-// ── Email via Resend ──────────────────────────────────────────────────────────
-
-async function sendEmail(to, subject, html) {
-  if (!RESEND_API_KEY) {
-    console.log(`[EMAIL SKIPPED] No RESEND_API_KEY. Would send to ${maskEmail(to)}`)
-    return
-  }
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: FROM_EMAIL, to, subject, html }),
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(`Email failed: ${err.message || res.statusText}`)
-  }
 }
 
 function notificationHtml(p) {
@@ -66,6 +47,7 @@ function notificationHtml(p) {
           ${row('City', p.city)}
           ${row('Address', p.address)}
           ${row('Phone', p.phone)}
+          ${row('Email', p.email)}
           ${row('WhatsApp', p.whatsapp)}
           ${row('Hours', p.hours)}
           ${row('Description', p.description)}
@@ -106,6 +88,15 @@ export default async function handler(req) {
   const phone = cleanString(body.phone, 30)
   if (!phone) return json(400, { error: 'Please enter a phone number' })
 
+  // New. The form collected a phone and nothing else, which left two holes: no
+  // way to reach a business by mail about its own listing, and no way for them
+  // to claim it later — claim_provider() adopts a waiting row by EMAIL, so a
+  // submission without one could never be matched to the person who made it.
+  const emailAddr = cleanString(body.email, 200)
+  if (emailAddr && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailAddr)) {
+    return json(400, { error: 'Please enter a valid email address' })
+  }
+
   const area        = cleanString(body.area, 120)
   const city        = cleanString(body.city, 200)
   const address     = cleanString(body.address, 200)
@@ -134,16 +125,47 @@ export default async function handler(req) {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
-  const { error } = await supabase.from('providers').insert(provider)
+  const { data: inserted, error } = await supabase
+    .from('providers').insert(provider).select('id').single()
   if (error) {
     console.error('Failed to insert provider:', error)
     return json(500, { error: 'Something went wrong, please try again.' })
   }
 
-  try {
-    await sendEmail(ADMIN_EMAIL, `🐾 New provider submission: ${name} (${body.type})`, notificationHtml(provider))
-  } catch (e) {
-    console.error('Admin notification email failed:', e.message)
+  // Turn the submission into a waiting claim. This is the same shape an admin
+  // creates when inviting a business by hand: a provider_accounts row with an
+  // email and no user_id. When that person later signs in at /business,
+  // claim_provider() adopts this row rather than making a second one beside it.
+  //
+  // It grants nothing on its own — is_provider_member() requires status
+  // 'active' — so an unverified address here is an invitation, not access.
+  //
+  // Deliberately NOT written to `providers`: search_providers() returns
+  // to_jsonb(p) and is granted to anon, so every column on that table is
+  // world-readable. A phone on a business listing is published information; the
+  // address the owner signs in with is not.
+  if (emailAddr) {
+    const { error: claimErr } = await supabase.from('provider_accounts').insert({
+      provider_id: inserted.id,
+      email: emailAddr,
+      status: 'pending',
+      claimed_type: body.type,
+      claim_note: 'Submitted through the public registration form.',
+    })
+    // A failure here costs the head start, not the listing, so it is logged and
+    // swallowed rather than failing a submission that already succeeded.
+    if (claimErr) console.error('Could not pre-create the claim:', claimErr.message)
+  }
+
+  const recipients = await adminEmails(supabase)
+  if (!recipients.length) console.warn('A provider registered with no active admins to tell.')
+  for (const to of recipients) {
+    try {
+      await sendEmail(to, `🐾 New provider submission: ${name} (${body.type})`,
+                      notificationHtml({ ...provider, email: emailAddr }))
+    } catch (e) {
+      console.error(`Admin notification email failed for ${maskEmail(to)}: ${e.message}`)
+    }
   }
 
   return json(200, { success: true })

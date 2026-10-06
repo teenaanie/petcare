@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { reportHandled } from '../lib/errorReport.js'
-import { ShieldCheck, Users, PawPrint, ChevronRight, ChevronLeft, Search, Phone, Mail, Loader2, AlertCircle, Stethoscope, Syringe, Pill, Receipt, Bell, ChevronDown, ChevronUp, Star, MessageSquarePlus, MapPin, Clock, Scissors, ShoppingBag, Home, Camera, Flower2, Plus, Check, X, Trash2, ToggleLeft, ToggleRight, Gauge, HardDrive, Sparkles, Bug, Moon } from 'lucide-react'
-import { getAdminUsers, getPets, getMedicalHistory, getVaccinations, getMedicines, getBills, getReminders, getFeedback, getProviders, saveProvider, deleteProvider } from '../lib/storage.js'
+import { ShieldCheck, Users, PawPrint, ChevronRight, ChevronLeft, Search, Phone, Mail, Loader2, AlertCircle, Stethoscope, Syringe, Pill, Receipt, Bell, ChevronDown, ChevronUp, Star, MessageSquarePlus, MapPin, Clock, Scissors, ShoppingBag, Home, Camera, Flower2, Plus, Check, X, Trash2, ToggleLeft, ToggleRight, Gauge, HardDrive, Sparkles, Bug, Moon, Building2 } from 'lucide-react'
+import { getAdminUsers, getPets, getMedicalHistory, getVaccinations, getMedicines, getBills, getReminders, getFeedback, getProviders, saveProvider, deleteProvider, getProviderClaims, setProviderClaimStatus } from '../lib/storage.js'
 import PetAvatar from './PetAvatar.jsx'
 import { formatWeight } from '../lib/currentWeight.js'
 import BoardingRulesPanel from './BoardingRulesPanel.jsx'
@@ -395,6 +395,13 @@ function FeedbackPanel() {
                 {new Date(item.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
               </span>
             </div>
+            {item.providers?.name && (
+              <p className="flex items-center gap-1.5 text-xs font-bold mb-1" style={{ color: '#b08d57' }}>
+                <Building2 className="w-3 h-3 shrink-0" />
+                {item.providers.name}
+                {item.providers.area ? ` · ${item.providers.area}` : ''}
+              </p>
+            )}
             {item.category && (
               <span className="inline-block text-xs font-bold px-2.5 py-1 rounded-full mb-2"
                 style={{ backgroundColor: '#ebe3d3', color: '#7a4900' }}>
@@ -759,6 +766,186 @@ function ProviderForm({ initial, onSave, onCancel, saving }) {
   )
 }
 
+// ── Provider claims ──────────────────────────────────────────────────────────
+//
+// A business says "this listing is mine". Nobody can prove that from the row, so
+// a human reads it: anyone could type "Unleash – The Dog Town" into a form, and
+// a claim that approved itself would hand a stranger a real business's customer
+// book.
+//
+// What is actually being decided here is narrow, and worth keeping in mind while
+// reviewing: approving a claim does NOT give the business any customer's data.
+// Under the inform-note model there is nothing to give — a provider reads only
+// the notes customers choose to send them. Approving grants a sign-in and a
+// listing, nothing more. That is why a same-day turnaround on a judgement call
+// is a reasonable thing to ask of one person.
+
+const CLAIM_STATUS = {
+  pending:   { label: 'Pending',   bg: '#fff3c0', text: '#7a4900' },
+  active:    { label: 'Approved',  bg: '#eef3e2', text: '#44562a' },
+  suspended: { label: 'Suspended', bg: '#fdeaea', text: '#8a2b20' },
+}
+
+function ClaimCard({ claim, onSet, busy }) {
+  const cfg = CLAIM_STATUS[claim.status] || { label: claim.status, bg: '#f5f0e0', text: '#5f624b' }
+  // The claimant said what they do; the directory says something else. Not
+  // wrong on its own — a day care that also grooms picks either honestly — but
+  // it is the one field on this card that the reviewer did not get from Google,
+  // so it is worth looking at rather than scrolling past.
+  // Only meaningful on a Google-sourced listing, where the claimant's answer and
+  // Google's category are two independent opinions. On a self-registered one the
+  // provider supplied both, so they always agree and the flag would be noise.
+  const typeDiffers = claim.provider_is_approved !== false &&
+                      claim.claimed_type && claim.provider_type &&
+                      claim.claimed_type !== claim.provider_type
+
+  return (
+    <div className="rounded-2xl p-4" style={{ backgroundColor: 'white', border: '1px solid #f0e6c8' }}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-black text-sm truncate" style={{ color: '#4A2C0A' }}>{claim.provider_name}</p>
+          <p className="text-xs truncate" style={{ color: '#b08d57' }}>
+            {[claim.provider_type, claim.provider_area].filter(Boolean).join(' · ')}
+          </p>
+        </div>
+        <span className="text-xs px-2 py-0.5 rounded-full font-bold shrink-0"
+          style={{ backgroundColor: cfg.bg, color: cfg.text }}>{cfg.label}</span>
+      </div>
+
+      {/* A self-registered listing is not in the directory yet, and approving
+          this claim is what publishes it. Say so, and show what is about to go
+          public, because that is a second decision riding on the same button. */}
+      {claim.provider_is_approved === false && (
+        <div className="mt-3 rounded-xl px-2.5 py-2 text-xs" style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
+          <p className="font-bold mb-1">New listing — approving will publish it</p>
+          <p>{[claim.provider_type, claim.provider_area, claim.provider_city].filter(Boolean).join(' · ')}</p>
+          {claim.provider_phone && <p>{claim.provider_phone}</p>}
+          {claim.provider_source && <p style={{ color: '#b08d57' }}>added via {claim.provider_source.replace(/_/g, ' ')}</p>}
+        </div>
+      )}
+
+      <div className="mt-3 space-y-1 text-xs" style={{ color: '#5f624b' }}>
+        {claim.email && <p className="flex items-center gap-1.5 truncate"><Mail className="w-3 h-3 shrink-0" /> {claim.email}</p>}
+        {claim.phone && <p className="flex items-center gap-1.5 truncate"><Phone className="w-3 h-3 shrink-0" /> {claim.phone}</p>}
+        {typeDiffers && (
+          <p className="flex items-start gap-1.5" style={{ color: '#c9891f' }}>
+            <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+            <span>Claims to be a <strong>{claim.claimed_type}</strong>, listed as <strong>{claim.provider_type}</strong></span>
+          </p>
+        )}
+        {claim.claim_note && (
+          <p className="rounded-xl px-2.5 py-2 mt-2" style={{ backgroundColor: '#fffef8', color: '#4A2C0A' }}>
+            “{claim.claim_note}”
+          </p>
+        )}
+      </div>
+
+      <div className="flex gap-2 mt-4">
+        {claim.status !== 'active' && (
+          <button disabled={busy} onClick={() => onSet(claim.id, 'active')}
+            className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg"
+            style={{ backgroundColor: '#eef3e2', color: '#44562a', opacity: busy ? 0.5 : 1 }}>
+            <Check className="w-3.5 h-3.5" /> Approve
+          </button>
+        )}
+        {claim.status !== 'suspended' && (
+          <button disabled={busy} onClick={() => onSet(claim.id, 'suspended')}
+            className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg"
+            style={{ backgroundColor: '#fdeaea', color: '#8a2b20', opacity: busy ? 0.5 : 1 }}>
+            <X className="w-3.5 h-3.5" /> Suspend
+          </button>
+        )}
+        {claim.status !== 'pending' && (
+          <button disabled={busy} onClick={() => onSet(claim.id, 'pending')}
+            className="text-xs font-bold px-3 py-1.5 rounded-lg"
+            style={{ backgroundColor: '#f5f0e0', color: '#5f624b', opacity: busy ? 0.5 : 1 }}>
+            Back to pending
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ClaimsPanel() {
+  const [claims, setClaims]   = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState(null)
+  const [busy, setBusy]       = useState(false)
+  const [pendingOnly, setPendingOnly] = useState(true)
+
+  function load() {
+    setLoading(true)
+    getProviderClaims()
+      .then(rows => { setClaims(rows); setError(null) })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+  }
+  useEffect(load, [])
+
+  async function handleSet(id, status) {
+    setBusy(true)
+    try { await setProviderClaimStatus(id, status); load() }
+    catch (e) { alert(e.message) }
+    finally { setBusy(false) }
+  }
+
+  const pendingCount = claims.filter(c => c.status === 'pending').length
+  const shown = pendingOnly ? claims.filter(c => c.status === 'pending') : claims
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-16" style={{ color: '#73775b' }}>
+        <Loader2 className="w-5 h-5 animate-spin" /> <span>Loading claims…</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-start gap-2 p-4 rounded-xl text-sm"
+        style={{ backgroundColor: '#fdeaea', color: '#c0392b' }}>
+        <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+        <span>{error}. Run <code>supabase/admins.sql</code> and then{' '}
+        <code>supabase/provider_accounts.sql</code> in the SQL editor — in that order.</span>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-sm font-bold" style={{ color: '#7a4900' }}>
+          {pendingCount > 0
+            ? `${pendingCount} waiting for you`
+            : 'Nothing waiting'}
+        </p>
+        <button onClick={() => setPendingOnly(v => !v)}
+          className="flex items-center gap-1.5 text-xs font-bold"
+          style={{ color: '#b08d57' }}>
+          {pendingOnly ? <ToggleLeft className="w-4 h-4" /> : <ToggleRight className="w-4 h-4" />}
+          {pendingOnly ? 'Pending only' : `All ${claims.length}`}
+        </button>
+      </div>
+
+      {shown.length === 0 ? (
+        <div className="text-center py-16">
+          <Building2 className="w-12 h-12 mx-auto mb-3 opacity-20" style={{ color: '#7a4900' }} />
+          <p className="text-sm" style={{ color: '#73775b' }}>
+            {pendingOnly && claims.length > 0
+              ? 'No claims pending. Switch to all to see the decided ones.'
+              : 'No business has claimed a listing yet.'}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {shown.map(c => <ClaimCard key={c.id} claim={c} onSet={handleSet} busy={busy} />)}
+        </div>
+      )}
+    </>
+  )
+}
+
 const ADMIN_PAGE_SIZE = 50
 
 function ProvidersPanel() {
@@ -941,7 +1128,7 @@ export default function AdminDashboard() {
   const [error, setError]         = useState(null)
   const [search, setSearch]       = useState('')
   const [selectedUser, setSelectedUser] = useState(null)
-  const [tab, setTab]             = useState('users')   // users | quiet | feedback | providers | boarding | usage | errors
+  const [tab, setTab]             = useState('users')   // users | quiet | feedback | providers | claims | boarding | usage | errors
 
   useEffect(() => {
     setLoading(true)
@@ -1002,6 +1189,12 @@ export default function AdminDashboard() {
               <MapPin className="w-4 h-4" /> Providers
             </button>
             <button
+              onClick={() => setTab('claims')}
+              className="flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
+              style={tab === 'claims' ? { backgroundColor: '#f2b83d', color: '#7a4900' } : { color: '#73775b' }}>
+              <Building2 className="w-4 h-4" /> Claims
+            </button>
+            <button
               onClick={() => setTab('boarding')}
               className="flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
               style={tab === 'boarding' ? { backgroundColor: '#f2b83d', color: '#7a4900' } : { color: '#73775b' }}>
@@ -1030,6 +1223,8 @@ export default function AdminDashboard() {
           <UsagePanel />
         ) : tab === 'boarding' && !selectedUser ? (
           <BoardingRulesPanel />
+        ) : tab === 'claims' && !selectedUser ? (
+          <ClaimsPanel />
         ) : tab === 'providers' && !selectedUser ? (
           <ProvidersPanel />
         ) : tab === 'feedback' && !selectedUser ? (

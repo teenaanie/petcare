@@ -244,7 +244,7 @@ export default function Landing({ children, onShowPrivacy }) {
         {/* This used to be a `fixed` link in App.jsx. That was fine when the
             signed-out screen was one non-scrolling card; now the page scrolls,
             and a fixed link sat on top of whatever you were reading. */}
-        <p className="text-center text-xs pb-8" style={{ color: '#73775b' }}>
+        <p className="text-center text-xs" style={{ color: '#73775b' }}>
           Only you can see your pets&apos; records.
           {onShowPrivacy && (
             <>
@@ -254,6 +254,23 @@ export default function Landing({ children, onShowPrivacy }) {
               </button>
             </>
           )}
+        </p>
+
+        {/* The way across to the provider shell, and the mirror of the line
+            ProviderAuth carries back to here. Without it a boarder told "go to
+            pippypets.com" lands on this page with no sign that /business
+            exists — it was reachable only by being handed the URL.
+
+            It belongs on Landing rather than in PhoneAuth's own footer: that
+            footer now renders only on the code-entry step, which you reach by
+            already having started a pet-parent sign-in. Wrong audience, and a
+            boarder would never get that far. This is the page they actually
+            arrive on. */}
+        <p className="text-center text-xs pb-8 mt-2" style={{ color: '#73775b' }}>
+          Run a boarding or grooming business?{' '}
+          <a href="/business" className="underline" style={{ color: '#b08d57' }}>
+            Sign in to your business account
+          </a>.
         </p>
       </div>
     </div>

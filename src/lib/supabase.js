@@ -47,3 +47,40 @@ export function getSupabase() {
   }
   return clientPromise
 }
+
+// ── The provider shell's own client ─────────────────────────────────────────
+//
+// The shell at /business signs in separately, with its own session. Same
+// project, same anon key, and — deliberately — the same email address: a
+// boarder is often also a pet parent, and Supabase will not create two
+// auth.users rows for one address anyway. What differs is the storage key, so
+// signing into one side does not sign you into the other.
+//
+// This is a UI and session boundary, NOT a security boundary. Both sessions
+// carry the same auth.uid(), so no RLS policy can tell "signed in as a
+// provider" from "signed in as a pet parent". What it buys: no accidental
+// crossover, and a kennel's shared computer signed into /business does not
+// expose the owner's own pet records. What it does not buy: any restriction on
+// the person themselves — they are the same user, and reaching their own data
+// from either session is not a leak. Do not build anything on the assumption
+// that the database can tell these two apart.
+//
+// Lazy for the same reason as the one above, and it matters MORE here: this
+// client is only ever wanted at /business, so an eager one would have put all
+// 211 kB back on the critical path of every pet parent to serve a page they
+// will never open. It shares the same dynamic import, so the second shell to
+// ask for it pays nothing.
+
+let providerClientPromise = null
+
+/** The provider shell's client, built once. Null when Supabase is unconfigured. */
+export function getSupabaseProvider() {
+  if (!isConfigured) return Promise.resolve(null)
+  if (!providerClientPromise) {
+    providerClientPromise = import('@supabase/supabase-js')
+      .then(({ createClient }) =>
+        createClient(url, key, { auth: { storageKey: 'pippy-provider-auth' } }))
+      .catch(e => { providerClientPromise = null; throw e })
+  }
+  return providerClientPromise
+}
