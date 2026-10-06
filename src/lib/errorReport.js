@@ -23,7 +23,24 @@
 
 import { isNetworkError } from './net.js'
 
-const MAX_PER_SESSION = 10      // an error inside a render loop must not flood
+// How much one session may send. The cap exists because an error inside a
+// render loop must not flood, and the per-fingerprint dedupe below means
+// reaching either number takes that many DISTINCT faults.
+//
+// It was 10 when only uncaught faults could get here. Now that about forty
+// caught paths feed the same budget, 10 is too tight: a session that hits
+// several handled faults could spend the lot and then silently drop the crash
+// that followed -- which is the one report nobody can reconstruct afterwards,
+// because the user's screen went white and they closed the tab.
+const MAX_PER_SESSION = 25
+
+// Raising the ceiling alone does not fix that, it only makes it less likely.
+// Handled faults are the common kind by far, so they get their own smaller
+// budget and uncaught faults keep the difference -- at least
+// MAX_PER_SESSION - MAX_HANDLED_PER_SESSION of headroom that no amount of
+// caught-and-shown noise can touch. A crash is never dropped to make room for
+// a message somebody already read.
+const MAX_HANDLED_PER_SESSION = 15
 
 // Browser housekeeping that fails in ways nobody experiences.
 //
@@ -155,6 +172,7 @@ export function buildReport(error, { view, kind } = {}) {
 
 const seen = new Set()
 let sentCount = 0
+let handledCount = 0
 let currentView = 'unknown'
 let installed = false
 
@@ -183,16 +201,20 @@ export function setErrorUser(token) { authToken = token || null }
 export function reportError(error, opts = {}) {
   try {
     if (sentCount >= MAX_PER_SESSION) return
+    // Resolved before the budget check, because which budget applies depends
+    // on it. An unrecognised value reads as 'uncaught' here exactly as it does
+    // in buildReport, so a caller cannot reach the reserved headroom by
+    // passing something the set does not know.
+    const kind = KINDS.has(opts.kind) ? opts.kind : 'uncaught'
+    if (kind === 'handled' && handledCount >= MAX_HANDLED_PER_SESSION) return
     const raw = String(error?.message || error || '')
     if (IGNORED.some(re => re.test(raw))) return
-    const report = buildReport(error, {
-      view: opts.view || currentView,
-      kind: opts.kind,
-    })
+    const report = buildReport(error, { view: opts.view || currentView, kind })
     const fp = fingerprint(error || {})
     if (seen.has(fp)) return
     seen.add(fp)
     sentCount++
+    if (kind === 'handled') handledCount++
 
     // The token goes in the body because sendBeacon cannot set headers. The
     // endpoint verifies it the same way either way, so nothing is weakened --
