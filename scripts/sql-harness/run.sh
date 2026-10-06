@@ -4,6 +4,23 @@
 #
 #   scripts/sql-harness/run.sh
 #
+# A fixed locale, for initdb AND for the server.
+#
+# Two separate failures without this, both of which read as database problems
+# when they are environment ones:
+#
+#   initdb   : "invalid locale settings; check LANG and LC_* environment
+#              variables" when the caller's LANG is unset or unknown to it.
+#   postmaster: "became multithreaded during startup / Set the LC_ALL
+#              environment variable to a valid locale" -- on macOS, looking up
+#              an unset locale spawns a thread, and Postgres refuses to start
+#              multithreaded.
+#
+# C also gives stable collation, which matters because these tests compare
+# exact strings and ordering.
+export LANG=C
+export LC_ALL=C
+
 # Needs a local PostgreSQL 16 (psql + initdb). The cluster is created fresh,
 # used, and destroyed, so a failing run leaves nothing behind to clean up.
 #
@@ -41,7 +58,7 @@ trap cleanup EXIT
 mkdir -p "$BASE/pgdata" "$BASE/sock"
 [ -n "$RUNAS" ] && chown -R "$RUNAS:$RUNAS" "$BASE"
 
-as "initdb -D $BASE/pgdata -U postgres -A trust" >/dev/null
+as "initdb -D $BASE/pgdata -U postgres -A trust --locale=C" >/dev/null
 as "pg_ctl -D $BASE/pgdata -o \"-k $BASE/sock -c listen_addresses=''\" -l $BASE/pgdata/pg.log start" >/dev/null
 for _ in $(seq 20); do
   "$PGBIN/psql" -h "$BASE/sock" -U postgres -d postgres -tAc 'select 1' >/dev/null 2>&1 && break

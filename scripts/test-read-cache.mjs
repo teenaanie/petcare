@@ -372,5 +372,51 @@ console.log('\nComing back after being away drops the cache')
   }
 }
 
+console.log('\nOne write can clear more than one table')
+{
+  // The bug this covers: getPets() carries each pet's latest weight, read from
+  // weight_logs. saveWeightLog cleared only 'weight_logs', so recording a
+  // weight left the pet card and the emergency card showing the PREVIOUS
+  // figure for up to the TTL -- which is the exact complaint the derived
+  // weight was added to fix, reappearing in a 30-second window.
+  const now = clockAt()
+  const { cached, bust, size } = createReadCache({ now })
+
+  const pets = counter(() => [{ name: 'Mapple', latestWeight: 1.7 }])
+  const logs = counter(() => [{ weight: 1.7 }])
+  await cached('pets', null, pets)
+  await cached('weight_logs', 'p', logs)
+  ok('both are cached', size() === 2, size())
+
+  await bust(['weight_logs', 'pets'], async () => {})
+  ok('an array clears every table named', size() === 0, size())
+
+  // And the single-table form still behaves.
+  await cached('pets', null, pets)
+  await cached('weight_logs', 'p', logs)
+  await bust('weight_logs', async () => {})
+  ok('a plain string still clears exactly one', size() === 1, size())
+
+  // '*' inside an array still means everything, so a cascading delete that
+  // also names a table cannot accidentally narrow itself.
+  await cached('bills', 'p', counter())
+  await bust(['pets', '*'], async () => {})
+  ok("'*' anywhere in the array clears everything", size() === 0, size())
+
+  // An array write still clears before the caller's await returns, which is
+  // the ordering the whole module rests on.
+  let rows = [{ v: 'old' }]
+  const load = counter(() => rows)
+  await cached('pets', null, load)
+  await bust(['weight_logs', 'pets'], async () => { rows = [{ v: 'new' }] })
+  const after = await cached('pets', null, load)
+  ok('the read straight after an array write is fresh', after[0].v === 'new', after)
+
+  // A single-element array is the same as the string.
+  await cached('medicines', 'p', counter())
+  await bust(['medicines'], async () => {})
+  ok('a one-element array works', size() === 1, size())
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`)
 process.exit(fail ? 1 : 0)

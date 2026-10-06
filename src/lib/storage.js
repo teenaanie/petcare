@@ -533,7 +533,10 @@ async function _getWeightLogs(petId) {
   return petId ? all.filter(r => r.petId === petId) : all
 }
 
-export const saveWeightLog = (log) => bust('weight_logs', () => _saveWeightLog(log))
+// Also clears `pets`: getPets() carries each pet's latest weight, derived
+// from these rows, so the pet card and the emergency card would otherwise
+// keep showing the previous figure until the TTL lapsed.
+export const saveWeightLog = (log) => bust(['weight_logs', 'pets'], () => _saveWeightLog(log))
 async function _saveWeightLog(log) {
   if (isConfigured) {
     const supabase = await getSupabase()
@@ -559,7 +562,10 @@ async function _saveWeightLog(log) {
   return log
 }
 
-export const deleteWeightLog = (id) => bust('weight_logs', () => _deleteWeightLog(id))
+// Also clears `pets`: getPets() carries each pet's latest weight, derived
+// from these rows, so the pet card and the emergency card would otherwise
+// keep showing the previous figure until the TTL lapsed.
+export const deleteWeightLog = (id) => bust(['weight_logs', 'pets'], () => _deleteWeightLog(id))
 async function _deleteWeightLog(id) {
   if (isConfigured) {
     const supabase = await getSupabase()

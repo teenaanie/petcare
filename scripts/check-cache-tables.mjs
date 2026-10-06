@@ -20,8 +20,27 @@ const src = readFileSync('src/lib/storage.js', 'utf8')
 const lines = src.split('\n')
 
 // Each wrapper is `export const name = (...) => cached('table', ...)` or
-// `... => bust('table', ...)`, immediately followed by `async function _name`.
-const WRAPPER = /^export const (\w+) = .*?\b(cached|bust)\('([^']+)'/
+// `... => bust('table', ...)` / `bust(['a', 'b'], ...)`, immediately followed
+// by `async function _name`.
+//
+// The array form must be understood explicitly. When it was introduced this
+// regex stopped matching those two writers, and the check went on reporting
+// "ok" while silently no longer looking at them -- the busting-writes count
+// dropped from 23 to 21 and nothing said so. A check that quietly narrows is
+// worse than one that fails.
+const WRAPPER = /^export const (\w+) = .*?\b(cached|bust)\(\s*(\[[^\]]*\]|'[^']+')/
+
+/**
+ * Cached reads that are built from ANOTHER table's rows.
+ *
+ * `pets` is keyed on the pets table, but getPets() attaches each pet's latest
+ * weight from weight_logs (see withLatestWeights in storage.js). So anything
+ * clearing weight_logs must clear pets as well. Add a line here whenever a
+ * getter starts reading a second table.
+ */
+const DERIVED_FROM = {
+  weight_logs: 'pets',
+}
 
 // Writes whose effects legitimately cross tables, with the reason. '*' clears
 // everything; a name here means "this write is allowed to bust a table it does
@@ -60,15 +79,34 @@ let checkedWrites = 0
 for (const line of lines) {
   const m = line.match(WRAPPER)
   if (!m) continue
-  const [, name, kind, declared] = m
+  const [, name, kind, declaredRaw] = m
+  // Either "'pets'" or "['weight_logs', 'pets']".
+  const declaredList = [...declaredRaw.matchAll(/'([^']+)'/g)].map(x => x[1])
+  const declared = declaredList[0]
   kind === 'cached' ? checkedReads++ : checkedWrites++
 
   if (CROSS_TABLE[name]) {
-    if (CROSS_TABLE[name] !== declared) {
+    if (!declaredList.includes(CROSS_TABLE[name])) {
       problems++
-      console.log(`  ✗  ${name} declares '${declared}' but is listed as crossing to '${CROSS_TABLE[name]}'`)
+      console.log(`  ✗  ${name} declares ${declaredRaw} but is listed as crossing to '${CROSS_TABLE[name]}'`)
     }
     continue
+  }
+
+  // ── Derived data ────────────────────────────────────────────────────────
+  // A cached read can be built from a table it is not named after. getPets()
+  // carries each pet's latest weight, read from weight_logs -- so a write to
+  // weight_logs must clear `pets` too, or the pet card and the emergency card
+  // keep showing the previous figure until the TTL lapses. That is the exact
+  // bug the derived weight was added to fix, reappearing in a 30-second
+  // window, and nothing else would have caught it.
+  if (kind === 'bust') {
+    for (const [source, alsoClear] of Object.entries(DERIVED_FROM)) {
+      if (declaredList.includes(source) && !declaredList.includes(alsoClear)) {
+        problems++
+        console.log(`  ✗  ${name} clears '${source}' but not '${alsoClear}', whose cached reads are built from it`)
+      }
+    }
   }
 
   const actual = tablesIn(name)
