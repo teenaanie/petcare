@@ -378,6 +378,44 @@ Return valid JSON only.`
 
 // Only these tasks exist. An unknown task is rejected rather than passed on —
 // the set of things this endpoint can be asked to do is closed by design.
+/**
+ * The covering line of an inform note — and ONLY the covering line.
+ *
+ * The facts block the customer sends is composed deterministically in
+ * src/lib/providerBrief.js and never passes through here. This writes the
+ * sentence or two above it, which is why the prompt is given the pet's NAME and
+ * a handful of category WORDS and no dates, doses or record text at all: there
+ * is nothing here for a model to restate incorrectly, because it has not been
+ * told anything it could get wrong.
+ *
+ * That is the whole design. A model restating a rabies date can get it wrong,
+ * the customer is the only check, and a wrong date in a note a boarder acts on
+ * is the one failure in this feature that could hurt an animal.
+ */
+function providerBriefPrompt({ petName = 'my pet', providerName = '', topics = [], stay = null }) {
+  const safe = s => String(s || '').replace(/[\r\n]+/g, ' ').slice(0, 80)
+  const who  = safe(petName) || 'my pet'
+  const to   = safe(providerName)
+  const what = (Array.isArray(topics) ? topics : [])
+    .map(safe).filter(Boolean).slice(0, 8)
+
+  return `A pet owner is sending their ${to ? `boarding or grooming business (${to})` : 'pet care provider'} \
+a short note about their pet, ${who}, with a factual summary attached below it.
+
+Write ONLY the covering sentence or two that goes above that summary. \
+${what.length ? `The summary covers: ${what.join(', ')}.` : ''} \
+${stay ? `The pet is with them ${stay}.` : ''}
+
+Rules:
+- Two sentences at most. Warm, plain, the way one person writes to another.
+- Do NOT restate any specific fact, date, dose, or medicine name. The summary
+  below says all of that, and repeating it is how a wrong detail gets in.
+- Do not invent anything about the pet.
+- No greeting line of its own beyond addressing them, no sign-off, no subject.
+
+Return the sentences as plain text, nothing else.`
+}
+
 const TASKS = {
   health_summary: { build: healthSummaryPrompt, maxTokens: 1500, json: true  },
   voice_reminder: { build: voiceReminderPrompt, maxTokens: 200,  json: false },
@@ -391,6 +429,11 @@ const TASKS = {
   // a pet — it writes only to the record tables, under a pet id the client
   // already holds.
   voice_update:   { build: voiceUpdatePrompt,   maxTokens: 1500, json: true  },
+  // The covering line of an inform note. Its own task, so it draws on its own
+  // monthly budget rather than eating the health summary's — the limit is per
+  // task. Small maxTokens because two sentences is the entire contract, and a
+  // model that runs long here is a model that has started restating facts.
+  provider_brief: { build: providerBriefPrompt, maxTokens: 200,  json: false },
 }
 
 // ── HTTP helpers (same shape as analyze-document.js) ─────────────────────────

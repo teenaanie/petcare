@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
-import { Edit2, Trash2, Calendar, Weight, Phone, Sparkles, ShieldAlert, Users, Mic, Loader2 } from 'lucide-react'
+import { Edit2, Trash2, Calendar, Weight, Phone, Sparkles, ShieldAlert, Users, Mic, Loader2, Building2 } from 'lucide-react'
 import { getSupabase, isConfigured } from '../lib/supabase.js'
 import { prefetchTab } from '../lib/prefetchTab.js'
 import { formatWeight } from '../lib/currentWeight.js'
@@ -178,6 +178,7 @@ import BreedAlert from './BreedAlert.jsx'
 const Boarding = lazy(() => import('./Boarding.jsx'))
 const ConditionJournal = lazy(() => import('./ConditionJournal.jsx'))
 const VoiceUpdate = lazy(() => import('./VoiceUpdate.jsx'))
+const InformProvider = lazy(() => import('./InformProvider.jsx'))
 import { trackEvent } from '../lib/analytics.js'
 import { withRetry } from '../lib/net.js'
 
@@ -187,6 +188,7 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
   const [showEmergencyCard, setShowEmergencyCard] = useState(false)
   const [showSharing, setShowSharing]             = useState(false)
   const [showVoiceUpdate, setShowVoiceUpdate]     = useState(false)
+  const [showInform, setShowInform]               = useState(false)
   // Each tab loads its own records on mount. A voice update can write into any
   // of them, so bumping this remounts whichever tab is open and it reloads —
   // otherwise the user adds a weight by voice and the Weight tab behind the
@@ -265,6 +267,13 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
               title="Share with family">
               <Users className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Share</span>
+            </button>
+            <button onClick={() => setShowInform(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
+              style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}
+              title="Send a summary to your boarder or groomer">
+              <Building2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Inform</span>
             </button>
             <button onClick={() => { setShowEmergencyCard(true); trackEvent('emergency_card_opened', { species: pet?.species || '' }) }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
@@ -375,6 +384,14 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
         <ChunkErrorBoundary view="pet-detail">
         <Suspense fallback={<ModalLoading />}>
           <PetSharing pet={pet} onClose={() => setShowSharing(false)} />
+        </Suspense>
+        </ChunkErrorBoundary>
+      )}
+
+      {showInform && (
+        <ChunkErrorBoundary view="pet-detail">
+        <Suspense fallback={<ModalLoading />}>
+          <InformProvider pet={pet} onClose={() => setShowInform(false)} />
         </Suspense>
         </ChunkErrorBoundary>
       )}
