@@ -452,6 +452,117 @@ SELECT t_run   ('a blank body',                         'postgres',      NULL,
                    values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
                            '33333333-3333-3333-3333-333333333333', 'subject', '   ')$q$, 'error:23514');
 
+
+\echo ''
+\echo '════ stay_updates.sql ════'
+
+-- The note from the provider_notes block above is the handle everything here
+-- hangs off: pet d0000000… owned by 66666666…, sent to Unleash (aaaaaaaa…),
+-- which 33333333… is active on. 55555555… is active on a DIFFERENT business.
+-- A second note, to that other business about the SAME pet, is what makes
+-- "posts claiming another's note" a real attack rather than a typo.
+-- Both notes get literal ids, and every statement below names them outright
+-- rather than sub-selecting. A subselect reads provider_notes AS THE ATTACKER,
+-- and an attacker who cannot read it inserts nothing and reports ok:0 — which
+-- looks exactly like a policy denial and is not one. That is the false pass the
+-- harness header is about; it caught this one on the suspended-business case.
+INSERT INTO public.provider_notes (id, provider_id, pet_id, sent_by, body, pet_label)
+VALUES ('e0000000-0000-4000-8000-000000000001',
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        'd0000000-0000-4000-8000-000000000001',
+        '66666666-6666-4666-8666-666666666666', 'For the stay', 'Pippin, Dog');
+INSERT INTO public.provider_notes (id, provider_id, pet_id, sent_by, body, pet_label)
+VALUES ('e0000000-0000-4000-8000-000000000002',
+        'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        'd0000000-0000-4000-8000-000000000001',
+        '66666666-6666-4666-8666-666666666666', 'For the vet', 'Pippin, Dog');
+
+-- Positive first.
+SELECT t_run   ('the business posts an update',         'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$insert into public.stay_updates (note_id, provider_id, pet_id, posted_by, body)
+                   values ('e0000000-0000-4000-8000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'd0000000-0000-4000-8000-000000000001',
+                           '33333333-3333-3333-3333-333333333333', 'She ate everything and slept on the sofa.')$q$, 'ok:1');
+SELECT t_run   ('the pet owner reads it',               'authenticated', '66666666-6666-4666-8666-666666666666',
+                'select * from public.stay_updates', 'ok:1');
+SELECT t_run   ('the business reads it back',           'authenticated', '33333333-3333-3333-3333-333333333333',
+                'select * from public.stay_updates', 'ok:1');
+
+SELECT t_run   ('a different active business',          'authenticated', '55555555-5555-5555-5555-555555555555',
+                'select * from public.stay_updates', 'ok:0');
+SELECT t_run   ('a signed-in stranger',                 'authenticated', '44444444-4444-4444-4444-444444444444',
+                'select * from public.stay_updates', 'ok:0');
+SELECT t_run   ('an anonymous reader',                  'anon',          NULL,
+                'select * from public.stay_updates', 'ok:0');
+
+-- A stay update is the PROVIDER's account of the stay. The pet's own household
+-- reads it and cannot write one, or it would be something else entirely.
+SELECT t_run   ('the owner posts an update',            'authenticated', '66666666-6666-4666-8666-666666666666',
+                $q$insert into public.stay_updates (note_id, provider_id, pet_id, posted_by, body)
+                   values ('e0000000-0000-4000-8000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'd0000000-0000-4000-8000-000000000001',
+                           '66666666-6666-4666-8666-666666666666', 'me again')$q$, 'denied');
+
+-- The dangerous one: pet_id is on the row, so a business that could pass any
+-- value would post into a stranger's pet screen. The triple must be a real note.
+SELECT t_run   ('a business posts against another note', 'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$insert into public.stay_updates (note_id, provider_id, pet_id, posted_by, body)
+                   values ('e0000000-0000-4000-8000-000000000002',
+                           'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+                           'd0000000-0000-4000-8000-000000000001',
+                           '33333333-3333-3333-3333-333333333333', 'not mine to post on')$q$, 'denied');
+SELECT t_run   ('or against a pet it was never told of','authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$insert into public.stay_updates (note_id, provider_id, pet_id, posted_by, body)
+                   values ('e0000000-0000-4000-8000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '99999999-9999-4999-8999-999999999999',
+                           '33333333-3333-3333-3333-333333333333', 'wrong pet')$q$, 'denied');
+SELECT t_run   ('or forges who posted it',              'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$insert into public.stay_updates (note_id, provider_id, pet_id, posted_by, body)
+                   values ('e0000000-0000-4000-8000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'd0000000-0000-4000-8000-000000000001',
+                           '66666666-6666-4666-8666-666666666666', 'signed by the owner')$q$, 'denied');
+SELECT t_run   ('a SUSPENDED business posts',           'authenticated', '22222222-2222-2222-2222-222222222222',
+                $q$insert into public.stay_updates (note_id, provider_id, pet_id, posted_by, body)
+                   values ('e0000000-0000-4000-8000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'd0000000-0000-4000-8000-000000000001',
+                           '22222222-2222-2222-2222-222222222222', 'still here')$q$, 'denied');
+SELECT t_run   ('an update with neither words nor photo','postgres',     NULL,
+                $q$insert into public.stay_updates (note_id, provider_id, pet_id, posted_by, body)
+                   values ('e0000000-0000-4000-8000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'd0000000-0000-4000-8000-000000000001',
+                           '33333333-3333-3333-3333-333333333333', '   ')$q$, 'error:23514');
+
+-- No UPDATE policy; DELETE belongs to the business that posted, NOT the reader.
+SELECT t_run   ('the business edits its update',        'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$update public.stay_updates set body = 'rewritten'$q$, 'ok:0');
+SELECT t_run   ('the owner deletes it',                 'authenticated', '66666666-6666-4666-8666-666666666666',
+                'delete from public.stay_updates', 'ok:0');
+SELECT t_scalar('so it is still there',                 'authenticated', '66666666-6666-4666-8666-666666666666',
+                'select count(*)::text from public.stay_updates', '1');
+SELECT t_run   ('the business takes its own down',      'authenticated', '33333333-3333-3333-3333-333333333333',
+                'delete from public.stay_updates', 'ok:1');
+
+\echo ''
+\echo '════ stay-photos bucket ════'
+
+-- Photos are attacked through storage.objects, because that is where a boarder
+-- could otherwise reach a pet's medical imagery.
+SELECT t_run   ('the business uploads a stay photo',    'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$insert into storage.objects (bucket_id, name)
+                   values ('stay-photos', 'e0000000-0000-4000-8000-000000000001/abc.jpg')$q$, 'ok:1');
+SELECT t_run   ('the owner can see it',                 'authenticated', '66666666-6666-4666-8666-666666666666',
+                $q$select * from storage.objects where bucket_id = 'stay-photos'$q$, 'ok:1');
+SELECT t_run   ('a different business cannot',          'authenticated', '55555555-5555-5555-5555-555555555555',
+                $q$select * from storage.objects where bucket_id = 'stay-photos'$q$, 'ok:0');
+SELECT t_run   ('nor a stranger',                       'authenticated', '44444444-4444-4444-4444-444444444444',
+                $q$select * from storage.objects where bucket_id = 'stay-photos'$q$, 'ok:0');
+SELECT t_run   ('nor anyone anonymous',                 'anon',          NULL,
+                $q$select * from storage.objects where bucket_id = 'stay-photos'$q$, 'ok:0');
+SELECT t_run   ('the owner cannot upload one',          'authenticated', '66666666-6666-4666-8666-666666666666',
+                $q$insert into storage.objects (bucket_id, name)
+                   values ('stay-photos', 'e0000000-0000-4000-8000-000000000001/mine.jpg')$q$, 'denied');
+SELECT t_run   ('a business cannot upload to another note', 'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$insert into storage.objects (bucket_id, name)
+                   values ('stay-photos', 'e0000000-0000-4000-8000-000000000002/sneak.jpg')$q$, 'denied');
+SELECT t_run   ('and the bucket is private',            'postgres',      NULL,
+                $q$select * from storage.buckets where id = 'stay-photos' and public = false$q$, 'ok:1');
+SELECT t_run   ('the business removes its photo',       'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$delete from storage.objects where bucket_id = 'stay-photos'$q$, 'ok:1');
+
 \echo ''
 \echo '════ results ════'
 SELECT ord, label, expected, got, CASE WHEN ok THEN 'PASS' ELSE 'FAIL' END AS result

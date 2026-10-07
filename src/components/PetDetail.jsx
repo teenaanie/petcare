@@ -179,6 +179,7 @@ const Boarding = lazy(() => import('./Boarding.jsx'))
 const ConditionJournal = lazy(() => import('./ConditionJournal.jsx'))
 const VoiceUpdate = lazy(() => import('./VoiceUpdate.jsx'))
 const InformProvider = lazy(() => import('./InformProvider.jsx'))
+const StayUpdates = lazy(() => import('./StayUpdates.jsx'))
 import { trackEvent } from '../lib/analytics.js'
 import { withRetry } from '../lib/net.js'
 
@@ -303,6 +304,12 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
           </div>
         </div>
       </div>
+
+      {/* What the boarder sent back. Renders nothing at all when there is
+          nothing, so it costs a pet with no provider exactly one query. */}
+      <Suspense fallback={null}>
+        <StayUpdates petId={pet.id} petName={pet.name} />
+      </Suspense>
 
       {/* Section tabs — on mobile these live here, next to the content they
           filter, so the bottom bar is free for app-level destinations. */}

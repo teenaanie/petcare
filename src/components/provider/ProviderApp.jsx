@@ -237,7 +237,9 @@ export default function ProviderApp() {
           someone running a kennel and a grooming salon has one sign-in and
           should see both books. RLS scopes it either way. */}
       <div className="mt-6">
-        <ProviderInbox providerIds={accounts.filter(a => a.status === 'active').map(a => a.provider_id)} />
+        <ProviderInbox
+          providerIds={accounts.filter(a => a.status === 'active').map(a => a.provider_id)}
+          postedBy={session.user.id} />
       </div>
 
       {/* Scoped to the business named in the header rather than to every active

@@ -17,6 +17,7 @@ import { reportHandled } from '../../lib/errorReport.js'
 import { todayIST } from '../../lib/dates.js'
 import { formatDay } from '../../lib/providerBrief.js'
 import { ageInDays, groupNotes, INBOX_SECTIONS } from '../../lib/providerInbox.js'
+import StayUpdateComposer from './StayUpdateComposer.jsx'
 
 function stayLabel(n) {
   const from = n.startsOn ? formatDay(n.startsOn) : null
@@ -27,7 +28,7 @@ function stayLabel(n) {
   return null
 }
 
-function NoteCard({ note }) {
+function NoteCard({ note, postedBy }) {
   const [open, setOpen] = useState(false)
   const age  = ageInDays(note.sentAt)
   const stay = stayLabel(note)
@@ -75,6 +76,11 @@ function NoteCard({ note }) {
         </button>
       )}
 
+      {/* Writing back belongs on the note, because the note is the only handle
+          this shell has on a pet. There is no pet picker because there is no
+          pet list to pick from. */}
+      {postedBy && <StayUpdateComposer note={note} postedBy={postedBy} />}
+
       {(note.contactName || note.contactPhone || note.contactEmail) && (
         <div className="mt-3 pt-3 flex flex-wrap gap-3 text-xs" style={{ borderTop: '1px solid #f5f0e0', color: '#5f624b' }}>
           {note.contactName && <span className="font-bold">{note.contactName}</span>}
@@ -94,7 +100,7 @@ function NoteCard({ note }) {
   )
 }
 
-export default function ProviderInbox({ providerIds = [] }) {
+export default function ProviderInbox({ providerIds = [], postedBy = null }) {
   const [notes, setNotes]     = useState(null)
   const [error, setError]     = useState(null)
 
@@ -116,7 +122,7 @@ export default function ProviderInbox({ providerIds = [] }) {
         if (error) throw error
         if (cancelled) return
         setNotes((data || []).map(r => ({
-          id: r.id, providerId: r.provider_id, body: r.body, petLabel: r.pet_label,
+          id: r.id, providerId: r.provider_id, petId: r.pet_id, body: r.body, petLabel: r.pet_label,
           contactName: r.contact_name, contactPhone: r.contact_phone,
           contactEmail: r.contact_email, startsOn: r.starts_on, endsOn: r.ends_on,
           sentAt: r.sent_at, supersedes: r.supersedes,
@@ -173,7 +179,7 @@ export default function ProviderInbox({ providerIds = [] }) {
             {s.title} ({grouped[s.key].length})
           </p>
           <div className="space-y-3">
-            {grouped[s.key].map(n => <NoteCard key={n.id} note={n} />)}
+            {grouped[s.key].map(n => <NoteCard key={n.id} note={n} postedBy={postedBy} />)}
           </div>
         </div>
       ))}
