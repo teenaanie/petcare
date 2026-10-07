@@ -84,7 +84,13 @@ INSERT INTO auth.users (id, email, phone) VALUES
   -- The second admin admins.sql seeds. Present here because they have a real
   -- account on the live project, and the seed's user_id backfill only has
   -- something to bind to when that is true.
-  ('55555555-5555-5555-5555-555555555555', 'tins08@gmail.com',      '+919000000005');
+  ('55555555-5555-5555-5555-555555555555', 'tins08@gmail.com',      '+919000000005'),
+  -- Used only by the adoption block, which counts the rows it adopts and so
+  -- needs an address no other block has claimed. provider_accounts carries a
+  -- unique index on (provider_id, lower(email)) and several blocks reuse the
+  -- seeded addresses, which made an earlier attempt here count two rows and
+  -- read the wrong one's status.
+  ('77777777-7777-4777-8777-777777777777', 'adopter@kennel.test',   '+919000000007');
 
 INSERT INTO public.providers (id, name, type, area, city, is_approved) VALUES
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Unleash - The Dog Town', 'Boarder', 'Baner',  'Pune', true),

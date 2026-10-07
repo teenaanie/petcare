@@ -563,6 +563,57 @@ SELECT t_run   ('and the bucket is private',            'postgres',      NULL,
 SELECT t_run   ('the business removes its photo',       'authenticated', '33333333-3333-3333-3333-333333333333',
                 $q$delete from storage.objects where bucket_id = 'stay-photos'$q$, 'ok:1');
 
+
+\echo ''
+\echo '════ provider_account_adoption.sql ════'
+
+-- Two fresh listings of its own. provider_accounts carries a unique index on
+-- (provider_id, lower(email)), and the blocks above have already claimed the
+-- seeded providers under several addresses — reusing one here collided and the
+-- whole file stopped, which is a fixture clash rather than a finding.
+INSERT INTO public.providers (id, name, type, area, city, is_approved) VALUES
+  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'Adoption Test Kennels', 'Boarder', 'Baner', 'Pune', true),
+  ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'Someone Elses Kennels', 'Boarder', 'Aundh', 'Pune', true);
+
+-- An unbound claim, exactly as api/_lib/register-provider.js writes one: the
+-- address somebody typed into the form, no user_id, waiting for them to sign in.
+-- 77777777… is 'adopter@kennel.test', used by this block alone. Deliberately SHOUTED here, to
+-- prove the match ignores letter case.
+INSERT INTO public.provider_accounts (provider_id, user_id, email, status, role)
+VALUES ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', NULL, 'ADOPTER@Kennel.TEST', 'pending', 'owner');
+
+-- A claim carrying somebody else's address, which must never be adopted.
+INSERT INTO public.provider_accounts (provider_id, user_id, email, status, role)
+VALUES ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', NULL, 'nobody@elsewhere.test', 'pending', 'owner');
+
+SELECT t_scalar('an unbound claim matching me is adopted', 'authenticated', '77777777-7777-4777-8777-777777777777',
+                'select public.adopt_my_provider_accounts()::text', '1');
+SELECT t_scalar('and the match ignored letter case',       'postgres',      NULL,
+                $q$select (user_id = '77777777-7777-4777-8777-777777777777')::text
+                   from public.provider_accounts where lower(email) = 'adopter@kennel.test'$q$, 'true');
+-- Adoption binds identity. It does NOT grant access: that is still an admin's call.
+SELECT t_scalar('its status is untouched',                 'postgres',      NULL,
+                $q$select status from public.provider_accounts where lower(email) = 'adopter@kennel.test'$q$, 'pending');
+SELECT t_scalar('and they are still not a member',         'authenticated', '77777777-7777-4777-8777-777777777777',
+                $q$select public.is_provider_member('cccccccc-cccc-4ccc-8ccc-cccccccccccc')::text$q$, 'false');
+SELECT t_scalar('running it again is a no-op',             'authenticated', '77777777-7777-4777-8777-777777777777',
+                'select public.adopt_my_provider_accounts()::text', '0');
+
+-- The takeover this function must not enable.
+SELECT t_scalar('somebody else cannot adopt my claim',     'authenticated', '66666666-6666-4666-8666-666666666666',
+                'select public.adopt_my_provider_accounts()::text', '0');
+SELECT t_scalar('a claim for another address is left alone','postgres',     NULL,
+                $q$select (user_id is null)::text from public.provider_accounts
+                   where email = 'nobody@elsewhere.test'$q$, 'true');
+SELECT t_scalar('and an already-bound claim is never moved','postgres',     NULL,
+                $q$select (user_id = '33333333-3333-3333-3333-333333333333')::text
+                   from public.provider_accounts
+                   where provider_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+                     and user_id = '33333333-3333-3333-3333-333333333333' limit 1$q$, 'true');
+
+SELECT t_run   ('anon cannot call it',                     'anon',          NULL,
+                'select public.adopt_my_provider_accounts()', 'denied');
+
 \echo ''
 \echo '════ results ════'
 SELECT ord, label, expected, got, CASE WHEN ok THEN 'PASS' ELSE 'FAIL' END AS result
