@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Ban, Clock, LogOut, RefreshCw } from 'lucide-react'
 import { getSupabaseProvider, isConfigured } from '../../lib/supabase.js'
+import { reportHandled } from '../../lib/errorReport.js'
 import PippyLogo from '../PippyLogo.jsx'
 import ProviderAuth from './ProviderAuth.jsx'
 import ProviderOnboarding from './ProviderOnboarding.jsx'
@@ -96,7 +97,23 @@ export default function ProviderApp() {
     if (!session) return
     setError(null)
     try {
-      const { data, error } = await (await getSupabaseProvider()).rpc('my_provider_accounts')
+      const supabase = await getSupabaseProvider()
+
+      // Bind any claim that was waiting on this address to the account that
+      // actually signed in. A claim written by the registration form carries an
+      // email and no user_id, and both my_provider_accounts() and
+      // is_provider_member() fall back to matching on it — so the shell works
+      // without this, right up until the day they change their sign-in address
+      // and silently lose their own business.
+      //
+      // Runs before the read so the first sign-in already sees a bound row, and
+      // is a no-op on every sign-in after. Deliberately not allowed to fail the
+      // boot: the email fallback still works, so a provider whose adoption
+      // errored can still get in, which is the better of the two failures.
+      try { await supabase.rpc('adopt_my_provider_accounts') }
+      catch (e) { reportHandled(e, { view: 'provider-sign-in' }) }
+
+      const { data, error } = await supabase.rpc('my_provider_accounts')
       if (error) throw error
       setAccounts(data || [])
     } catch (e) {

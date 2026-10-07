@@ -71,7 +71,17 @@ await ctx.addInitScript(([k, s]) => localStorage.setItem(k, JSON.stringify(s)),
 let queriedIds = null
 await ctx.route('**/rest/v1/**', r => r.fulfill({ json: [] }))
 await ctx.route('**/auth/v1/**', r => r.fulfill({ json: USER }))
-await ctx.route('**/rest/v1/rpc/my_provider_accounts*', r => r.fulfill({ json: ACCOUNT }))
+let adoptCalled = 0, adoptBeforeRead = null
+await ctx.route('**/rest/v1/rpc/adopt_my_provider_accounts*', r => {
+  adoptCalled += 1
+  return r.fulfill({ json: 0 })
+})
+await ctx.route('**/rest/v1/rpc/my_provider_accounts*', r => {
+  // Captured on the FIRST read: adoption has to have run by then, or the first
+  // sign-in still sees an unbound row.
+  if (adoptBeforeRead === null) adoptBeforeRead = adoptCalled
+  return r.fulfill({ json: ACCOUNT })
+})
 let stayPost = null, stayNotified = null
 await ctx.route('**/rest/v1/stay_updates*', r => {
   if (r.request().method() === 'POST') {
@@ -114,6 +124,11 @@ const has = s => T.includes(s.toUpperCase())
 const at  = s => T.indexOf(s.toUpperCase())
 
 ck('the shell knows the business', t.includes('Unleash - The Dog Town'), true)
+// A claim written by the registration form carries an email and no user_id.
+// Binding it on sign-in is what stops the provider losing their own business
+// the day they change their address.
+ck('a waiting claim is adopted on sign-in', adoptCalled > 0, true)
+ck('and before the accounts are read', adoptBeforeRead, 1)
 ck('it queried the right provider', (queriedIds || '').includes(PROV), true)
 
 ck('With you now section', has('With you now (1)'), true)
