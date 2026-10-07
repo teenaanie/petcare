@@ -248,6 +248,160 @@ SELECT t_scalar('they are a member now',                 'authenticated', '33333
 SELECT t_scalar('the queue shows publication state',     'authenticated', '11111111-1111-1111-1111-111111111111',
                 $q$select provider_is_approved::text from public.admin_provider_claims() where provider_name = 'Second Kennels'$q$, 'false');
 
+
+\echo ''
+\echo '════ provider_notes.sql ════'
+
+-- Fixtures, as postgres. Two things to know about the identities above, because
+-- getting them wrong makes these assertions test nothing:
+--   33333333 registered Backstreet Kennels and is ACTIVE on it.
+--   22222222 claimed Unleash and was left SUSPENDED by the tests above.
+-- That suspension is reused below rather than worked around: "same provider,
+-- not active" is exactly the case worth attacking.
+--
+-- providers has RLS and no policy in this stub, mirroring live, where the
+-- directory is read through search_providers(). So every statement below names
+-- provider ids literally — an INSERT..SELECT from providers would silently
+-- match zero rows and report ok:0, which looks like a denial and is not one.
+
+INSERT INTO auth.users (id, email) VALUES
+  ('66666666-6666-4666-8666-666666666666', 'parent@pippy.test');
+
+INSERT INTO public.pets (id, user_id, name, species) VALUES
+  ('d0000000-0000-4000-8000-000000000001',
+   '66666666-6666-4666-8666-666666666666', 'Pippin', 'Dog');
+
+-- The informed business: 33333333 active on Unleash.
+INSERT INTO public.provider_accounts (provider_id, user_id, email, status, role)
+VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        '33333333-3333-3333-3333-333333333333', 'stranger@example.test', 'active', 'owner');
+
+-- A DIFFERENT business, also active, so "cannot read" below means "wrong
+-- provider" and not "no account at all".
+INSERT INTO public.provider_accounts (provider_id, user_id, email, status, role)
+VALUES ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        '55555555-5555-5555-5555-555555555555', 'tins08@gmail.com', 'active', 'owner');
+
+-- Positive first: prove each actor is who the later negatives assume.
+SELECT t_scalar('the informed provider is a member',     'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$select public.is_provider_member('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')::text$q$, 'true');
+SELECT t_scalar('the other provider is a member too',    'authenticated', '55555555-5555-5555-5555-555555555555',
+                $q$select public.is_provider_member('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb')::text$q$, 'true');
+SELECT t_scalar('the suspended claimant is NOT',         'authenticated', '22222222-2222-2222-2222-222222222222',
+                $q$select public.is_provider_member('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')::text$q$, 'false');
+SELECT t_scalar('the parent can edit their own pet',     'authenticated', '66666666-6666-4666-8666-666666666666',
+                $q$select public.is_pet_editor('d0000000-0000-4000-8000-000000000001')::text$q$, 'true');
+
+-- The note, written through the real INSERT policy — so the read half below is
+-- testing a row the policy actually admitted, not one planted past it.
+SELECT t_run   ('the parent sends a note',               'authenticated', '66666666-6666-4666-8666-666666666666',
+                $q$insert into public.provider_notes
+                     (provider_id, pet_id, sent_by, body, pet_label, contact_name, starts_on, ends_on)
+                   values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+                           'd0000000-0000-4000-8000-000000000001',
+                           '66666666-6666-4666-8666-666666666666',
+                           'Pippin is due a booster on the 14th.', 'Pippin, Dog', 'Teena',
+                           current_date + 3, current_date + 7)$q$, 'ok:1');
+
+SELECT t_run   ('the parent reads it back',              'authenticated', '66666666-6666-4666-8666-666666666666',
+                'select * from public.provider_notes', 'ok:1');
+SELECT t_run   ('the informed provider reads it',        'authenticated', '33333333-3333-3333-3333-333333333333',
+                'select * from public.provider_notes', 'ok:1');
+SELECT t_scalar('and gets the denormalised label',       'authenticated', '33333333-3333-3333-3333-333333333333',
+                'select pet_label from public.provider_notes', 'Pippin, Dog');
+
+-- The whole point of the model: the note travels, the pet record does not.
+SELECT t_run   ('the provider cannot read the pet',      'authenticated', '33333333-3333-3333-3333-333333333333',
+                'select * from public.pets', 'ok:0');
+
+-- Each negative below fails for exactly ONE reason.
+SELECT t_run   ('an active provider, wrong business',    'authenticated', '55555555-5555-5555-5555-555555555555',
+                'select * from public.provider_notes', 'ok:0');
+SELECT t_run   ('the right business, SUSPENDED',         'authenticated', '22222222-2222-2222-2222-222222222222',
+                'select * from public.provider_notes', 'ok:0');
+SELECT t_run   ('a signed-in stranger',                  'authenticated', '44444444-4444-4444-4444-444444444444',
+                'select * from public.provider_notes', 'ok:0');
+SELECT t_run   ('an anonymous reader',                   'anon',          NULL,
+                'select * from public.provider_notes', 'ok:0');
+
+-- Attribution: an editor must not sign somebody else's name to a note, because
+-- sent_by is all the provider has to judge who told them.
+SELECT t_run   ('a stranger sends a note',               'authenticated', '44444444-4444-4444-4444-444444444444',
+                $q$insert into public.provider_notes (provider_id, pet_id, sent_by, body, pet_label)
+                   values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+                           'd0000000-0000-4000-8000-000000000001',
+                           '44444444-4444-4444-4444-444444444444', 'let me in', 'Pippin')$q$, 'denied');
+SELECT t_run   ('the parent forges the sender',          'authenticated', '66666666-6666-4666-8666-666666666666',
+                $q$insert into public.provider_notes (provider_id, pet_id, sent_by, body, pet_label)
+                   values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+                           'd0000000-0000-4000-8000-000000000001',
+                           '44444444-4444-4444-4444-444444444444', 'not mine', 'Pippin')$q$, 'denied');
+
+-- No UPDATE and no DELETE policy exists, so both touch zero rows for everyone,
+-- including the two people who can READ the row. A note cannot be taken back.
+SELECT t_run   ('the parent edits a sent note',          'authenticated', '66666666-6666-4666-8666-666666666666',
+                $q$update public.provider_notes set body = 'rewritten'$q$, 'ok:0');
+SELECT t_run   ('the provider edits it',                 'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$update public.provider_notes set body = 'rewritten'$q$, 'ok:0');
+SELECT t_run   ('the parent deletes it',                 'authenticated', '66666666-6666-4666-8666-666666666666',
+                'delete from public.provider_notes', 'ok:0');
+SELECT t_run   ('an admin deletes it',                   'authenticated', '11111111-1111-1111-1111-111111111111',
+                'delete from public.provider_notes', 'ok:0');
+SELECT t_scalar('the body is untouched',                 'authenticated', '66666666-6666-4666-8666-666666666666',
+                'select body from public.provider_notes', 'Pippin is due a booster on the 14th.');
+
+-- Constraints that stop a malformed note existing at all.
+SELECT t_run   ('a blank body',                          'authenticated', '66666666-6666-4666-8666-666666666666',
+                $q$insert into public.provider_notes (provider_id, pet_id, sent_by, body, pet_label)
+                   values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+                           'd0000000-0000-4000-8000-000000000001',
+                           '66666666-6666-4666-8666-666666666666', '   ', 'Pippin')$q$, 'error:23514');
+SELECT t_run   ('a stay that ends before it starts',     'authenticated', '66666666-6666-4666-8666-666666666666',
+                $q$insert into public.provider_notes
+                     (provider_id, pet_id, sent_by, body, pet_label, starts_on, ends_on)
+                   values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+                           'd0000000-0000-4000-8000-000000000001',
+                           '66666666-6666-4666-8666-666666666666', 'ok', 'Pippin',
+                           current_date + 7, current_date + 3)$q$, 'error:23514');
+
+-- A re-send supersedes rather than edits, which is the only way to correct a
+-- note. Both rows survive; the provider's inbox is what filters.
+SELECT t_run   ('a correction supersedes the first',     'authenticated', '66666666-6666-4666-8666-666666666666',
+                $q$insert into public.provider_notes
+                     (provider_id, pet_id, sent_by, body, pet_label, supersedes)
+                   values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+                           'd0000000-0000-4000-8000-000000000001',
+                           '66666666-6666-4666-8666-666666666666',
+                           'Booster was moved to the 20th.', 'Pippin, Dog',
+                           (select id from public.provider_notes where supersedes is null))$q$, 'ok:1');
+SELECT t_scalar('both rows survive the correction',      'authenticated', '33333333-3333-3333-3333-333333333333',
+                'select count(*)::text from public.provider_notes', '2');
+SELECT t_scalar('only one is current',                   'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$select count(*)::text from public.provider_notes n
+                   where not exists (select 1 from public.provider_notes s where s.supersedes = n.id)$q$, '1');
+
+-- onboarded_provider_ids: signed in only, active only, ids only.
+SELECT t_run   ('anon asks which are onboarded',         'anon',          NULL,
+                $q$select * from public.onboarded_provider_ids(array['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa']::uuid[])$q$,
+                'denied');
+SELECT t_scalar('a customer gets the active one',        'authenticated', '66666666-6666-4666-8666-666666666666',
+                $q$select count(*)::text from public.onboarded_provider_ids(
+                     array['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa']::uuid[])$q$, '1');
+SELECT t_scalar('an unknown id returns nothing',         'authenticated', '66666666-6666-4666-8666-666666666666',
+                $q$select count(*)::text from public.onboarded_provider_ids(
+                     array['99999999-9999-4999-8999-999999999999']::uuid[])$q$, '0');
+SELECT t_scalar('a null argument is survivable',         'authenticated', '66666666-6666-4666-8666-666666666666',
+                $q$select count(*)::text from public.onboarded_provider_ids(null)$q$, '0');
+SELECT t_scalar('it returns ids and nothing else',       'postgres',      NULL,
+                $q$select pg_get_function_result(p.oid) from pg_proc p
+                   join pg_namespace n on n.oid = p.pronamespace
+                   where n.nspname = 'public' and p.proname = 'onboarded_provider_ids'$q$,
+                'TABLE(provider_id uuid)');
+
+-- Using it discloses nothing about the account behind the listing.
+SELECT t_run   ('the customer cannot read claims',       'authenticated', '66666666-6666-4666-8666-666666666666',
+                'select * from public.provider_accounts', 'ok:0');
+
 \echo ''
 \echo '════ results ════'
 SELECT ord, label, expected, got, CASE WHEN ok THEN 'PASS' ELSE 'FAIL' END AS result

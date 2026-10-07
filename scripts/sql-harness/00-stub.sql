@@ -117,3 +117,64 @@ $$;
 REVOKE EXECUTE ON FUNCTION public.current_user_email() FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.current_user_email() FROM anon;
 GRANT  EXECUTE ON FUNCTION public.current_user_email() TO authenticated;
+
+-- ── What provider_notes.sql leans on ────────────────────────────────────────
+
+-- pets, trimmed to what provider_notes references and the policy helpers read.
+CREATE TABLE public.pets (
+  id      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  name    text NOT NULL,
+  species text
+);
+ALTER TABLE public.pets ENABLE ROW LEVEL SECURITY;
+
+-- Live is `(user_id = auth.uid() OR is_admin())`, but is_admin() does not exist
+-- yet — this stub runs before admins.sql, the same ordering that keeps the
+-- feedback policy above partial. The admin half is dropped rather than faked
+-- because nothing in the note assertions reads pets as an admin, and the half
+-- that matters here is the owner one. is_pet_member/is_pet_editor are SECURITY
+-- DEFINER and bypass this policy regardless, which is the point of them.
+CREATE POLICY own_pets ON public.pets
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
+
+-- Sharing a pet with a second person. is_pet_member/is_pet_editor both read it,
+-- and the email branch is the one that matters here: it is how an invited
+-- editor is recognised before they have ever signed in.
+CREATE TABLE public.pet_members (
+  id      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  pet_id  uuid NOT NULL REFERENCES public.pets(id) ON DELETE CASCADE,
+  user_id uuid,
+  email   text,
+  role    text NOT NULL DEFAULT 'viewer'
+);
+ALTER TABLE public.pet_members ENABLE ROW LEVEL SECURITY;
+
+-- From pet_members.sql, verbatim. Copied rather than imported because the live
+-- file carries much more than provider_notes.sql needs, and a stub that drifts
+-- from these two functions would make every note assertion meaningless.
+CREATE OR REPLACE FUNCTION public.is_pet_member(check_pet_id uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public' AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.pets WHERE id = check_pet_id AND user_id = auth.uid()
+  ) OR EXISTS (
+    SELECT 1 FROM public.pet_members
+    WHERE pet_id = check_pet_id
+      AND (user_id = auth.uid() OR email = (SELECT email FROM auth.users WHERE id = auth.uid()))
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_pet_editor(check_pet_id uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public' AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.pets WHERE id = check_pet_id AND user_id = auth.uid()
+  ) OR EXISTS (
+    SELECT 1 FROM public.pet_members
+    WHERE pet_id = check_pet_id AND role = 'editor'
+      AND (user_id = auth.uid() OR email = (SELECT email FROM auth.users WHERE id = auth.uid()))
+  );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.is_pet_member(uuid), public.is_pet_editor(uuid)
+  TO anon, authenticated, service_role;
