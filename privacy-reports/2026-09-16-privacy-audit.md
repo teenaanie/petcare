@@ -152,6 +152,9 @@ fails to grant it turns every subsequent "blocked" into a false pass.
    emails (~line 213) and phone numbers (~line 226) to Vercel logs. LOW, easy.
 2. **Enable leaked-password protection.** Supabase → Authentication. Dashboard
    toggle; checks signups against HaveIBeenPwned.
+   *Closed 2026-10-07 as not applicable — this project has no password sign-in
+   path for the setting to act on. See `2026-10-07-leaked-password-finding.md`.
+   Reopens the moment password login is added.*
 3. **Rotate the OpenAI key** if not already done — it was public in two bundles.
 4. **Offer account deletion in the app.** Erasure now works at the database
    level, but nothing in the UI exposes it, and an export before deletion would
