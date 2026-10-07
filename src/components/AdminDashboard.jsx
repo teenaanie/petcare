@@ -690,12 +690,30 @@ function TagPicker({ label, options, value, onChange }) {
   )
 }
 
-function ProviderForm({ initial, onSave, onCancel, saving }) {
+function ProviderForm({ initial, onSave, onCancel, saving, claim }) {
   const [form, setForm] = useState(initial)
   const set = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }))
 
   return (
     <div className="p-4 rounded-2xl space-y-3" style={{ backgroundColor: '#fff9e0', border: '1.5px solid #f2b83d' }}>
+      {/* The address someone registered with is NOT a column on this form, and
+          must not become one: every column of an approved `providers` row is
+          readable by anyone, signed in or not ("Approved providers visible to
+          all" is `is_approved = true OR is_admin()`), so an owner's personal
+          address typed into an editable field here would be published to the
+          internet. It lives on their claim instead, which only an admin can
+          read. Shown, not editable — this is the question "who is this?", and
+          the form had no answer to it at all. */}
+      {claim && (claim.email || claim.phone) && (
+        <div className="rounded-xl px-3 py-2 text-xs" style={{ backgroundColor: '#fffef8', border: '1px solid #f0e6c8' }}>
+          <p className="font-bold mb-1" style={{ color: '#7a4900' }}>Registered by</p>
+          {claim.email && <p className="flex items-center gap-1.5 truncate" style={{ color: '#5f624b' }}><Mail className="w-3 h-3 shrink-0" /> {claim.email}</p>}
+          {claim.phone && <p className="flex items-center gap-1.5 truncate" style={{ color: '#5f624b' }}><Phone className="w-3 h-3 shrink-0" /> {claim.phone}</p>}
+          <p className="mt-1" style={{ color: '#b08d57' }}>
+            From their claim. Not shown in the directory, and not editable here.
+          </p>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
           <label className="label text-xs">Name *</label>
@@ -973,6 +991,29 @@ function ProvidersPanel() {
 
   const isAwaitingReview = p => !p.is_approved && p.source === 'self_registered'
 
+  // A self-registered business lands in TWO queues: its listing here, and its
+  // claim in the Claims tab. They are not the same approval, and approving the
+  // listing alone is the trap this map exists to close — it publishes the
+  // business while leaving the person who registered it stuck on "approval
+  // pending" forever, with nothing on either screen saying why. Keyed by
+  // provider_id so a row can ask "is somebody waiting on me?".
+  const [claimsByProvider, setClaimsByProvider] = useState({})
+  useEffect(() => {
+    getProviderClaims()
+      .then(rows => {
+        const m = {}
+        // Pending wins: admin_provider_claims() already orders pending first,
+        // so the first claim seen for a provider is the one to act on.
+        for (const c of rows) if (!m[c.provider_id]) m[c.provider_id] = c
+        setClaimsByProvider(m)
+      })
+      .catch(() => setClaimsByProvider({}))   // a claim we cannot read must not break the list
+  }, [saving])
+  const pendingClaimFor = p => {
+    const c = claimsByProvider[p.id]
+    return c && c.status === 'pending' ? c : null
+  }
+
   function load() {
     setLoading(true)
     getProviders({ approvedOnly: false, search: debouncedSearch, limit: ADMIN_PAGE_SIZE, offset: 0 })
@@ -1007,7 +1048,20 @@ function ProvidersPanel() {
 
   async function handleToggleApprove(p) {
     setSaving(true)
-    try { await saveProvider({ ...p, is_approved: !p.is_approved }); load() }
+    try {
+      // Approving a listing that somebody is waiting on goes through the claim
+      // instead. approve_provider_claim() activates the account AND publishes
+      // the listing in one statement, so this single click now does what the
+      // admin meant by it. Without this branch the listing went live and the
+      // claim stayed pending, which is exactly the state that sent a real
+      // provider back to the sign-in screen to be told "approval pending".
+      // Unapproving is left alone: taking a listing down is not a judgement
+      // about the person's access, and revoking that is the Claims tab's job.
+      const waiting = !p.is_approved ? pendingClaimFor(p) : null
+      if (waiting) await setProviderClaimStatus(waiting.id, 'active')
+      else await saveProvider({ ...p, is_approved: !p.is_approved })
+      load()
+    }
     catch (e) { alert(e.message) }
     finally { setSaving(false) }
   }
@@ -1060,8 +1114,10 @@ function ProvidersPanel() {
         {(pendingOnly ? providers.filter(isAwaitingReview) : providers).map(p => {
           const Icon = TYPE_ICONS[p.type] || ShoppingBag
           const color = TYPE_COLORS[p.type] || '#73775b'
+          const waiting = pendingClaimFor(p)
           return editing === p.id ? (
-            <ProviderForm key={p.id} initial={p} onSave={handleSave} onCancel={() => setEditing(null)} saving={saving} />
+            <ProviderForm key={p.id} initial={p} onSave={handleSave} onCancel={() => setEditing(null)}
+              saving={saving} claim={claimsByProvider[p.id]} />
           ) : (
             <div key={p.id} className="p-4 rounded-2xl" style={{ backgroundColor: '#FFFEF8', border: '1.5px solid #ebe3d3' }}>
               <div className="flex items-start gap-3">
@@ -1080,6 +1136,17 @@ function ProvidersPanel() {
                   </div>
                   {(p.area || p.city) && <p className="text-xs mt-0.5" style={{ color: '#73775b' }}>{[p.area, p.city].filter(Boolean).join(' · ')}{p.address ? ` · ${p.address}` : ''}</p>}
                   {p.phone && <p className="text-xs" style={{ color: '#73775b' }}>{p.phone}</p>}
+                  {/* Says out loud what used to be invisible here: a person is
+                      waiting on this row, and the toggle will let them in. */}
+                  {waiting && (
+                    <p className="text-xs mt-1 flex items-start gap-1.5" style={{ color: '#c9891f' }}>
+                      <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+                      <span>
+                        {waiting.email || waiting.phone || 'Someone'} is waiting to manage this
+                        {p.is_approved ? '' : ' — approving publishes the listing and lets them in'}
+                      </span>
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <button onClick={() => handleToggleApprove(p)} title={p.is_approved ? 'Unapprove' : 'Approve'}

@@ -12,6 +12,7 @@
     "test:speech": "node scripts/test-speech.mjs",
     "test:provider-alert": "node scripts/test-provider-alert.mjs",
     "test:register": "node scripts/test-register-provider.mjs",
+    "test:claim-approve": "node scripts/test-admin-claim-approve.mjs",
     "test:sql": "bash scripts/sql-harness/run.sh",
     "check:drift": "node --env-file-if-exists=.env scripts/check-drift.mjs",
     "test:dates": "node scripts/test-dates.mjs",
