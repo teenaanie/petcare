@@ -72,6 +72,12 @@ let queriedIds = null
 await ctx.route('**/rest/v1/**', r => r.fulfill({ json: [] }))
 await ctx.route('**/auth/v1/**', r => r.fulfill({ json: USER }))
 await ctx.route('**/rest/v1/rpc/my_provider_accounts*', r => r.fulfill({ json: ACCOUNT }))
+let broadcastPost = null
+await ctx.route('**/api/provider-mail*', r => {
+  broadcastPost = JSON.parse(r.request().postData())
+  return r.fulfill({ json: { ok: true, sent: 3, failures: 0 } })
+})
+await ctx.route('**/rest/v1/provider_broadcasts*', r => r.fulfill({ json: [] }))
 await ctx.route('**/rest/v1/provider_notes*', r => {
   queriedIds = new URL(r.request().url()).searchParams.get('provider_id')
   return r.fulfill({ json: NOTES })
@@ -115,6 +121,28 @@ ck('sections appear before feedback',
    at('With you now') < at('Send us a message'), true)
 ck('the old placeholder is gone',
    t.includes('land here next'), false)
+// The broadcast box: collapsed by default, and what it sends carries no
+// recipient list — the whole point is that the client never holds one.
+ck('the broadcast entry point is there', has('Message your customers'), true)
+await page.getByRole('button', { name: 'Message your customers' }).first().click()
+await page.waitForTimeout(500)
+const t2 = (await page.innerText('body')).toUpperCase()
+ck('it explains who will get it',
+   t2.includes('INCLUDED AN EMAIL ADDRESS'), true)
+ck('and that the provider cannot see them',
+   t2.includes('YOU WILL NOT SEE THEIR ADDRESSES'), true)
+await page.getByPlaceholder('Closed for Diwali').fill('Closed for Diwali')
+await page.locator('textarea').first().fill('We are shut 20th to 23rd.')
+await page.getByRole('button', { name: /Send to your customers/ }).click()
+await page.waitForTimeout(900)
+ck('it posts the subject and body',
+   [broadcastPost?.subject, broadcastPost?.body],
+   ['Closed for Diwali', 'We are shut 20th to 23rd.'])
+ck('and names the business, not a list',
+   Object.keys(broadcastPost || {}).sort(), ['body', 'providerId', 'subject'])
+ck('the result is reported back',
+   (await page.innerText('body')).includes('Sent to 3 customers'), true)
+
 ck('no page errors', errs.length, 0)
 if (errs.length) console.log(errs)
 await page.screenshot({ path: '/tmp/pippy-inbox.png', fullPage: true })

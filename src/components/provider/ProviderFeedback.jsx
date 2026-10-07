@@ -38,7 +38,7 @@ export default function ProviderFeedback({ userId, providerId, context, open: in
     try {
       const { data: { session } } = await (await getSupabaseProvider()).auth.getSession()
       if (!session) return
-      await fetch('/api/notify-provider-feedback', {
+      await fetch('/api/provider-mail', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
