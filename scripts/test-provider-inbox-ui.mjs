@@ -31,7 +31,7 @@ const iso = d => new Date(d).toISOString()
 const day = n => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10)
 
 const NOTES = [
-  { id: 'n-current', provider_id: PROV, pet_label: 'Rex, Labrador, Dog',
+  { id: 'n-current', provider_id: PROV, pet_id: 'pet-rex', pet_label: 'Rex, Labrador, Dog',
     body: 'Rex is here this week. He is on Apoquel.', starts_on: day(-2), ends_on: day(3),
     contact_name: 'Teena', contact_phone: '9000000001', contact_email: null,
     sent_at: iso(Date.now() - 86400000), supersedes: 'n-old' },
@@ -72,9 +72,22 @@ let queriedIds = null
 await ctx.route('**/rest/v1/**', r => r.fulfill({ json: [] }))
 await ctx.route('**/auth/v1/**', r => r.fulfill({ json: USER }))
 await ctx.route('**/rest/v1/rpc/my_provider_accounts*', r => r.fulfill({ json: ACCOUNT }))
+let stayPost = null, stayNotified = null
+await ctx.route('**/rest/v1/stay_updates*', r => {
+  if (r.request().method() === 'POST') {
+    stayPost = JSON.parse(r.request().postData())
+    return r.fulfill({ status: 201, json: { ...stayPost, id: 'su1', created_at: new Date().toISOString() } })
+  }
+  return r.fulfill({ json: [] })
+})
 let broadcastPost = null
 await ctx.route('**/api/provider-mail*', r => {
-  broadcastPost = JSON.parse(r.request().postData())
+  const payload = JSON.parse(r.request().postData())
+  if (new URL(r.request().url()).searchParams.get('op') === 'stay-update') {
+    stayNotified = payload
+    return r.fulfill({ json: { ok: true, sent: true } })
+  }
+  broadcastPost = payload
   return r.fulfill({ json: { ok: true, sent: 3, failures: 0 } })
 })
 await ctx.route('**/rest/v1/provider_broadcasts*', r => r.fulfill({ json: [] }))
@@ -121,6 +134,23 @@ ck('sections appear before feedback',
    at('With you now') < at('Send us a message'), true)
 ck('the old placeholder is gone',
    t.includes('land here next'), false)
+// Writing back. The composer hangs off the note, because the note is the only
+// handle this shell has on a pet — there is no pet picker to find.
+ck('the composer is offered on a note', has('Post an update'), true)
+await page.getByRole('button', { name: 'Post an update' }).first().click()
+await page.waitForTimeout(400)
+await page.getByPlaceholder('She ate everything and slept on the sofa.')
+  .fill('She ate everything and slept on the sofa.')
+await page.getByRole('button', { name: 'Post', exact: true }).first().click()
+await page.waitForTimeout(900)
+ck('it posts against the note, not a pet it picked',
+   [stayPost?.note_id, stayPost?.provider_id, stayPost?.pet_id],
+   ['n-current', PROV, 'pet-rex'])
+ck('attributed to the signed-in person', stayPost?.posted_by, UID)
+ck('with the words typed', stayPost?.body, 'She ate everything and slept on the sofa.')
+ck('and no photo when none was added', stayPost?.photo_path, null)
+ck('the owner is notified', stayNotified?.updateId, 'su1')
+
 // The broadcast box: collapsed by default, and what it sends carries no
 // recipient list — the whole point is that the client never holds one.
 ck('the broadcast entry point is there', has('Message your customers'), true)
@@ -132,7 +162,10 @@ ck('it explains who will get it',
 ck('and that the provider cannot see them',
    t2.includes('YOU WILL NOT SEE THEIR ADDRESSES'), true)
 await page.getByPlaceholder('Closed for Diwali').fill('Closed for Diwali')
-await page.locator('textarea').first().fill('We are shut 20th to 23rd.')
+// By placeholder, not position. `textarea.first()` used to be the broadcast
+// box; adding the stay-update composer above it silently made it something
+// else, and the only symptom was a disabled Send button further down.
+await page.getByPlaceholder(/We are shut from the 20th/).fill('We are shut 20th to 23rd.')
 await page.getByRole('button', { name: /Send to your customers/ }).click()
 await page.waitForTimeout(900)
 ck('it posts the subject and body',

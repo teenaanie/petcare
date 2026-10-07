@@ -13,21 +13,25 @@
 // they stay separately testable — test:provider-alert and test:broadcast both
 // import the _lib module directly and never go through this file.
 //
-//   /api/provider-mail?op=broadcast   a business mailing its customers
-//   /api/provider-mail                an admin hearing about provider feedback
+//   /api/provider-mail?op=broadcast     a business mailing its customers
+//   /api/provider-mail?op=stay-update   an owner hearing their pet's boarder posted
+//   /api/provider-mail                  an admin hearing about provider feedback
 //
 // The default is feedback rather than an error so that a mis-typed op cannot
 // silently become a broadcast, which is the one of the two that mails people
 // who did not ask for it.
 
-import feedbackHandler  from './_lib/notify-provider-feedback.js'
-import broadcastHandler from './_lib/provider-broadcast.js'
+import feedbackHandler   from './_lib/notify-provider-feedback.js'
+import broadcastHandler  from './_lib/provider-broadcast.js'
+import stayUpdateHandler from './_lib/stay-update-email.js'
 import { toVercel } from './_adapt.js'
 
 async function handler(req) {
   let op = ''
   try { op = new URL(req.url).searchParams.get('op') || '' } catch { /* keep the default */ }
-  return op === 'broadcast' ? broadcastHandler(req) : feedbackHandler(req)
+  if (op === 'broadcast')   return broadcastHandler(req)
+  if (op === 'stay-update') return stayUpdateHandler(req)
+  return feedbackHandler(req)
 }
 
 export default toVercel(handler)

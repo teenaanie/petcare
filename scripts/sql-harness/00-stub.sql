@@ -178,3 +178,42 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.is_pet_member(uuid), public.is_pet_editor(uuid)
   TO anon, authenticated, service_role;
+
+-- ── What stay_updates.sql leans on ──────────────────────────────────────────
+--
+-- Supabase's storage schema, trimmed to the three things the photo policies
+-- touch. Worth stubbing rather than skipping: the storage policies are where a
+-- boarder could otherwise reach into a bucket of someone's pet photographs, so
+-- they deserve attacking like any other policy.
+
+CREATE SCHEMA IF NOT EXISTS storage;
+GRANT USAGE ON SCHEMA storage TO anon, authenticated, service_role;
+
+CREATE TABLE storage.buckets (
+  id     text PRIMARY KEY,
+  name   text NOT NULL,
+  public boolean NOT NULL DEFAULT false
+);
+
+CREATE TABLE storage.objects (
+  id        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  bucket_id text NOT NULL REFERENCES storage.buckets(id),
+  name      text NOT NULL,
+  owner     uuid
+);
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+
+-- Supabase's own helper: splits an object path into its folder segments.
+-- Reproduced rather than approximated, because every photo policy in this repo
+-- keys on foldername(name)[1] and an off-by-one here would make them all pass
+-- against the wrong segment.
+CREATE OR REPLACE FUNCTION storage.foldername(name text)
+RETURNS text[] LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE parts text[];
+BEGIN
+  parts := string_to_array(name, '/');
+  RETURN parts[1:array_length(parts, 1) - 1];
+END $$;
+
+GRANT EXECUTE ON FUNCTION storage.foldername(text) TO anon, authenticated, service_role;
+GRANT ALL ON storage.objects, storage.buckets TO anon, authenticated, service_role;

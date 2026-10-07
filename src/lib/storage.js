@@ -3,6 +3,7 @@
 
 import { getSupabase, isConfigured } from './supabase.js'
 import { deletePetPhotos } from './conditions.js'
+import { deleteStayPhotos } from './stayUpdates.js'
 import { createReadCache } from './readCache.js'
 import { reportHandled } from './errorReport.js'
 
@@ -315,6 +316,11 @@ async function _deletePet(id) {
     // unreachable and permanently undeletable. Failing here leaves the pet
     // intact and recoverable, which is the better of the two failures.
     await deletePetPhotos(id)
+    // Stay photos live in their own bucket and are orphaned by exactly the same
+    // mechanism: the stay_updates rows cascade when the pet goes, taking the
+    // only record of these paths with them. Collected and removed first, for
+    // the reason above.
+    await deleteStayPhotos(supabase, id)
     const { error } = await supabase.from('pets').delete().eq('id', id)
     if (error) throw error
     return
