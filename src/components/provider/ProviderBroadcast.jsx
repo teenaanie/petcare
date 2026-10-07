@@ -64,7 +64,7 @@ export default function ProviderBroadcast({ providerId, providerName }) {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) throw new Error('Please sign in again.')
 
-      const res = await fetch('/api/provider-broadcast', {
+      const res = await fetch('/api/provider-mail?op=broadcast', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

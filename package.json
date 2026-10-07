@@ -27,6 +27,7 @@
     "test:read-cache": "node scripts/test-read-cache.mjs",
     "test:current-weight": "node scripts/test-current-weight.mjs",
     "check:cache-tables": "node scripts/check-cache-tables.mjs",
+    "check:functions": "node scripts/check-vercel-functions.mjs",
     "check:supabase-binding": "node scripts/check-supabase-binding.mjs",
     "test:checkin": "node scripts/test-checkin.mjs",
     "test:chunk-errors": "node scripts/test-chunk-errors.mjs",

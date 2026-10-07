@@ -73,7 +73,7 @@ await ctx.route('**/rest/v1/**', r => r.fulfill({ json: [] }))
 await ctx.route('**/auth/v1/**', r => r.fulfill({ json: USER }))
 await ctx.route('**/rest/v1/rpc/my_provider_accounts*', r => r.fulfill({ json: ACCOUNT }))
 let broadcastPost = null
-await ctx.route('**/api/provider-broadcast', r => {
+await ctx.route('**/api/provider-mail*', r => {
   broadcastPost = JSON.parse(r.request().postData())
   return r.fulfill({ json: { ok: true, sent: 3, failures: 0 } })
 })
