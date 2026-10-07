@@ -402,6 +402,56 @@ SELECT t_scalar('it returns ids and nothing else',       'postgres',      NULL,
 SELECT t_run   ('the customer cannot read claims',       'authenticated', '66666666-6666-4666-8666-666666666666',
                 'select * from public.provider_accounts', 'ok:0');
 
+
+\echo ''
+\echo '════ provider_broadcasts.sql ════'
+
+-- Written as postgres, because that is the only way it is ever written: the
+-- table has no INSERT policy, and api/_lib/provider-broadcast.js writes it with
+-- the service key AFTER a send. The assertions below prove the client cannot.
+INSERT INTO public.provider_broadcasts (provider_id, sent_by, subject, body, recipients)
+VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        '33333333-3333-3333-3333-333333333333',
+        'Closed for Diwali', 'We are shut 20th to 23rd.', 12);
+
+-- Positive first, so every zero below is a denial and not an empty table.
+SELECT t_run   ('the business reads its own outbox',    'authenticated', '33333333-3333-3333-3333-333333333333',
+                'select * from public.provider_broadcasts', 'ok:1');
+SELECT t_scalar('and sees how many it reached',         'authenticated', '33333333-3333-3333-3333-333333333333',
+                'select recipients::text from public.provider_broadcasts', '12');
+
+SELECT t_run   ('a different business reads it',        'authenticated', '55555555-5555-5555-5555-555555555555',
+                'select * from public.provider_broadcasts', 'ok:0');
+SELECT t_run   ('the SUSPENDED claimant reads it',      'authenticated', '22222222-2222-2222-2222-222222222222',
+                'select * from public.provider_broadcasts', 'ok:0');
+SELECT t_run   ('a customer who was mailed reads it',   'authenticated', '66666666-6666-4666-8666-666666666666',
+                'select * from public.provider_broadcasts', 'ok:0');
+SELECT t_run   ('an anonymous reader',                  'anon',          NULL,
+                'select * from public.provider_broadcasts', 'ok:0');
+
+-- No INSERT policy is the rate limit's enforcement: a count the client can
+-- write is a count the client chooses.
+SELECT t_run   ('the business records its own send',    'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$insert into public.provider_broadcasts (provider_id, sent_by, subject, body)
+                   values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+                           '33333333-3333-3333-3333-333333333333', 'Sneaky', 'Not through the server')$q$,
+                'denied');
+SELECT t_run   ('or edits the recorded count',          'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$update public.provider_broadcasts set recipients = 0$q$, 'ok:0');
+SELECT t_run   ('or deletes an awkward one',            'authenticated', '33333333-3333-3333-3333-333333333333',
+                'delete from public.provider_broadcasts', 'ok:0');
+SELECT t_scalar('so the outbox is intact',              'authenticated', '33333333-3333-3333-3333-333333333333',
+                'select count(*)::text from public.provider_broadcasts', '1');
+
+SELECT t_run   ('a blank subject',                      'postgres',      NULL,
+                $q$insert into public.provider_broadcasts (provider_id, sent_by, subject, body)
+                   values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+                           '33333333-3333-3333-3333-333333333333', '  ', 'body')$q$, 'error:23514');
+SELECT t_run   ('a blank body',                         'postgres',      NULL,
+                $q$insert into public.provider_broadcasts (provider_id, sent_by, subject, body)
+                   values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+                           '33333333-3333-3333-3333-333333333333', 'subject', '   ')$q$, 'error:23514');
+
 \echo ''
 \echo '════ results ════'
 SELECT ord, label, expected, got, CASE WHEN ok THEN 'PASS' ELSE 'FAIL' END AS result

@@ -6,6 +6,7 @@ import ProviderAuth from './ProviderAuth.jsx'
 import ProviderOnboarding from './ProviderOnboarding.jsx'
 import ProviderFeedback from './ProviderFeedback.jsx'
 import ProviderInbox from './ProviderInbox.jsx'
+import ProviderBroadcast from './ProviderBroadcast.jsx'
 
 // The provider shell. Mounted only at /business (see src/main.jsx), lazily, so
 // a pet parent never downloads it.
@@ -238,6 +239,11 @@ export default function ProviderApp() {
       <div className="mt-6">
         <ProviderInbox providerIds={accounts.filter(a => a.status === 'active').map(a => a.provider_id)} />
       </div>
+
+      {/* Scoped to the business named in the header rather than to every active
+          account: a broadcast goes out under one name, and a person running a
+          kennel and a salon must not accidentally mail one list as the other. */}
+      <ProviderBroadcast providerId={active.provider_id} providerName={active.provider_name} />
 
       <ProviderFeedback
         userId={session.user.id}
