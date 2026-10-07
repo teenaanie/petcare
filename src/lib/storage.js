@@ -4,6 +4,7 @@
 import { getSupabase, isConfigured } from './supabase.js'
 import { deletePetPhotos } from './conditions.js'
 import { createReadCache } from './readCache.js'
+import { reportHandled } from './errorReport.js'
 
 // ── localStorage helpers (fallback) ──────────────────────────────────────────
 
@@ -147,6 +148,97 @@ export async function getProviderClaims() {
   const { data, error } = await supabase.rpc('admin_provider_claims')
   if (error) throw error
   return data || []
+}
+
+// ── Inform notes ────────────────────────────────────────────────────────────
+//
+// A note is the ENTIRE provider-side read surface. Nothing here grants a
+// provider access to a pet row; the note carries its own copy of everything the
+// provider will see, which is why pet_label and the contact fields are columns
+// rather than joins.
+//
+// There is no updateProviderNote and no deleteProviderNote, and there never
+// should be: the table has no UPDATE or DELETE policy, so either would fail
+// silently with zero rows rather than erroring. A correction is a new note
+// pointing at the old one through `supersedes`. See supabase/provider_notes.sql.
+
+/**
+ * Which of these providers can actually be informed?
+ *
+ * Takes the caller's own provider ids rather than scanning, so it cannot be
+ * used to enumerate which businesses have signed up. Returns a Set for the
+ * membership test the pet screen does per provider.
+ *
+ * A failure here must not take the pet screen down: the button simply does not
+ * appear, which is the same thing the user sees when no provider is onboarded.
+ */
+export async function getOnboardedProviderIds(providerIds = []) {
+  const ids = [...new Set((providerIds || []).filter(Boolean))]
+  if (!isConfigured || ids.length === 0) return new Set()
+  try {
+    const supabase = await getSupabase()
+    const { data, error } = await supabase.rpc('onboarded_provider_ids', { p_ids: ids })
+    if (error) throw error
+    return new Set((data || []).map(r => r.provider_id))
+  } catch (e) {
+    reportHandled(e, { view: 'inform-provider' })
+    return new Set()
+  }
+}
+
+/**
+ * Send a note. `sent_by` is set here from the session rather than passed in,
+ * because the INSERT policy requires it to equal auth.uid() and a caller that
+ * got it wrong would see only a permission error.
+ */
+export const sendProviderNote = (note) => bust('provider_notes', () => _sendProviderNote(note))
+async function _sendProviderNote(note) {
+  if (!isConfigured) throw new Error('Supabase is not configured.')
+  const supabase = await getSupabase()
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.user?.id) throw new Error('Please sign in again to send this.')
+
+  const row = {
+    provider_id:   note.providerId,
+    pet_id:        note.petId,
+    sent_by:       session.user.id,
+    body:          (note.body || '').trim(),
+    facts:         note.facts || {},
+    pet_label:     (note.petLabel || '').trim(),
+    contact_name:  note.contactName  || null,
+    contact_phone: note.contactPhone || null,
+    contact_email: note.contactEmail || null,
+    starts_on:     note.startsOn || null,
+    ends_on:       note.endsOn   || null,
+    supersedes:    note.supersedes || null,
+  }
+  const { data, error } = await supabase
+    .from('provider_notes').insert(row).select().single()
+  if (error) throw error
+  return fromSnakeProviderNote(data)
+}
+
+/** Everything ever sent about this pet, newest first. The whole chain. */
+export const getProviderNotes = (petId) => cached('provider_notes', petId, () => _getProviderNotes(petId))
+async function _getProviderNotes(petId) {
+  if (!isConfigured || !petId) return []
+  const supabase = await getSupabase()
+  const { data, error } = await supabase
+    .from('provider_notes').select('*')
+    .eq('pet_id', petId).order('sent_at', { ascending: false })
+  if (error) throw error
+  return (data || []).map(fromSnakeProviderNote)
+}
+
+function fromSnakeProviderNote(r) {
+  return {
+    id: r.id, providerId: r.provider_id, petId: r.pet_id, sentBy: r.sent_by,
+    body: r.body, facts: r.facts || {}, petLabel: r.pet_label,
+    contactName: r.contact_name, contactPhone: r.contact_phone,
+    contactEmail: r.contact_email,
+    startsOn: r.starts_on, endsOn: r.ends_on,
+    sentAt: r.sent_at, supersedes: r.supersedes,
+  }
 }
 
 export async function setProviderClaimStatus(id, status) {

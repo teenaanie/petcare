@@ -13,6 +13,8 @@
     "test:provider-alert": "node scripts/test-provider-alert.mjs",
     "test:register": "node scripts/test-register-provider.mjs",
     "test:claim-approve": "node scripts/test-admin-claim-approve.mjs",
+    "test:brief": "node scripts/test-provider-brief.mjs",
+    "test:inform": "node scripts/test-inform-provider.mjs",
     "test:sql": "bash scripts/sql-harness/run.sh",
     "check:drift": "node --env-file-if-exists=.env scripts/check-drift.mjs",
     "test:dates": "node scripts/test-dates.mjs",

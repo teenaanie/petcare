@@ -72,6 +72,7 @@ run "$REPO/supabase/admins.sql"
 run "$REPO/supabase/provider_accounts.sql"
 run "$REPO/supabase/provider_feedback.sql"
 run "$REPO/supabase/provider_self_registration.sql"
+run "$REPO/supabase/provider_notes.sql"
 
 # Mirror Supabase's own grants. Without these, anon and authenticated would be
 # blocked by a missing table privilege rather than by RLS, and every "blocked"
@@ -85,6 +86,7 @@ run "$REPO/supabase/admins.sql"
 run "$REPO/supabase/provider_accounts.sql"
 run "$REPO/supabase/provider_feedback.sql"
 run "$REPO/supabase/provider_self_registration.sql"
+run "$REPO/supabase/provider_notes.sql"
 
 "$PGBIN/psql" -h "$BASE/sock" -U postgres -d postgres -v ON_ERROR_STOP=1 -q -tAc \
   "select case when count(*) = 1 then 'ok' else 'DUPLICATE SEED: ' || count(*) end
