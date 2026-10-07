@@ -5,6 +5,7 @@ import PippyLogo from '../PippyLogo.jsx'
 import ProviderAuth from './ProviderAuth.jsx'
 import ProviderOnboarding from './ProviderOnboarding.jsx'
 import ProviderFeedback from './ProviderFeedback.jsx'
+import ProviderInbox from './ProviderInbox.jsx'
 
 // The provider shell. Mounted only at /business (see src/main.jsx), lazily, so
 // a pet parent never downloads it.
@@ -229,11 +230,15 @@ export default function ProviderApp() {
           {[active.claimed_type || active.provider_type, active.provider_area, active.provider_city]
             .filter(Boolean).join(' · ')}
         </p>
-        <hr className="my-5" style={{ borderColor: '#f0e6c8' }} />
-        <p className="text-sm" style={{ color: '#4A2C0A' }}>
-          Your customers, their pets and your daily updates land here next.
-        </p>
       </div>
+
+      {/* Every business this person is active on, not just the one named above:
+          someone running a kennel and a grooming salon has one sign-in and
+          should see both books. RLS scopes it either way. */}
+      <div className="mt-6">
+        <ProviderInbox providerIds={accounts.filter(a => a.status === 'active').map(a => a.provider_id)} />
+      </div>
+
       <ProviderFeedback
         userId={session.user.id}
         providerId={active.provider_id}

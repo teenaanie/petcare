@@ -15,6 +15,8 @@
     "test:claim-approve": "node scripts/test-admin-claim-approve.mjs",
     "test:brief": "node scripts/test-provider-brief.mjs",
     "test:inform": "node scripts/test-inform-provider.mjs",
+    "test:inbox": "node scripts/test-provider-inbox.mjs",
+    "test:inbox-ui": "node scripts/test-provider-inbox-ui.mjs",
     "test:sql": "bash scripts/sql-harness/run.sh",
     "check:drift": "node --env-file-if-exists=.env scripts/check-drift.mjs",
     "test:dates": "node scripts/test-dates.mjs",
