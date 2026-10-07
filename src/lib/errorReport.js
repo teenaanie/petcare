@@ -76,6 +76,15 @@ const VIEWS = new Set([
   // at the top of this file.
   'delete-account', 'migrate-data', 'notifications', 'boarding-rules',
   'pet-photo',
+  // The provider platform, phases 3-6. These shipped without being added here,
+  // so every fault in the inform-note and stay-update paths was filed as
+  // 'unknown' — which is the one screen attribution you most want when the
+  // first real boarder hits a bug. test:error-report caught it; it was run
+  // late because the provider phases were verified with the provider suites
+  // rather than the whole suite.
+  'inform-provider', 'inform-provider-draft', 'inform-provider-send',
+  'stay-updates', 'stay-update-post', 'stay-update-delete',
+  'provider-inbox', 'provider-broadcast',
 ])
 
 // How a report reached us. Two values, and deliberately a closed set like
