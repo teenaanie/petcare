@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Mail, Phone, Loader2, AlertCircle, ArrowLeft } from 'lucide-react'
 import { getSupabaseProvider } from '../../lib/supabase.js'
+import { PHONE_LOGIN_ENABLED } from '../../lib/authFlags.js'
 import PippyLogo from '../PippyLogo.jsx'
+import ProviderLanding from './ProviderLanding.jsx'
 
 // Sign-in for the provider shell.
 //
@@ -54,7 +56,11 @@ export default function ProviderAuth() {
       const saved = sessionStorage.getItem(SESSION_KEY)
       if (saved) {
         const { method: m, sentTo: s, step: st } = JSON.parse(saved)
-        if (st === 'otp' && s) { setMethod(m); setSentTo(s); setStep('otp') }
+        // A half-finished phone flow left in sessionStorage would otherwise come
+        // back on a screen that no longer offers phone at all.
+        if (st === 'otp' && s && (m !== 'phone' || PHONE_LOGIN_ENABLED)) {
+          setMethod(m); setSentTo(s); setStep('otp')
+        }
       }
     } catch {}
   }, [])
@@ -130,6 +136,71 @@ export default function ProviderAuth() {
     }
   }
 
+  // ── Render ──────────────────────────────────────────────────────────────
+  //
+  // Two screens, deliberately different, and the same split PhoneAuth makes on
+  // the pet-parent side. The entry step IS the landing page: a boarder arriving
+  // here has usually never seen Pippy and needs a reason before a form. Once a
+  // code is on its way, the landing goes away — at that point the only job on
+  // screen is typing six digits, and anything else is in the way.
+
+  const entryForm = (
+    <form onSubmit={handleSend}>
+      {/* The method switch only earns its place when there is a choice. With
+          phone sign-in off there is one way in, and a one-tab tab bar is just
+          furniture. */}
+      {PHONE_LOGIN_ENABLED && (
+        <div className="flex rounded-xl p-1 mb-6" style={{ backgroundColor: '#ebe3d3' }}>
+          <button type="button" onClick={() => switchMethod('email')}
+            className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
+            style={method === 'email' ? { backgroundColor: '#f2b83d', color: '#7a4900' } : { color: '#73775b' }}>
+            <Mail size={16} /> Email
+          </button>
+          <button type="button" onClick={() => switchMethod('phone')}
+            className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
+            style={method === 'phone' ? { backgroundColor: '#f2b83d', color: '#7a4900' } : { color: '#73775b' }}>
+            <Phone size={16} /> Phone
+          </button>
+        </div>
+      )}
+
+      {method === 'email' ? (
+        <>
+          <label className="label" style={{ color: '#7a4900' }} htmlFor="provider-email">Your business email</label>
+          <input id="provider-email" className="input" type="email" required autoComplete="email"
+            value={email} onChange={e => setEmail(e.target.value)} placeholder="you@yourbusiness.com" />
+          <p className="text-xs mt-2" style={{ color: '#a08f7a' }}>
+            We send a six-digit code. No password to remember.
+          </p>
+        </>
+      ) : (
+        <>
+          <label className="label" style={{ color: '#7a4900' }} htmlFor="provider-phone">Your phone number</label>
+          <div className="flex gap-2">
+            <select className="input" style={{ width: 'auto' }} value={countryCode}
+              onChange={e => setCountryCode(e.target.value)} aria-label="Country code">
+              {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+            </select>
+            <input id="provider-phone" className="input" type="tel" required autoComplete="tel"
+              value={phone} onChange={e => setPhone(e.target.value)} placeholder="98765 43210" />
+          </div>
+        </>
+      )}
+
+      {error && (
+        <div className="flex items-start gap-2 mt-4 text-sm" style={{ color: '#b4453c' }}>
+          <AlertCircle size={16} className="mt-0.5 shrink-0" /> <span>{error}</span>
+        </div>
+      )}
+
+      <button type="submit" disabled={loading} className="btn-primary w-full justify-center mt-5">
+        {loading ? <Loader2 size={16} className="animate-spin" /> : 'Send me a code'}
+      </button>
+    </form>
+  )
+
+  if (step === 'entry') return <ProviderLanding>{entryForm}</ProviderLanding>
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4" style={{ backgroundColor: '#FFFEF8' }}>
       <div className="flex items-center gap-3 mb-3">
@@ -142,75 +213,28 @@ export default function ProviderAuth() {
 
       <div className="w-full max-w-sm">
         <div className="card">
-          {step === 'entry' ? (
-            <form onSubmit={handleSend}>
-              <div className="flex rounded-xl p-1 mb-6" style={{ backgroundColor: '#ebe3d3' }}>
-                <button type="button" onClick={() => switchMethod('email')}
-                  className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
-                  style={method === 'email' ? { backgroundColor: '#f2b83d', color: '#7a4900' } : { color: '#73775b' }}>
-                  <Mail size={16} /> Email
-                </button>
-                <button type="button" onClick={() => switchMethod('phone')}
-                  className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all"
-                  style={method === 'phone' ? { backgroundColor: '#f2b83d', color: '#7a4900' } : { color: '#73775b' }}>
-                  <Phone size={16} /> Phone
-                </button>
+          <form onSubmit={handleVerify}>
+            <button type="button" onClick={() => switchMethod(method)}
+              className="flex items-center gap-1 text-sm font-semibold mb-4" style={{ color: '#b08d57' }}>
+              <ArrowLeft size={14} /> Back
+            </button>
+            <label className="label" style={{ color: '#7a4900' }} htmlFor="provider-otp">
+              Enter the code sent to {sentTo}
+            </label>
+            <input id="provider-otp" className="input text-center tracking-[0.4em] text-lg" inputMode="numeric"
+              autoComplete="one-time-code" value={otp}
+              onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 8))} placeholder="000000" />
+
+            {error && (
+              <div className="flex items-start gap-2 mt-4 text-sm" style={{ color: '#b4453c' }}>
+                <AlertCircle size={16} className="mt-0.5 shrink-0" /> <span>{error}</span>
               </div>
+            )}
 
-              {method === 'email' ? (
-                <>
-                  <label className="label" style={{ color: '#7a4900' }} htmlFor="provider-email">Your business email</label>
-                  <input id="provider-email" className="input" type="email" required autoComplete="email"
-                    value={email} onChange={e => setEmail(e.target.value)} placeholder="you@yourbusiness.com" />
-                </>
-              ) : (
-                <>
-                  <label className="label" style={{ color: '#7a4900' }} htmlFor="provider-phone">Your phone number</label>
-                  <div className="flex gap-2">
-                    <select className="input" style={{ width: 'auto' }} value={countryCode}
-                      onChange={e => setCountryCode(e.target.value)} aria-label="Country code">
-                      {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
-                    </select>
-                    <input id="provider-phone" className="input" type="tel" required autoComplete="tel"
-                      value={phone} onChange={e => setPhone(e.target.value)} placeholder="98765 43210" />
-                  </div>
-                </>
-              )}
-
-              {error && (
-                <div className="flex items-start gap-2 mt-4 text-sm" style={{ color: '#b4453c' }}>
-                  <AlertCircle size={16} className="mt-0.5 shrink-0" /> <span>{error}</span>
-                </div>
-              )}
-
-              <button type="submit" disabled={loading} className="btn-primary w-full justify-center mt-6">
-                {loading ? <Loader2 size={16} className="animate-spin" /> : 'Send me a code'}
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleVerify}>
-              <button type="button" onClick={() => switchMethod(method)}
-                className="flex items-center gap-1 text-sm font-semibold mb-4" style={{ color: '#b08d57' }}>
-                <ArrowLeft size={14} /> Back
-              </button>
-              <label className="label" style={{ color: '#7a4900' }} htmlFor="provider-otp">
-                Enter the code sent to {sentTo}
-              </label>
-              <input id="provider-otp" className="input text-center tracking-[0.4em] text-lg" inputMode="numeric"
-                autoComplete="one-time-code" value={otp}
-                onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 8))} placeholder="000000" />
-
-              {error && (
-                <div className="flex items-start gap-2 mt-4 text-sm" style={{ color: '#b4453c' }}>
-                  <AlertCircle size={16} className="mt-0.5 shrink-0" /> <span>{error}</span>
-                </div>
-              )}
-
-              <button type="submit" disabled={loading || otp.length < 4} className="btn-primary w-full justify-center mt-6">
-                {loading ? <Loader2 size={16} className="animate-spin" /> : 'Sign in'}
-              </button>
-            </form>
-          )}
+            <button type="submit" disabled={loading || otp.length < 4} className="btn-primary w-full justify-center mt-6">
+              {loading ? <Loader2 size={16} className="animate-spin" /> : 'Sign in'}
+            </button>
+          </form>
         </div>
 
         <p className="text-center text-xs mt-6" style={{ color: '#a08f7a' }}>

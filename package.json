@@ -18,6 +18,7 @@
     "test:inbox": "node scripts/test-provider-inbox.mjs",
     "test:book": "node scripts/test-provider-book.mjs",
     "test:book-ui": "node scripts/test-provider-book-ui.mjs",
+    "test:landing": "node scripts/test-provider-landing.mjs",
     "test:inbox-ui": "node scripts/test-provider-inbox-ui.mjs",
     "test:broadcast": "node scripts/test-provider-broadcast.mjs",
     "test:stay-email": "node scripts/test-stay-update-email.mjs",
