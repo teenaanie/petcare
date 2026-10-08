@@ -121,6 +121,9 @@ await page.getByRole('button', { name: 'Book a stay' }).click()
 await page.waitForTimeout(400)
 await page.locator('input[type="date"]').first().fill('2026-11-20')
 await page.locator('input[type="date"]').nth(1).fill('2026-11-25')
+// Optional, and it stays optional — but when it is typed it has to reach the
+// row, because every total on the dashboard counts from this column.
+await page.getByPlaceholder('₹ what you charged').fill('4500')
 // The two flags a front desk checks before the animal arrives.
 await page.getByRole('button', { name: 'Trial done' }).click()
 await page.getByRole('button', { name: 'Save booking' }).click()
@@ -128,11 +131,15 @@ await page.waitForTimeout(1000)
 ck('a booking was written', posted.appointments.length, 1)
 ck('with the dates given', [posted.appointments[0]?.starts_on, posted.appointments[0]?.ends_on],
    ['2026-11-20', '2026-11-25'])
+ck('the amount was recorded', posted.appointments[0]?.amount, 4500)
 ck('the trial flag was recorded', posted.appointments[0]?.trial_done, true)
 ck('and criteria left unticked', posted.appointments[0]?.criteria_met, false)
 
 // Open the booking: edit it, and log a day against it.
-await page.getByText('Boarding', { exact: false }).first().click()
+// By BUTTON, not by text: "Boarding · 1" also appears as a chip in the history
+// block above, and getByText(...).first() picked the chip, clicked a span and
+// sat there. The row is the only button carrying the word.
+await page.getByRole('button').filter({ hasText: 'Boarding' }).first().click()
 await page.waitForTimeout(800)
 t = await page.innerText('body')
 ck('the booking opens on its own screen', await has('Day by day'), true)
@@ -154,6 +161,12 @@ await page.waitForTimeout(500)
 await page.getByRole('button', { name: 'Back' }).first().click()
 await page.waitForTimeout(700)
 ck('backing out lands on the dashboard', await has('With you now'), true)
+// The year, computed from the same rows the tiles count.
+ck('the year is on the dashboard', await has('Your year'), true)
+// The only booking in this suite is in the future, so the last twelve months
+// are genuinely empty — and an empty year says so rather than drawing a chart
+// of nothing. The populated case is pinned in test:book-vet.
+ck('and an empty year says so', await has('Nothing in the last twelve months'), true)
 
 await page.getByRole('button', { name: 'Message your customers' }).first().click()
 await page.waitForTimeout(500)

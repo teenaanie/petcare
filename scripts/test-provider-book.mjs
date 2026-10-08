@@ -6,6 +6,7 @@
 // the provider plans staff around animals that are not arriving.
 
 import { groupAppointments, bookSummary, APPOINTMENT_KINDS, APPOINTMENT_STATUS } from '../src/lib/providerBook.js'
+import { bookWords, tileWords } from '../src/lib/providerTypes.js'
 
 let failed = 0
 function check(label, got, want) {
@@ -87,6 +88,28 @@ check('and a ready one never does',
 check('an empty book is all zeroes',
       bookSummary({}, TODAY),
       { here: 0, upcoming: 0, customers: 0, pets: 0, past: 0, needsAttention: 0 })
+
+
+// ── The attention tile belongs to boarders alone ────────────────────────────
+//
+// trial_done and criteria_met are a kennel's gate. A vet never ticks either, so
+// with the flags left on, EVERY upcoming visit would arrive flagged as needing
+// attention and the one tile that means "act now" would mean nothing.
+{
+  const soon = [
+    A('vet-visit-1', '2026-11-12', null),
+    A('vet-visit-2', '2026-11-13', null),
+  ]
+  const flagged = bookSummary({ appointments: soon }, TODAY)
+  const unflagged = bookSummary({ appointments: soon }, TODAY, { flags: false })
+  check('a boarder sees both untrialled stays', flagged.needsAttention, 2)
+  check('a vet sees none of it',                unflagged.needsAttention, 0)
+  check('but the visits are still counted',     unflagged.upcoming, 2)
+
+  check('a kennel still says "with you now"',  tileWords(bookWords('Boarder')).here, 'With you now')
+  check('a vet says "in today"',               tileWords(bookWords('Vet')).here, 'In today')
+  check('and a shop counts past purchases',    tileWords(bookWords('Store')).past, 'Past purchases')
+}
 
 console.log(failed ? `\n${failed} failed` : '\nall passed')
 process.exit(failed ? 1 : 0)

@@ -285,6 +285,7 @@ export default function ProviderApp() {
             providerIds={activeIds}
             primaryProviderId={active.provider_id}
             providerName={active.provider_name}
+            providerType={active.claimed_type || active.provider_type}
             postedBy={session.user.id} />
         ) : (
           <ProviderInbox providerIds={activeIds} postedBy={session.user.id} />
