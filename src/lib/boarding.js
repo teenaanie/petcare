@@ -189,6 +189,75 @@ export const REQUIREMENT_CATALOG = [
 
 export function requirement(id) { return REQUIREMENT_CATALOG.find(r => r.id === id) }
 
+// ── A boarder's own criteria ─────────────────────────────────────────────────
+//
+// The catalogue above is what the research found boarders asking for, and it is
+// closed for a good reason: each entry carries a `derive` that knows how to
+// check itself against a pet's records, and an entry nobody can check is a
+// different kind of thing.
+//
+// But a real facility asks for things nobody could have predicted — "a blanket
+// that smells of home", "the lift key if you live in a tower", "proof of the
+// society's pet registration". Before this they had nowhere to go, so a boarder
+// either dropped them or typed them into a free-text note nobody treats as a
+// requirement.
+//
+// So a boarder's own criteria live on their policy, not in the catalogue, and
+// they are ALWAYS manual: there is nothing in a pet's records to check them
+// against, and pretending otherwise would tick a box the owner never did. Ids
+// are prefixed `own_` so a custom one can never collide with a catalogue id —
+// which matters, because `required` holds both and an id that shadowed
+// 'rabies' would quietly replace a checked requirement with an unchecked one.
+
+const OWN_PREFIX = 'own_'
+
+/** The policy's own criteria, in catalogue shape so every caller can treat them alike. */
+export function customRequirements(policy) {
+  return (policy?.custom || [])
+    .filter(c => c && typeof c === 'object' && c.id && String(c.label || '').trim())
+    .map(c => ({
+      id: String(c.id),
+      label: String(c.label).trim(),
+      help: String(c.help || '').trim(),
+      species: Array.isArray(c.species) && c.species.length ? c.species : '*',
+      phase: c.phase === 'at_drop_off' ? 'at_drop_off' : 'prepare_before',
+      scope: 'owner',
+      derive: 'manual',
+      custom: true,
+    }))
+}
+
+/** A requirement by id, from the catalogue or from this boarder's own list. */
+export function requirementIn(policy, id) {
+  return requirement(id) || customRequirements(policy).find(c => c.id === id) || null
+}
+
+/** Everything this boarder asks for: the catalogue entries they ticked, plus their own. */
+export function allRequirements(policy) {
+  const ids = policy?.required || GENERIC_POLICY.required
+  return ids.map(id => requirementIn(policy, id)).filter(Boolean)
+}
+
+/**
+ * A stable id for a newly typed criterion.
+ *
+ * Derived from the words so it reads in the data, and uniquified against what
+ * the policy already holds — an id is what `required` stores, so reusing one
+ * would silently merge two different requirements into one.
+ */
+export function newCustomId(label, policy) {
+  const taken = new Set([
+    ...REQUIREMENT_CATALOG.map(r => r.id),
+    ...(policy?.custom || []).map(c => c?.id).filter(Boolean),
+  ])
+  const base = OWN_PREFIX + (String(label || '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40) || 'criterion')
+  if (!taken.has(base)) return base
+  let n = 2
+  while (taken.has(`${base}_${n}`)) n++
+  return `${base}_${n}`
+}
+
 // ── Policies ─────────────────────────────────────────────────────────────────
 //
 // Every boarder's rules are data, not code.
@@ -374,7 +443,12 @@ export function evaluateReadiness(pet, { vaccinations = [], medicines = [] } = {
   const ids = policy.required || GENERIC_POLICY.required
 
   return ids.map(id => {
-    const req = requirement(id)
+    // Through the POLICY, not the catalogue alone: a boarder's own criteria
+    // live on their policy, and resolving only the catalogue would drop them
+    // here — silently, because an unknown id fails appliesTo() and returns
+    // null. The owner would tick them on the boarder's screen and never see
+    // them on their own.
+    const req = requirementIn(policy, id)
     // A boarder keeps one flat list of criteria; each pet sees the subset that
     // applies to its species. Kennel cough is the reason this exists — it is a
     // dog disease, and a cat's owner must never be told to go and get one.

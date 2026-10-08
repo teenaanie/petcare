@@ -115,6 +115,26 @@ await page.getByRole('button').filter({ hasText: 'A trial day before a first sta
 await page.waitForTimeout(700)
 ck('the trial flag is part of the same policy', savedPolicy?.p_policy?.trial_required, true)
 
+// ── A boarder's own criteria ────────────────────────────────────────────────
+//
+// The catalogue is what the research found boarders asking for. This is for
+// what it could not have predicted, and it has to survive the round trip: the
+// id goes into `required` as well as `custom`, or the pet parent sees nothing.
+await page.getByPlaceholder('A blanket that smells of home').fill('Lift key if you live in a tower')
+await page.getByPlaceholder('One line of explanation (optional)').fill('The service lift needs one after 8pm.')
+await page.getByRole('button', { name: 'Add this' }).click()
+await page.waitForTimeout(700)
+
+const added = (savedPolicy?.p_policy?.custom || [])[0]
+ck('it is stored with the policy', [added?.label, added?.help],
+   ['Lift key if you live in a tower', 'The service lift needs one after 8pm.'])
+// `own_` so a typed criterion can never shadow a catalogue id — `required`
+// holds both, and a collision would replace a checked requirement with an
+// unchecked one.
+ck('its id is prefixed', String(added?.id || '').startsWith('own_'), true)
+ck('and it is asked for, not just listed',
+   savedPolicy?.p_policy?.required?.includes(added?.id), true)
+
 ck('no page errors', errs.length, 0)
 if (errs.length) console.log(errs)
 await page.screenshot({ path: '/tmp/pippy-details.png', fullPage: true })

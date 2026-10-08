@@ -216,6 +216,22 @@ async function _sendProviderNote(note) {
   const { data, error } = await supabase
     .from('provider_notes').insert(row).select().single()
   if (error) throw error
+
+  // Tell the business, and never let that fail the send. The note is already
+  // saved and is what the provider actually reads — the mail only says one
+  // landed. Before this, a provider who signs in once a week found out when the
+  // dog did.
+  //
+  // Not awaited, for the same reason the stay-update mail is not: the customer
+  // is waiting on a screen, and an SMTP round trip is slower than the insert
+  // that matters.
+  fetch('/api/provider-mail?op=inform', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json',
+               authorization: `Bearer ${session.access_token || ''}` },
+    body: JSON.stringify({ noteId: data.id }),
+  }).catch(() => { /* the note is sent; the provider sees it when they sign in */ })
+
   return fromSnakeProviderNote(data)
 }
 
