@@ -4,6 +4,7 @@ import { getSupabase } from '../lib/supabase.js'
 import { reportHandled } from '../lib/errorReport.js'
 import PippyLogo from './PippyLogo.jsx'
 import Landing from './Landing.jsx'
+import { PHONE_LOGIN_ENABLED } from '../lib/authFlags.js'
 
 const COUNTRY_CODES = [
   { code: '+91',  label: '🇮🇳 +91' },
@@ -38,20 +39,9 @@ function friendlyAuthError(err) {
   return err?.message || 'Could not send code. Please try again.'
 }
 
-// Phone sign-in is switched off: sending an SMS code needs an SMS provider,
-// and one is not configured. Showing the tab would offer a way in that cannot
-// work — a code that never arrives reads as the app being broken, not as a
-// setting being off.
-//
-// The phone flow itself is LEFT IN PLACE rather than deleted, because this is
-// a configuration state and not a decision about the product. Turning it back
-// on is this one line, plus an SMS provider in the Supabase dashboard.
-//
-// One account signs in by phone and has no email address on it (checked
-// 2026-09-28: 1 of 15 users, last seen 25 August, one pet, no records). While
-// this is false, that account cannot get in. Giving it an email address in the
-// Supabase dashboard is the way to bring it across.
-const PHONE_LOGIN_ENABLED = false
+// PHONE_LOGIN_ENABLED moved to src/lib/authFlags.js, which carries the whole
+// explanation. It is shared now because the provider sign-in at /business had
+// its own Phone tab with no flag behind it.
 
 export default function PhoneAuth({ onShowPrivacy }) {
   const [method, setMethod]           = useState('email')
