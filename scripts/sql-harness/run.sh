@@ -78,6 +78,7 @@ run "$REPO/supabase/stay_updates.sql"
 run "$REPO/supabase/provider_account_adoption.sql"
 run "$REPO/supabase/provider_book.sql"
 run "$REPO/supabase/provider_book_detail.sql"
+run "$REPO/supabase/provider_book_money.sql"
 
 # Mirror Supabase's own grants. Without these, anon and authenticated would be
 # blocked by a missing table privilege rather than by RLS, and every "blocked"
@@ -97,6 +98,7 @@ run "$REPO/supabase/stay_updates.sql"
 run "$REPO/supabase/provider_account_adoption.sql"
 run "$REPO/supabase/provider_book.sql"
 run "$REPO/supabase/provider_book_detail.sql"
+run "$REPO/supabase/provider_book_money.sql"
 
 "$PGBIN/psql" -h "$BASE/sock" -U postgres -d postgres -v ON_ERROR_STOP=1 -q -tAc \
   "select case when count(*) = 1 then 'ok' else 'DUPLICATE SEED: ' || count(*) end

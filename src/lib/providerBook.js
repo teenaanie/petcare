@@ -26,6 +26,10 @@ const fromAppointment = r => ({
   startsOn: r.starts_on, endsOn: r.ends_on, startsAt: r.starts_at,
   status: r.status, notes: r.notes, createdAt: r.created_at,
   trialDone: !!r.trial_done, criteriaMet: !!r.criteria_met,
+  // Kept as whatever the column holds — null when nobody typed one. NOT
+  // defaulted to 0: "no price recorded" and "this one was free" are different
+  // facts, and every total downstream reports which rows it could see.
+  amount: r.amount ?? null,
 })
 
 export const APPOINTMENT_KINDS  = ['Boarding', 'Day care', 'Grooming', 'Walk', 'Other']
@@ -96,7 +100,7 @@ export async function saveAppointment(supabase, fields) {
   const {
     id, providerId, customerId, providerPetId, kind,
     startsOn, endsOn, startsAt, status, notes, createdBy,
-    trialDone, criteriaMet,
+    trialDone, criteriaMet, amount,
   } = fields
   if (!startsOn) throw new Error('A booking needs a start date.')
   if (endsOn && endsOn < startsOn) throw new Error('The end date is before the start date.')
@@ -107,6 +111,10 @@ export async function saveAppointment(supabase, fields) {
     starts_at: startsAt || null, status: status || 'booked',
     notes: notes?.trim() || null,
     trial_done: !!trialDone, criteria_met: !!criteriaMet,
+    // An empty box means "not said", not zero. `Number('')` is 0, which would
+    // quietly record every unpriced booking as free and make a year's takings
+    // read as complete when it is not.
+    amount: amount === '' || amount === null || amount === undefined ? null : Number(amount),
   }
   const q = id
     ? supabase.from('provider_appointments').update({ ...row, updated_at: new Date().toISOString() }).eq('id', id)
@@ -203,14 +211,19 @@ export async function deleteLog(supabase, id) {
  * boarder must act on BEFORE the animal arrives, and it is invisible in a plain
  * list of bookings.
  */
-export function bookSummary({ customers = [], pets = [], appointments = [] }, today) {
+export function bookSummary({ customers = [], pets = [], appointments = [] }, today, { flags = true } = {}) {
   const g = groupAppointments(appointments, today)
   const soon = new Date(`${today}T00:00:00Z`)
   soon.setUTCDate(soon.getUTCDate() + 7)
   const within7 = soon.toISOString().slice(0, 10)
 
-  const needsAttention = g.upcoming.filter(
-    a => a.startsOn <= within7 && (!a.trialDone || !a.criteriaMet)).length
+  // `flags` is off for every business that has no trial day and no boarding
+  // criteria — a vet or a shop. Without this they would open the app to find
+  // EVERY upcoming visit flagged as needing attention, because two booleans
+  // nobody ever ticks are false, and the one tile that is meant to mean
+  // "act now" would mean nothing at all.
+  const needsAttention = flags ? g.upcoming.filter(
+    a => a.startsOn <= within7 && (!a.trialDone || !a.criteriaMet)).length : 0
 
   return {
     here:      g.current.length,

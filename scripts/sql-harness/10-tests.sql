@@ -766,6 +766,23 @@ SELECT t_run   ('a blank entry',                         'authenticated', '33333
                    values ('c1000000-0000-4000-8000-000000000002',
                            'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '   ')$q$, 'error:23514');
 
+-- Money, when a provider chooses to type it. Nullable on purpose: most rows
+-- will never carry one, so "no amount" must stay distinguishable from zero.
+SELECT t_scalar('a booking carries no amount by default', 'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$select coalesce(amount::text, 'null') from public.provider_appointments
+                   where id = 'c1000000-0000-4000-8000-000000000002'$q$, 'null');
+SELECT t_run   ('the business can price its own stay',   'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$update public.provider_appointments set amount = 4500.00
+                   where id = 'c1000000-0000-4000-8000-000000000002'$q$, 'ok:1');
+SELECT t_run   ('a negative amount',                     'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$update public.provider_appointments set amount = -1
+                   where id = 'c1000000-0000-4000-8000-000000000002'$q$, 'error:23514');
+-- What a kennel charges is nobody else's business, and the column must not have
+-- arrived with a hole in the policy that covers the rest of the row.
+SELECT t_run   ('another business reads the priced row', 'authenticated', '55555555-5555-5555-5555-555555555555',
+                $q$select amount from public.provider_appointments
+                   where id = 'c1000000-0000-4000-8000-000000000002'$q$, 'ok:0');
+
 SELECT t_run   ('deleting the booking',                  'authenticated', '33333333-3333-3333-3333-333333333333',
                 $q$delete from public.provider_appointments
                    where id = 'c1000000-0000-4000-8000-000000000002'$q$, 'ok:1');

@@ -28,6 +28,9 @@ import { reportHandled } from '../../lib/errorReport.js'
 import { todayIST } from '../../lib/dates.js'
 import { formatDay } from '../../lib/providerBrief.js'
 import ProviderBroadcast from './ProviderBroadcast.jsx'
+import { YourYear, CustomerHistory } from './BookNumbers.jsx'
+import { rupees } from '../../lib/providerStats.js'
+import { bookWords, tileWords } from '../../lib/providerTypes.js'
 import {
   getBook, saveCustomer, savePet, saveAppointment,
   deleteCustomer, deleteAppointment, groupAppointments, bookSummary,
@@ -147,7 +150,7 @@ function PetForm({ initial, notes, onSave, onCancel, busy }) {
   )
 }
 
-function AppointmentForm({ initial, pets, onSave, onCancel, busy }) {
+function AppointmentForm({ initial, pets, onSave, onCancel, busy, words }) {
   const [f, setF] = useState(initial)
   const set = e => setF(p => ({ ...p, [e.target.name]: e.target.value }))
   const toggle = k => setF(p => ({ ...p, [k]: !p[k] }))
@@ -158,7 +161,12 @@ function AppointmentForm({ initial, pets, onSave, onCancel, busy }) {
         <div>
           <label className={lbl}>What</label>
           <select name="kind" value={f.kind} onChange={set} className={field}>
-            {APPOINTMENT_KINDS.map(k => <option key={k}>{k}</option>)}
+            {/* A vet's list is not a kennel's. The column is free text, so this
+                is vocabulary rather than schema — and an existing row's kind is
+                kept in the list even if the business has since changed trade,
+                or editing a booking would silently retype it. */}
+            {[...new Set([...(words?.kinds || APPOINTMENT_KINDS), f.kind].filter(Boolean))]
+              .map(k => <option key={k}>{k}</option>)}
           </select>
         </div>
         <div>
@@ -185,7 +193,12 @@ function AppointmentForm({ initial, pets, onSave, onCancel, busy }) {
 
       {/* The two things a front desk checks before the animal arrives. One flag
           each plus the free-text note below, rather than a checklist this app
-          invents — what "criteria" means differs by business. */}
+          invents — what "criteria" means differs by business.
+
+          Boarders only: a groomer has no trial day and a shop has no boarding
+          criteria, and asking them would be asking everybody a kennel's
+          question. See src/lib/providerTypes.js. */}
+      {words?.flags !== false && (
       <div className="grid grid-cols-2 gap-2">
         {[['trialDone', 'Trial done'], ['criteriaMet', 'Criteria met']].map(([k, l]) => (
           <button key={k} type="button" onClick={() => toggle(k)}
@@ -200,9 +213,23 @@ function AppointmentForm({ initial, pets, onSave, onCancel, busy }) {
           </button>
         ))}
       </div>
+      )}
+
+      {/* Optional, and it stays optional. Pippy does not invoice, does not take
+          payment and does not know anybody's rate card — this is here so a
+          provider's own totals can mean money instead of nights if they choose
+          to type it. Every figure that uses it reports how many rows it could
+          actually see a price for. */}
+      <div>
+        <label className={lbl}>
+          Amount <span style={{ color: '#b08d57' }}>(optional)</span>
+        </label>
+        <input name="amount" type="number" min="0" step="1" inputMode="decimal"
+          value={f.amount ?? ''} onChange={set} className={field} placeholder="₹ what you charged" />
+      </div>
 
       <div>
-        <label className={lbl}>Notes for this stay</label>
+        <label className={lbl}>Notes for this {words?.entry || 'stay'}</label>
         <textarea name="notes" value={f.notes || ''} onChange={set} rows={2} className={field}
           placeholder="Bringing own food. Pickup after 7." />
       </div>
@@ -254,7 +281,7 @@ function BookingRow({ a, pet, customer, onOpen }) {
 
 // ── One booking ─────────────────────────────────────────────────────────────
 
-function BookingDetail({ booking, customer, pets, onBack, onChanged, run, busy, postedBy }) {
+function BookingDetail({ booking, customer, pets, onBack, onChanged, run, busy, postedBy, words }) {
   const [editing, setEditing] = useState(false)
   const [logs, setLogs] = useState([])
   const [entry, setEntry] = useState('')
@@ -276,7 +303,7 @@ function BookingDetail({ booking, customer, pets, onBack, onChanged, run, busy, 
       </button>
 
       {editing ? (
-        <AppointmentForm busy={busy} pets={pets} initial={booking}
+        <AppointmentForm busy={busy} pets={pets} initial={booking} words={words}
           onCancel={() => setEditing(false)}
           onSave={f => run(async sb => {
             await saveAppointment(sb, { ...f, id: booking.id, providerId: booking.providerId,
@@ -308,7 +335,9 @@ function BookingDetail({ booking, customer, pets, onBack, onChanged, run, busy, 
           </div>
 
           {/* Tickable in place, because these get confirmed on the phone and
-              nobody wants to open an edit form to record a yes. */}
+              nobody wants to open an edit form to record a yes. Boarders only —
+              see src/lib/providerTypes.js. */}
+          {words?.flags !== false && (
           <div className="grid grid-cols-2 gap-2 mt-4">
             {[['trialDone', 'Trial done'], ['criteriaMet', 'Criteria met']].map(([k, l]) => (
               <button key={k} disabled={busy}
@@ -326,6 +355,11 @@ function BookingDetail({ booking, customer, pets, onBack, onChanged, run, busy, 
               </button>
             ))}
           </div>
+          )}
+
+          {booking.amount !== null && booking.amount !== undefined && (
+            <p className="text-sm font-black mt-3" style={{ color: '#4A2C0A' }}>{rupees(booking.amount)}</p>
+          )}
 
           {booking.notes && (
             <p className="text-sm mt-3 whitespace-pre-wrap" style={{ color: '#4A2C0A' }}>{booking.notes}</p>
@@ -347,14 +381,14 @@ function BookingDetail({ booking, customer, pets, onBack, onChanged, run, busy, 
       <div className="card">
         <p className="text-xs font-bold uppercase tracking-wide mb-3 flex items-center gap-1.5"
           style={{ color: '#b08d57' }}>
-          <NotebookPen className="w-3.5 h-3.5" /> Day by day
+          <NotebookPen className="w-3.5 h-3.5" /> {words?.logTitle || 'Day by day'}
         </p>
 
         <div className="flex gap-2 mb-3">
           <input type="date" value={onDate} onChange={e => setOnDate(e.target.value)}
             className="input" style={{ maxWidth: '10rem' }} />
           <input value={entry} onChange={e => setEntry(e.target.value)} className="input flex-1"
-            placeholder="Ate everything, slept through." />
+            placeholder={words?.logHint || 'Ate everything, slept through.'} />
           <button disabled={busy || !entry.trim()} className="btn-primary px-3"
             onClick={() => run(async sb => {
               await saveLog(sb, { appointmentId: booking.id, providerId: booking.providerId,
@@ -388,12 +422,13 @@ function BookingDetail({ booking, customer, pets, onBack, onChanged, run, busy, 
 
 // ── One customer ────────────────────────────────────────────────────────────
 
-function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBooking, onChanged, run, busy, postedBy }) {
+function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBooking, onChanged, run, busy, postedBy, words, providerType }) {
   const [addingPet, setAddingPet] = useState(false)
   const [booking, setBooking]     = useState(false)
 
   const mine   = pets.filter(p => p.customerId === customer.id)
-  const visits = groupAppointments(appointments.filter(a => a.customerId === customer.id), todayIST())
+  const theirs = appointments.filter(a => a.customerId === customer.id)
+  const visits = groupAppointments(theirs, todayIST())
   const wa     = waLink(customer.phone)
 
   return (
@@ -427,6 +462,12 @@ function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBoo
           )}
         </div>
       </div>
+
+      {/* How much of your year this one customer is. Placed above their pets
+          because it answers the question somebody opens a customer to ask —
+          how often do they actually come — and it is the thing the list of
+          rows below cannot say without being counted by hand. */}
+      <CustomerHistory appointments={theirs} today={todayIST()} providerType={providerType} />
 
       <div className="card">
         <div className="flex items-center justify-between mb-2">
@@ -465,9 +506,11 @@ function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBoo
 
       <div className="card">
         <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#b08d57' }}>Bookings</p>
+          <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#b08d57' }}>
+            {words.entries.replace(/^./, c => c.toUpperCase())}
+          </p>
           <button onClick={() => setBooking(v => !v)} className="text-xs font-bold flex items-center gap-1" style={{ color: '#b08d57' }}>
-            <Plus className="w-3.5 h-3.5" /> Book a stay
+            <Plus className="w-3.5 h-3.5" /> {words.addLabel}
           </button>
         </div>
         {[['current', 'With you now'], ['upcoming', 'Coming up'], ['past', 'Past']].map(([k, title]) =>
@@ -481,13 +524,13 @@ function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBoo
             </div>
           ))}
         {Object.values(visits).every(v => v.length === 0) && !booking && (
-          <p className="text-sm" style={{ color: '#73775b' }}>None yet.</p>
+          <p className="text-sm" style={{ color: '#73775b' }}>{words.emptyLine}</p>
         )}
         {booking && (
           <div className="mt-3">
-            <AppointmentForm busy={busy} pets={mine}
-              initial={{ kind: 'Boarding', startsOn: todayIST(), endsOn: '', startsAt: '',
-                         status: 'booked', notes: '', providerPetId: '',
+            <AppointmentForm busy={busy} pets={mine} words={words}
+              initial={{ kind: words.kinds[0], startsOn: todayIST(), endsOn: '', startsAt: '',
+                         status: 'booked', notes: '', providerPetId: '', amount: '',
                          trialDone: false, criteriaMet: false }}
               onCancel={() => setBooking(false)}
               onSave={f => run(async sb => {
@@ -513,7 +556,7 @@ function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBoo
 
 // ── The book ────────────────────────────────────────────────────────────────
 
-export default function ProviderBook({ providerIds = [], primaryProviderId, providerName, postedBy }) {
+export default function ProviderBook({ providerIds = [], primaryProviderId, providerName, providerType, postedBy }) {
   const [book, setBook]   = useState(null)
   const [notes, setNotes] = useState([])
   const [error, setError] = useState(null)
@@ -523,6 +566,11 @@ export default function ProviderBook({ providerIds = [], primaryProviderId, prov
   const [search, setSearch] = useState('')
 
   const ids = useMemo(() => [...new Set(providerIds.filter(Boolean))], [providerIds])
+  // What this trade calls things. A vet records a visit and what was given; a
+  // shop records a purchase and what was bought. Same three tables, different
+  // words — src/lib/providerTypes.js.
+  const words = bookWords(providerType)
+  const tiles = tileWords(words)
 
   const load = useCallback(async () => {
     try {
@@ -559,7 +607,7 @@ export default function ProviderBook({ providerIds = [], primaryProviderId, prov
 
   const today   = todayIST()
   const diary   = groupAppointments(book.appointments, today)
-  const summary = bookSummary(book, today)
+  const summary = bookSummary(book, today, { flags: words.flags })
   const custById = Object.fromEntries(book.customers.map(c => [c.id, c]))
   const petById  = Object.fromEntries(book.pets.map(p => [p.id, p]))
 
@@ -575,7 +623,7 @@ export default function ProviderBook({ providerIds = [], primaryProviderId, prov
     const b = book.appointments.find(a => a.id === view.id)
     if (!b) return <div>{Err}<button onClick={() => setView({ kind: 'dashboard' })} className="btn-secondary">Back</button></div>
     return <>{Err}<BookingDetail booking={b} customer={custById[b.customerId]} pets={book.pets}
-      busy={busy} run={run} postedBy={postedBy}
+      busy={busy} run={run} postedBy={postedBy} words={words}
       onBack={() => setView({ kind: 'customer', id: b.customerId })} onChanged={load} /></>
   }
 
@@ -585,14 +633,14 @@ export default function ProviderBook({ providerIds = [], primaryProviderId, prov
     if (!c) return <div>{Err}<button onClick={() => setView({ kind: 'dashboard' })} className="btn-secondary">Back</button></div>
     return <>{Err}<CustomerDetail customer={c} pets={book.pets} appointments={book.appointments}
       notes={notes.filter(n => n.providerId === c.providerId)}
-      busy={busy} run={run} postedBy={postedBy}
+      busy={busy} run={run} postedBy={postedBy} words={words} providerType={providerType}
       onOpenBooking={id => setView({ kind: 'booking', id })}
       onBack={() => setView({ kind: 'dashboard' })} onChanged={load} /></>
   }
 
   // ── A list behind a tile ──────────────────────────────────────────────────
   if (view.kind === 'list') {
-    const TITLES = { here: 'With you now', upcoming: 'Coming up', past: 'Past',
+    const TITLES = { here: tiles.here, upcoming: tiles.upcoming, past: tiles.past,
                      customers: 'Customers', attention: 'Needs attention' }
     const soon = new Date(`${today}T00:00:00Z`); soon.setUTCDate(soon.getUTCDate() + 7)
     const within7 = soon.toISOString().slice(0, 10)
@@ -673,8 +721,8 @@ export default function ProviderBook({ providerIds = [], primaryProviderId, prov
         )}
 
         <div className="row-span-2 lg:col-span-2 flex">
-          <Tile tone="here" hero label="With you now" value={summary.here}
-            hint="Pets in your care today"
+          <Tile tone="here" hero label={tiles.here} value={summary.here}
+            hint={tiles.hereHint}
             onClick={() => setView({ kind: 'list', bucket: 'here' })}>
             {/* The hero tile is two rows tall on a wide screen, and a single
                 digit does not fill that. Who is actually in is the next thing
@@ -696,15 +744,20 @@ export default function ProviderBook({ providerIds = [], primaryProviderId, prov
             )}
           </Tile>
         </div>
-        <Tile label="Coming up" value={summary.upcoming} hint="Booked, not yet arrived"
+        <Tile label={tiles.upcoming} value={summary.upcoming} hint={tiles.upHint}
           onClick={() => setView({ kind: 'list', bucket: 'upcoming' })} />
-        <Tile label="Past stays" value={summary.past} hint="Everything behind you"
+        <Tile label={tiles.past} value={summary.past} hint={tiles.pastHint}
           onClick={() => setView({ kind: 'list', bucket: 'past' })} />
         <Tile label="Customers" value={summary.customers} hint="In your book"
           onClick={() => setView({ kind: 'list', bucket: 'customers' })} />
         <Tile label="Pets" value={summary.pets} hint="Across those customers"
           onClick={() => setView({ kind: 'list', bucket: 'customers' })} />
       </div>
+
+      {/* The shape of the year, under the figures for today. A boarder knows
+          this month was busy; what they cannot know without this is that it was
+          their third-best month in a year that peaks every Diwali. */}
+      <YourYear book={book} today={today} providerType={providerType} />
 
       {adding ? (
         <CustomerForm busy={busy} initial={{ name: '', phone: '', email: '', notes: '' }}
