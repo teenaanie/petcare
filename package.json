@@ -20,6 +20,7 @@
     "test:stats": "node scripts/test-provider-stats.mjs",
     "test:book-ui": "node scripts/test-provider-book-ui.mjs",
     "test:book-vet": "node scripts/test-provider-book-vet.mjs",
+    "test:details": "node scripts/test-provider-details.mjs",
     "test:landing": "node scripts/test-provider-landing.mjs",
     "test:inbox-ui": "node scripts/test-provider-inbox-ui.mjs",
     "test:broadcast": "node scripts/test-provider-broadcast.mjs",

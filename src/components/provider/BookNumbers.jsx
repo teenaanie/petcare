@@ -55,21 +55,26 @@ export function MonthBars({ months, metric, unit }) {
 
   return (
     <div>
-      <div className="flex items-end gap-1 sm:gap-1.5" style={{ height: 96 }}>
+      <div className="flex items-end gap-1 sm:gap-1.5" style={{ height: 112 }}>
         {months.map(m => {
           const v = m[metric]
-          const tall = v > 0 ? Math.max(3, Math.round((v / max) * 88)) : 0
-          const shown = v > 0 && (m.key === peak?.key || m.key === now.key)
+          const tall = v > 0 ? Math.max(3, Math.round((v / max) * 84)) : 0
+          const loud = m.key === now.key || m.key === peak?.key
           return (
             <div key={m.key} className="flex-1 flex flex-col items-center justify-end h-full"
               title={`${m.label} ${m.year} — ${v} ${unit}`}>
-              {shown && (
-                <span className="text-[10px] font-black mb-0.5" style={{ color: INK }}>{v}</span>
-              )}
+              {/* Every month carries its number. The first version labelled only
+                  the peak and the current month, which on a dashboard where
+                  those are usually the SAME month meant exactly one number on
+                  screen and eleven bars you had to hover to read. A fixed-height
+                  row so a month with nothing in it does not shorten its own
+                  column. */}
+              <span className="text-[10px] leading-none font-black" style={{ height: 12, color: loud ? INK : MUTED }}>
+                {v > 0 ? v : ''}
+              </span>
               <div aria-label={`${m.label} ${m.year}: ${v} ${unit}`}
                 className="w-full rounded-t"
-                style={{ height: tall, maxWidth: 24, backgroundColor: BAR,
-                         opacity: m.key === now.key || m.key === peak?.key ? 1 : 0.72 }} />
+                style={{ height: tall, maxWidth: 24, backgroundColor: BAR, opacity: loud ? 1 : 0.72 }} />
             </div>
           )
         })}

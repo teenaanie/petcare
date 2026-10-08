@@ -789,6 +789,84 @@ SELECT t_run   ('deleting the booking',                  'authenticated', '33333
 SELECT t_scalar('took its day log with it',              'postgres',      NULL,
                 $q$select count(*)::text from public.provider_appointment_logs$q$, '0');
 
+-- ════════════════════════════════════════════════════════════════════════════
+-- A provider editing their own listing (provider_self_service.sql)
+-- ════════════════════════════════════════════════════════════════════════════
+--
+-- The claimant here is the one already used above for business A; a second,
+-- UNAPPROVED listing is claimed so the read path can be tested where the
+-- directory's own policy would answer nothing.
+
+INSERT INTO public.provider_accounts (provider_id, user_id, email, status, role, claimed_type)
+VALUES ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', '44444444-4444-4444-4444-444444444444',
+        'invited@kennel.test', 'active', 'owner', 'Boarder');
+
+SELECT t_run   ('a business reads its own UNAPPROVED listing', 'authenticated', '44444444-4444-4444-4444-444444444444',
+                $q$select * from public.my_provider_details('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee')$q$, 'ok:1');
+-- The point of the function: the table itself still says no.
+SELECT t_run   ('and the table itself still says no',     'authenticated', '44444444-4444-4444-4444-444444444444',
+                $q$select * from public.providers where id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'$q$, 'ok:0');
+SELECT t_run   ('a different business reads it',          'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$select * from public.my_provider_details('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee')$q$, 'ok:0');
+SELECT t_run   ('the SUSPENDED claimant reads it',        'authenticated', '22222222-2222-2222-2222-222222222222',
+                $q$select * from public.my_provider_details('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')$q$, 'ok:0');
+
+SELECT t_run   ('the business edits its own phone',       'authenticated', '44444444-4444-4444-4444-444444444444',
+                $q$select public.update_my_provider('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+                      p_phone := '9000012345', p_hours := 'Mon-Sun 8am-7pm')$q$, 'ok:1');
+SELECT t_scalar('and it landed',                          'postgres',      NULL,
+                $q$select phone from public.providers where id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'$q$,
+                '9000012345');
+-- NULL means "leave it alone", so a caller that knows about six fields cannot
+-- blank the seventh it has never heard of.
+SELECT t_run   ('an untouched field stays put',           'authenticated', '44444444-4444-4444-4444-444444444444',
+                $q$select public.update_my_provider('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+                      p_area := 'Kothrud')$q$, 'ok:1');
+SELECT t_scalar('the phone survived',                     'postgres',      NULL,
+                $q$select phone from public.providers where id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'$q$,
+                '9000012345');
+-- An empty string is how a field is deliberately cleared.
+SELECT t_run   ('an empty string clears a field',         'authenticated', '44444444-4444-4444-4444-444444444444',
+                $q$select public.update_my_provider('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', p_phone := '')$q$, 'ok:1');
+SELECT t_scalar('and it is null, not blank',              'postgres',      NULL,
+                $q$select coalesce(phone, 'null') from public.providers
+                   where id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'$q$, 'null');
+
+SELECT t_run   ('a DIFFERENT business edits it',          'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$select public.update_my_provider('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', p_phone := '9999999999')$q$,
+                'error:P0001');
+SELECT t_run   ('a SUSPENDED claimant edits theirs',      'authenticated', '22222222-2222-2222-2222-222222222222',
+                $q$select public.update_my_provider('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', p_phone := '9999999999')$q$,
+                'error:P0001');
+
+-- The whole reason this is a function and not a policy: the columns that are
+-- NOT on the list stay exactly as they were, whatever the caller does.
+SELECT t_scalar('the type is untouched',                  'postgres',      NULL,
+                $q$select type from public.providers where id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'$q$, 'Boarder');
+SELECT t_scalar('and so is approval',                     'postgres',      NULL,
+                $q$select is_approved::text from public.providers
+                   where id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'$q$, 'false');
+SELECT t_scalar('and so is the name',                     'postgres',      NULL,
+                $q$select name from public.providers where id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'$q$,
+                'Quiet Paws Boarding');
+
+-- Boarding criteria. What a pet parent reads before they travel, written by the
+-- business itself rather than by an admin on their behalf.
+SELECT t_run   ('a boarder states its own criteria',      'authenticated', '44444444-4444-4444-4444-444444444444',
+                $q$select public.update_my_boarding_policy('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+                      '{"required":["rabies","deworming"],"trial_required":true}'::jsonb)$q$, 'ok:1');
+SELECT t_scalar('and it round trips',                     'postgres',      NULL,
+                $q$select boarding_policy->>'trial_required' from public.providers
+                   where id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'$q$, 'true');
+-- A bare array would survive the column's type and then break resolvePolicy's
+-- spread for every pet parent reading that row.
+SELECT t_run   ('a policy that is not an object',         'authenticated', '44444444-4444-4444-4444-444444444444',
+                $q$select public.update_my_boarding_policy('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+                      '["rabies"]'::jsonb)$q$, 'error:P0001');
+SELECT t_run   ('a stranger states criteria for them',    'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$select public.update_my_boarding_policy('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', '{}'::jsonb)$q$,
+                'error:P0001');
+
 \echo ''
 \echo '════ results ════'
 SELECT ord, label, expected, got, CASE WHEN ok THEN 'PASS' ELSE 'FAIL' END AS result
