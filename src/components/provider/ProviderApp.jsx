@@ -8,6 +8,7 @@ import ProviderOnboarding from './ProviderOnboarding.jsx'
 import ProviderFeedback from './ProviderFeedback.jsx'
 import ProviderInbox from './ProviderInbox.jsx'
 import ProviderBook from './ProviderBook.jsx'
+import ProviderDetails from './ProviderDetails.jsx'
 
 // The provider shell. Mounted only at /business (see src/main.jsx), lazily, so
 // a pet parent never downloads it.
@@ -293,6 +294,15 @@ export default function ProviderApp() {
       </div>
 
 
+
+      {/* What the business can change about itself, and — for a boarder — the
+          criteria a pet parent reads before they travel. Collapsed by default:
+          this is a thing you do once and then rarely, so it sits below the work
+          rather than above it. */}
+      <div className="mt-4">
+        <ProviderDetails providerId={active.provider_id}
+          providerType={active.claimed_type || active.provider_type} />
+      </div>
 
       <ProviderFeedback
         userId={session.user.id}

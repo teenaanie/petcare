@@ -59,6 +59,11 @@ CREATE TABLE public.providers (
   description text,
   maps_url    text,
   source      text,
+  -- Added for provider_self_service.sql: the columns a business may edit about
+  -- itself, plus the criteria a pet parent reads before they travel.
+  email           text,
+  website         text,
+  boarding_policy jsonb,
   is_approved boolean DEFAULT false
 );
 ALTER TABLE public.providers ENABLE ROW LEVEL SECURITY;
@@ -94,7 +99,11 @@ INSERT INTO auth.users (id, email, phone) VALUES
 
 INSERT INTO public.providers (id, name, type, area, city, is_approved) VALUES
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Unleash - The Dog Town', 'Boarder', 'Baner',  'Pune', true),
-  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Vetic Pet Clinic Aundh', 'Vet',     'Aundh',  'Pune', true);
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Vetic Pet Clinic Aundh', 'Vet',     'Aundh',  'Pune', true),
+  -- UNAPPROVED on purpose. A business whose listing is not published cannot
+  -- read its own row through the directory's policy, so this is the fixture
+  -- that proves my_provider_details() answers where a plain SELECT cannot.
+  ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'Quiet Paws Boarding',    'Boarder', 'Kothrud','Pune', false);
 
 -- feedback, as it exists live before provider_feedback.sql runs: the same
 -- columns and the same two policies. provider_feedback.sql then alters it, so
