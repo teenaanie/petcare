@@ -26,7 +26,12 @@ import ProviderBook from './ProviderBook.jsx'
 function Shell({ children }) {
   return (
     <div className="min-h-screen px-4 py-10" style={{ backgroundColor: '#FFFEF8' }}>
-      <div className="w-full max-w-lg mx-auto">{children}</div>
+      {/* A phone-width column on a laptop left two thirds of the screen empty
+          — the dashboard read as a mobile screenshot with wallpaper around it.
+          The column stays narrow where a narrow column is right (a phone, and
+          the sign-in and claim screens, which are their own layouts) and opens
+          up from `lg`, where the tiles lay out four across. */}
+      <div className="w-full max-w-lg lg:max-w-4xl mx-auto">{children}</div>
     </div>
   )
 }

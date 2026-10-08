@@ -63,7 +63,7 @@ function waLink(phone) {
 // zero, which makes a number like 121 look loose at this size. Exactly one hero
 // figure on the view, and it is the number a kennel leads with: who is in.
 
-function Tile({ label, value, hint, tone = 'plain', hero = false, onClick }) {
+function Tile({ label, value, hint, tone = 'plain', hero = false, onClick, children }) {
   const tones = {
     plain:  { bg: '#FFFEF8', border: '#ebe3d3', ink: '#7a4900' },
     here:   { bg: '#fff9e0', border: '#f2b83d', ink: '#7a4900' },
@@ -72,13 +72,16 @@ function Tile({ label, value, hint, tone = 'plain', hero = false, onClick }) {
   const c = tones[tone] || tones.plain
   return (
     <button onClick={onClick} disabled={!onClick}
-      className="rounded-2xl p-4 text-left transition-all w-full"
+      /* h-full + centred content: the hero tile spans two rows on a wide
+         screen, and top-aligned text left a pool of empty colour under it. */
+      className={`rounded-2xl p-4 text-left transition-all w-full h-full flex flex-col ${hero ? 'justify-center' : ''}`}
       style={{ backgroundColor: c.bg, border: `1.5px solid ${c.border}`,
                cursor: onClick ? 'pointer' : 'default' }}>
       <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#b08d57' }}>{label}</p>
-      <p className="font-black leading-none mt-1.5"
-         style={{ color: c.ink, fontSize: hero ? '2.75rem' : '1.75rem' }}>{value}</p>
+      <p className={`font-black leading-none mt-1.5 ${hero ? 'text-[2.75rem] lg:text-[4rem]' : 'text-[1.75rem]'}`}
+         style={{ color: c.ink }}>{value}</p>
       {hint && <p className="text-xs mt-1.5" style={{ color: '#73775b' }}>{hint}</p>}
+      {children}
     </button>
   )
 }
@@ -618,6 +621,7 @@ export default function ProviderBook({ providerIds = [], primaryProviderId, prov
           <>
             <input value={search} onChange={e => setSearch(e.target.value)}
               className="input w-full" placeholder="Search by name or phone…" />
+            <div className="grid lg:grid-cols-2 gap-3">
             {shown.map(c => {
               const n = book.pets.filter(p => p.customerId === c.id).length
               return (
@@ -633,6 +637,7 @@ export default function ProviderBook({ providerIds = [], primaryProviderId, prov
                 </button>
               )
             })}
+            </div>
             {shown.length === 0 && <p className="text-sm text-center py-4" style={{ color: '#73775b' }}>Nobody matches that.</p>}
           </>
         ) : (
@@ -653,25 +658,48 @@ export default function ProviderBook({ providerIds = [], primaryProviderId, prov
     <div className="space-y-4">
       {Err}
 
-      {summary.needsAttention > 0 && (
-        <Tile tone="warn" label="Needs attention" value={summary.needsAttention}
-          hint="Arriving within a week with a trial or criteria outstanding"
-          onClick={() => setView({ kind: 'list', bucket: 'attention' })} />
-      )}
+      {/* One grid rather than three stacked ones, so the tiles can rearrange
+          with the screen instead of staying in phone-shaped rows. Two columns
+          on a phone, four from `lg` — where "with you now" keeps its weight by
+          spanning two columns and two rows rather than by being the only thing
+          on its line. */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {summary.needsAttention > 0 && (
+          <div className="col-span-2 lg:col-span-4">
+            <Tile tone="warn" label="Needs attention" value={summary.needsAttention}
+              hint="Arriving within a week with a trial or criteria outstanding"
+              onClick={() => setView({ kind: 'list', bucket: 'attention' })} />
+          </div>
+        )}
 
-      <div className="grid grid-cols-2 gap-3">
-        <Tile tone="here" hero label="With you now" value={summary.here}
-          hint="Pets in your care today"
-          onClick={() => setView({ kind: 'list', bucket: 'here' })} />
-        <div className="grid gap-3">
-          <Tile label="Coming up" value={summary.upcoming} hint="Booked, not yet arrived"
-            onClick={() => setView({ kind: 'list', bucket: 'upcoming' })} />
-          <Tile label="Past stays" value={summary.past} hint="Everything behind you"
-            onClick={() => setView({ kind: 'list', bucket: 'past' })} />
+        <div className="row-span-2 lg:col-span-2 flex">
+          <Tile tone="here" hero label="With you now" value={summary.here}
+            hint="Pets in your care today"
+            onClick={() => setView({ kind: 'list', bucket: 'here' })}>
+            {/* The hero tile is two rows tall on a wide screen, and a single
+                digit does not fill that. Who is actually in is the next thing
+                asked after how many, so it goes here rather than one tap away. */}
+            {diary.current.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                {diary.current.slice(0, 8).map(a => (
+                  <span key={a.id} className="text-xs font-bold px-2 py-1 rounded-full"
+                    style={{ backgroundColor: '#ffffff', color: '#7a4900' }}>
+                    {petById[a.providerPetId]?.name || custById[a.customerId]?.name || a.kind}
+                  </span>
+                ))}
+                {diary.current.length > 8 && (
+                  <span className="text-xs font-bold px-2 py-1" style={{ color: '#b08d57' }}>
+                    +{diary.current.length - 8} more
+                  </span>
+                )}
+              </div>
+            )}
+          </Tile>
         </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
+        <Tile label="Coming up" value={summary.upcoming} hint="Booked, not yet arrived"
+          onClick={() => setView({ kind: 'list', bucket: 'upcoming' })} />
+        <Tile label="Past stays" value={summary.past} hint="Everything behind you"
+          onClick={() => setView({ kind: 'list', bucket: 'past' })} />
         <Tile label="Customers" value={summary.customers} hint="In your book"
           onClick={() => setView({ kind: 'list', bucket: 'customers' })} />
         <Tile label="Pets" value={summary.pets} hint="Across those customers"
