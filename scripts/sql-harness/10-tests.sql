@@ -850,6 +850,34 @@ SELECT t_scalar('and so is the name',                     'postgres',      NULL,
                 $q$select name from public.providers where id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'$q$,
                 'Quiet Paws Boarding');
 
+-- Services. One business is very often a boarder AND a groomer AND a counter
+-- selling food; the TYPE decides their tab, this says everything else they do.
+SELECT t_run   ('a business says what else it does',    'authenticated', '44444444-4444-4444-4444-444444444444',
+                $q$select public.update_my_provider('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+                      p_services := array['Boarding','Grooming','Pet Supplies'])$q$, 'ok:1');
+SELECT t_scalar('and it lands in order',                 'postgres',      NULL,
+                $q$select array_to_string(services, ',') from public.providers
+                   where id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'$q$, 'Boarding,Grooming,Pet Supplies');
+-- The browser is not a validator, and this column is read by the directory
+-- every pet parent searches.
+SELECT t_run   ('a service nobody has heard of',         'authenticated', '44444444-4444-4444-4444-444444444444',
+                $q$select public.update_my_provider('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+                      p_services := array['Boarding','Astrology'])$q$, 'error:P0001');
+SELECT t_scalar('and the good list survived it',         'postgres',      NULL,
+                $q$select array_to_string(services, ',') from public.providers
+                   where id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'$q$, 'Boarding,Grooming,Pet Supplies');
+-- An empty array is a real answer: "I do only the one thing". Only NULL means
+-- leave it alone.
+SELECT t_run   ('it can be emptied',                     'authenticated', '44444444-4444-4444-4444-444444444444',
+                $q$select public.update_my_provider('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+                      p_services := array[]::text[])$q$, 'ok:1');
+SELECT t_scalar('and is empty, not null',                'postgres',      NULL,
+                $q$select coalesce(array_length(services, 1), 0)::text from public.providers
+                   where id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'$q$, '0');
+SELECT t_run   ('another business sets them',            'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$select public.update_my_provider('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+                      p_services := array['Grooming'])$q$, 'error:P0001');
+
 -- Boarding criteria. What a pet parent reads before they travel, written by the
 -- business itself rather than by an admin on their behalf.
 SELECT t_run   ('a boarder states its own criteria',      'authenticated', '44444444-4444-4444-4444-444444444444',

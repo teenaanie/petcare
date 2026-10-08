@@ -12,6 +12,7 @@
 
 import {
   nightsIn, customerStats, monthsBack, peakDay, bookYear, rupees, isLost,
+  topCustomers, monthDetail,
 } from '../src/lib/providerStats.js'
 import { bookWords } from '../src/lib/providerTypes.js'
 
@@ -126,6 +127,81 @@ check('the busiest month is named',    y.busiest.key, '2026-10')
 check('indian grouping', rupees(123456), '₹1,23,456')
 check('rounds to rupees', rupees(4500.4), '₹4,500')
 check('nothing is not blank', rupees(0), '₹0')
+
+// ── Who comes back most ─────────────────────────────────────────────────────
+//
+// The question behind it is "who would I give something to". So it counts
+// visits TAKEN: a customer who books and cancels is not a top customer, and
+// ranking by money would rank by who owns the biggest dog.
+{
+  const BOOK2 = {
+    customers: [
+      { id: 'c1', name: 'Rao',   phone: '9000000001' },
+      { id: 'c2', name: 'Iyer' },
+      { id: 'c3', name: 'Bose' },
+      { id: 'c4', name: 'Never booked' },
+    ],
+    appointments: [
+      A({ customerId: 'c1', startsOn: '2026-09-01', endsOn: '2026-09-05', amount: '4000' }),
+      A({ customerId: 'c1', startsOn: '2026-07-01', endsOn: '2026-07-03' }),
+      A({ customerId: 'c1', startsOn: '2026-05-01', endsOn: '2026-05-02' }),
+      A({ customerId: 'c2', startsOn: '2026-09-10', endsOn: '2026-09-20' }),  // fewer, longer
+      A({ customerId: 'c2', startsOn: '2026-08-10', endsOn: '2026-08-20' }),
+      A({ customerId: 'c3', startsOn: '2026-10-01', endsOn: '2026-10-09', status: 'cancelled' }),
+      A({ customerId: 'c3', startsOn: '2026-10-02', endsOn: '2026-10-03', status: 'no_show' }),
+      A({ customerId: 'c1', startsOn: '2024-01-01', endsOn: '2024-01-09' }),  // outside the year
+    ],
+  }
+  const top = topCustomers(BOOK2, TODAY)
+  check('ranked by visits taken',        top.map(t => t.name), ['Rao', 'Iyer'])
+  check('a customer who only cancelled is absent',
+        top.some(t => t.name === 'Bose'), false)
+  check('and one who never booked too',  top.some(t => t.name === 'Never booked'), false)
+  check('the count is inside the year',  top[0].visits, 3)
+  check('nights come along',             top[1].nights, 20)
+  check('and money with its denominator', [top[0].amount, top[0].priced], [4000, 1])
+  check('the last visit is carried',     top[0].last, '2026-09-01')
+  check('the limit is honoured',         topCustomers(BOOK2, TODAY, { limit: 1 }).length, 1)
+  // Between equal counts the one still coming is the one worth the offer.
+  const tie = topCustomers({
+    customers: [{ id: 'a', name: 'Older' }, { id: 'b', name: 'Newer' }],
+    appointments: [
+      A({ customerId: 'a', startsOn: '2026-02-01', endsOn: '2026-02-03' }),
+      A({ customerId: 'b', startsOn: '2026-09-01', endsOn: '2026-09-03' }),
+    ],
+  }, TODAY)
+  check('a tie breaks on who came last', tie.map(t => t.name), ['Newer', 'Older'])
+}
+
+// ── One month, behind a bar ─────────────────────────────────────────────────
+{
+  const BOOK3 = {
+    customers: [{ id: 'c1', name: 'Rao', phone: '9000000001' }, { id: 'c2', name: 'Iyer' }],
+    pets: [{ id: 'p1', name: 'Simba' }, { id: 'p2', name: 'Nala' }],
+    appointments: [
+      A({ customerId: 'c1', providerPetId: 'p1', startsOn: '2026-09-02', endsOn: '2026-09-05', amount: '2000' }),
+      A({ customerId: 'c1', providerPetId: 'p2', startsOn: '2026-09-20', endsOn: '2026-09-21' }),
+      A({ customerId: 'c2', providerPetId: 'p1', startsOn: '2026-09-11', endsOn: '2026-09-12' }),
+      A({ customerId: 'c2', startsOn: '2026-09-15', endsOn: '2026-09-16', status: 'cancelled' }),
+      A({ customerId: 'c1', startsOn: '2026-08-01', endsOn: '2026-08-02' }),   // another month
+    ],
+  }
+  const g = monthDetail(BOOK3, '2026-09')
+  check('grouped by customer, busiest first', g.map(x => x.name), ['Rao', 'Iyer'])
+  // Three bookings by two people is two relationships, not three rows.
+  check('one row per customer',       g.length, 2)
+  check('with their visits inside',   g[0].visits.length, 2)
+  check('their animals are named',    g[0].pets.sort(), ['Nala', 'Simba'])
+  check('nights add up',              g[0].nights, 4)
+  check('money carries its count',    [g[0].amount, g[0].priced], [2000, 1])
+  check('a cancellation is not there', g[1].visits.length, 1)
+  check('another month is not there', monthDetail(BOOK3, '2026-08').length, 1)
+  check('an empty month is empty',    monthDetail(BOOK3, '2026-01'), [])
+  // A booking whose customer was deleted must not crash the screen.
+  const orphan = monthDetail({ customers: [], pets: [],
+    appointments: [A({ customerId: 'gone', startsOn: '2026-09-02', endsOn: '2026-09-03' })] }, '2026-09')
+  check('a booking with no customer still shows', orphan[0]?.name, 'Someone no longer in your book')
+}
 
 // ── The vocabularies ────────────────────────────────────────────────────────
 //

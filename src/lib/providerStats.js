@@ -174,3 +174,77 @@ export function bookYear({ customers = [], appointments = [] }, today) {
 export function rupees(n) {
   return '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })
 }
+
+/**
+ * Who comes back most, and how much of the year they are.
+ *
+ * The question behind it is "who would I give something to" — so it counts
+ * VISITS TAKEN, not money and not bookings made. A customer who books and
+ * cancels is not a top customer, and a boarder who ranked by revenue would be
+ * ranking by who owns the biggest dog.
+ *
+ * Ties break on nights, then on the most recent visit: between two customers
+ * with four stays each, the one still coming is the one worth the offer.
+ */
+export function topCustomers({ customers = [], appointments = [] }, today, { window = 365, limit = 10 } = {}) {
+  const from = new Date(asDate(today).getTime() - window * DAY).toISOString().slice(0, 10)
+  const byId = Object.fromEntries(customers.map(c => [c.id, c]))
+  const tally = {}
+
+  for (const a of appointments) {
+    if (isLost(a) || !a.startsOn || a.startsOn < from) continue
+    const c = byId[a.customerId]
+    if (!c) continue
+    const t = tally[a.customerId] || (tally[a.customerId] = {
+      id: c.id, name: c.name, phone: c.phone, email: c.email,
+      visits: 0, nights: 0, amount: 0, priced: 0, last: null,
+    })
+    t.visits += 1
+    t.nights += nightsIn(a)
+    if (a.amount !== null && a.amount !== undefined && a.amount !== '') {
+      t.amount += Number(a.amount || 0); t.priced += 1
+    }
+    if (!t.last || a.startsOn > t.last) t.last = a.startsOn
+  }
+
+  return Object.values(tally)
+    .sort((x, y) => y.visits - x.visits
+                 || y.nights - x.nights
+                 || String(y.last).localeCompare(String(x.last)))
+    .slice(0, limit)
+}
+
+/**
+ * Everything that happened in one month, by customer.
+ *
+ * Behind a tap on a bar: the figure says fourteen, and the next question is
+ * always "fourteen of whom". Grouped rather than listed flat, because the same
+ * customer booking three times in a month is one relationship and three rows
+ * would read as three.
+ */
+export function monthDetail({ customers = [], pets = [], appointments = [] }, monthKeyWanted) {
+  const byCustomer = Object.fromEntries(customers.map(c => [c.id, c]))
+  const byPet      = Object.fromEntries(pets.map(p => [p.id, p]))
+  const groups = {}
+
+  for (const a of appointments) {
+    if (isLost(a) || monthKey(a.startsOn) !== monthKeyWanted) continue
+    const c = byCustomer[a.customerId]
+    const g = groups[a.customerId] || (groups[a.customerId] = {
+      customerId: a.customerId, name: c?.name || 'Someone no longer in your book',
+      phone: c?.phone || null, visits: [], pets: new Set(), nights: 0, amount: 0, priced: 0,
+    })
+    g.visits.push(a)
+    g.nights += nightsIn(a)
+    const pet = byPet[a.providerPetId]
+    if (pet) g.pets.add(pet.name)
+    if (a.amount !== null && a.amount !== undefined && a.amount !== '') {
+      g.amount += Number(a.amount || 0); g.priced += 1
+    }
+  }
+
+  return Object.values(groups)
+    .map(g => ({ ...g, pets: [...g.pets],
+                 visits: g.visits.sort((x, y) => String(x.startsOn).localeCompare(String(y.startsOn))) }))
+    .sort((x, y) => y.visits.length - x.visits.length || x.name.localeCompare(y.name))
+}
