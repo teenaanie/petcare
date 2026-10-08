@@ -28,6 +28,7 @@ import { reportHandled } from '../../lib/errorReport.js'
 import { todayIST } from '../../lib/dates.js'
 import { formatDay } from '../../lib/providerBrief.js'
 import ProviderBroadcast from './ProviderBroadcast.jsx'
+import Dictate from './Dictate.jsx'
 import { YourYear, CustomerHistory } from './BookNumbers.jsx'
 import { rupees } from '../../lib/providerStats.js'
 import { bookWords, tileWords } from '../../lib/providerTypes.js'
@@ -37,6 +38,10 @@ import {
   getLogs, saveLog, deleteLog,
   APPOINTMENT_KINDS, APPOINTMENT_STATUS,
 } from '../../lib/providerBook.js'
+
+// Dictation appends to whatever is already in the box, because reaching for
+// the mic half way through typing means "and also", not "start again".
+const appended = (current, spoken) => (current ? `${current.trimEnd()} ${spoken}` : spoken)
 
 const STATUS_STYLE = {
   booked:    { label: 'Booked',    bg: '#fff3c0', fg: '#7a4900' },
@@ -105,6 +110,7 @@ function CustomerForm({ initial, onSave, onCancel, busy }) {
         <label className={lbl}>Notes</label>
         <textarea name="notes" value={f.notes || ''} onChange={set} rows={2} className={field}
           placeholder="Pays by UPI. Prefers evening pickup." />
+        <Dictate label="Say it" onText={t => setF(p => ({ ...p, notes: appended(p.notes, t) }))} />
       </div>
       <div className="flex gap-2">
         <button onClick={() => onSave(f)} disabled={busy || !f.name?.trim()} className="btn-primary flex-1 justify-center">
@@ -139,6 +145,7 @@ function PetForm({ initial, notes, onSave, onCancel, busy }) {
         <label className={lbl}>Notes</label>
         <textarea name="notes" value={f.notes || ''} onChange={set} rows={2} className={field}
           placeholder="Nervous with men in hats." />
+        <Dictate label="Say it" onText={t => setF(p => ({ ...p, notes: appended(p.notes, t) }))} />
       </div>
       <div className="flex gap-2">
         <button onClick={() => onSave(f)} disabled={busy || !f.name?.trim()} className="btn-primary flex-1 justify-center">
@@ -232,6 +239,7 @@ function AppointmentForm({ initial, pets, onSave, onCancel, busy, words }) {
         <label className={lbl}>Notes for this {words?.entry || 'stay'}</label>
         <textarea name="notes" value={f.notes || ''} onChange={set} rows={2} className={field}
           placeholder="Bringing own food. Pickup after 7." />
+        <Dictate label="Say it" onText={t => setF(p => ({ ...p, notes: appended(p.notes, t) }))} />
       </div>
       {bad && <p className="text-xs" style={{ color: '#c0392b' }}>The end date is before the start date.</p>}
       <div className="flex gap-2">
@@ -397,6 +405,11 @@ function BookingDetail({ booking, customer, pets, onBack, onChanged, run, busy, 
             })}>
             <Plus className="w-4 h-4" />
           </button>
+        </div>
+        {/* Under the row, not in it: the date, the box and the save button
+            already fill the width on a phone. */}
+        <div className="-mt-1 mb-3">
+          <Dictate label="Say the day" onText={t => setEntry(e => appended(e, t))} />
         </div>
 
         {logs.length === 0 && (

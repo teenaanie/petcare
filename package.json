@@ -21,6 +21,7 @@
     "test:book-ui": "node scripts/test-provider-book-ui.mjs",
     "test:book-vet": "node scripts/test-provider-book-vet.mjs",
     "test:details": "node scripts/test-provider-details.mjs",
+    "test:voice-provider": "node scripts/test-provider-voice.mjs",
     "test:landing": "node scripts/test-provider-landing.mjs",
     "test:inbox-ui": "node scripts/test-provider-inbox-ui.mjs",
     "test:broadcast": "node scripts/test-provider-broadcast.mjs",
