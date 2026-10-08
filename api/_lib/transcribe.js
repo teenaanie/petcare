@@ -16,6 +16,52 @@ const OPENAI_KEY   = process.env.OPENAI_API_KEY        // never VITE_ — server
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_KEY  // service role — server only
 const AI_LIMIT     = parseInt(process.env.MONTHLY_AI_LIMIT || '100')
+// A provider's ceiling, raised from a pet parent's.
+//
+// 100 a month was sized for somebody adding the odd record about their own
+// animal. A boarder dictating a day's line for every stay in the house writes
+// one PER ANIMAL PER DAY — six animals in for a week is 42 notes, and that is a
+// quiet week. They would hit 100 inside a fortnight, mid-shift, and the message
+// would read as the app breaking rather than as a cap.
+//
+// 1000 at the measured average of ~15 seconds a note is about 250 minutes of
+// audio, which Whisper bills at $0.006 a minute: roughly $1.50 a month for a
+// provider who dictates everything, and far less for everyone else because the
+// browser's own recogniser answers first and costs nothing. The cap is still
+// there — this is a runaway guard, not a quota anybody should meet.
+const PROVIDER_AI_LIMIT = parseInt(process.env.MONTHLY_PROVIDER_AI_LIMIT || '1000')
+
+/**
+ * Is this account an active provider on any business?
+ *
+ * Matched on user_id OR email, the same two ways is_provider_member() does: a
+ * claim written by the registration form carries an address and no user_id
+ * until its owner first signs in, and a provider should not be metered as a pet
+ * parent for the week before adoption catches up.
+ *
+ * Service key, so this reads past RLS deliberately — the caller cannot be
+ * trusted to tell us which bucket they belong in.
+ */
+export async function isActiveProvider(supabase, user) {
+  if (!user) return false
+  const or = [`user_id.eq.${user.id}`]
+  if (user.email) or.push(`email.ilike.${user.email}`)
+  const { data, error } = await supabase
+    .from('provider_accounts')
+    .select('id')
+    .eq('status', 'active')
+    .or(or.join(','))
+    .limit(1)
+  // A failure here must not lock a provider out or hand a pet parent the higher
+  // ceiling: fall back to the lower one, which is the status quo.
+  if (error) { console.error('Provider lookup failed:', error); return false }
+  return (data || []).length > 0
+}
+
+/** The monthly voice-note ceiling for this caller. */
+export function monthlyLimitFor(isProvider) {
+  return isProvider ? PROVIDER_AI_LIMIT : AI_LIMIT
+}
 
 // Base64 inflates by about a third, so this is roughly 3 MB of audio — minutes
 // of speech at the bitrates a browser recorder produces, and well inside the
@@ -112,6 +158,7 @@ export default async function handler(req) {
   if (!bytes.length) return json({ error: 'Audio could not be decoded' }, 400)
 
   // 3. Rate limit
+  const limit = monthlyLimitFor(await isActiveProvider(supabase, user))
   const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
   const { count, error: countErr } = await supabase
     .from('api_usage')
@@ -121,10 +168,10 @@ export default async function handler(req) {
     .gte('created_at', startOfMonth)
   if (countErr) console.error('Rate limit check failed:', countErr)
 
-  if ((count || 0) >= AI_LIMIT) {
+  if ((count || 0) >= limit) {
     return json({
-      error: `Monthly limit reached (${AI_LIMIT} voice notes per month).`,
-      limitReached: true, used: count, limit: AI_LIMIT,
+      error: `Monthly limit reached (${limit} voice notes per month).`,
+      limitReached: true, used: count, limit,
     }, 429)
   }
 
