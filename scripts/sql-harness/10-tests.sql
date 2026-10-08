@@ -614,6 +614,101 @@ SELECT t_scalar('and an already-bound claim is never moved','postgres',     NULL
 SELECT t_run   ('anon cannot call it',                     'anon',          NULL,
                 'select public.adopt_my_provider_accounts()', 'denied');
 
+
+\echo ''
+\echo '════ provider_book.sql ════'
+
+-- 33333333… is active on Unleash (aaaaaaaa…); 55555555… is active on Vetic
+-- (bbbbbbbb…); 22222222… is SUSPENDED on Unleash; 66666666… is a pet parent.
+-- Fixed ids throughout — a subselect would read as the attacker and an attacker
+-- who can read nothing inserts nothing, which looks like a denial and is not.
+
+SELECT t_run   ('a business adds a customer',            'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$insert into public.provider_customers (id, provider_id, name, phone, created_by)
+                   values ('c0000000-0000-4000-8000-000000000001',
+                           'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Mrs Rao', '9876500001',
+                           '33333333-3333-3333-3333-333333333333')$q$, 'ok:1');
+SELECT t_run   ('and their animal',                      'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$insert into public.provider_pets (id, provider_id, customer_id, name, species)
+                   values ('c0000000-0000-4000-8000-000000000002',
+                           'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+                           'c0000000-0000-4000-8000-000000000001', 'Simba', 'Dog')$q$, 'ok:1');
+SELECT t_run   ('and books a stay',                      'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$insert into public.provider_appointments
+                     (id, provider_id, customer_id, provider_pet_id, kind, starts_on, ends_on)
+                   values ('c0000000-0000-4000-8000-000000000003',
+                           'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+                           'c0000000-0000-4000-8000-000000000001',
+                           'c0000000-0000-4000-8000-000000000002',
+                           'Boarding', current_date + 7, current_date + 11)$q$, 'ok:1');
+SELECT t_run   ('and reads its own book back',           'authenticated', '33333333-3333-3333-3333-333333333333',
+                'select * from public.provider_customers', 'ok:1');
+
+-- A customer who never uses Pippy is the common case; linking is optional.
+SELECT t_run   ('a card can point at a note it was sent','authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$update public.provider_pets
+                   set note_id = 'e0000000-0000-4000-8000-000000000001'
+                   where id = 'c0000000-0000-4000-8000-000000000002'$q$, 'ok:1');
+SELECT t_run   ('but never at another business''s note', 'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$update public.provider_pets
+                   set note_id = 'e0000000-0000-4000-8000-000000000002'
+                   where id = 'c0000000-0000-4000-8000-000000000002'$q$, 'denied');
+
+-- Nobody else sees a word of it.
+SELECT t_run   ('a different business reads it',         'authenticated', '55555555-5555-5555-5555-555555555555',
+                'select * from public.provider_customers', 'ok:0');
+SELECT t_run   ('the SUSPENDED claimant reads it',       'authenticated', '22222222-2222-2222-2222-222222222222',
+                'select * from public.provider_customers', 'ok:0');
+SELECT t_run   ('a pet parent reads it',                 'authenticated', '66666666-6666-4666-8666-666666666666',
+                'select * from public.provider_customers', 'ok:0');
+SELECT t_run   ('anon reads it',                         'anon',          NULL,
+                'select * from public.provider_customers', 'ok:0');
+SELECT t_run   ('a pet parent reads the bookings',       'authenticated', '66666666-6666-4666-8666-666666666666',
+                'select * from public.provider_appointments', 'ok:0');
+
+-- Cross-business writes, which is what WITH CHECK is for.
+SELECT t_run   ('filing a pet under another''s customer','authenticated', '55555555-5555-5555-5555-555555555555',
+                $q$insert into public.provider_pets (provider_id, customer_id, name)
+                   values ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+                           'c0000000-0000-4000-8000-000000000001', 'Poached')$q$, 'denied');
+SELECT t_run   ('booking against another''s customer',   'authenticated', '55555555-5555-5555-5555-555555555555',
+                $q$insert into public.provider_appointments (provider_id, customer_id, starts_on)
+                   values ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+                           'c0000000-0000-4000-8000-000000000001', current_date)$q$, 'denied');
+SELECT t_run   ('writing into a business I am not on',   'authenticated', '55555555-5555-5555-5555-555555555555',
+                $q$insert into public.provider_customers (provider_id, name)
+                   values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Not mine')$q$, 'denied');
+-- The one way a write-everything policy still leaks: moving the row sideways.
+SELECT t_run   ('moving a customer to another business', 'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$update public.provider_customers
+                   set provider_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'$q$, 'denied');
+
+-- Constraints.
+SELECT t_run   ('an unknown booking status',             'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$insert into public.provider_appointments (provider_id, customer_id, starts_on, status)
+                   values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+                           'c0000000-0000-4000-8000-000000000001', current_date, 'maybe')$q$, 'error:23514');
+SELECT t_run   ('a stay ending before it starts',        'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$insert into public.provider_appointments (provider_id, customer_id, starts_on, ends_on)
+                   values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+                           'c0000000-0000-4000-8000-000000000001',
+                           current_date + 7, current_date + 3)$q$, 'error:23514');
+SELECT t_run   ('a blank customer name',                 'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$insert into public.provider_customers (provider_id, name)
+                   values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '   ')$q$, 'error:23514');
+
+-- Deleting a customer takes their animals and bookings with them, so a
+-- provider who removes somebody from their book is really done with them.
+SELECT t_run   ('deleting the customer',                 'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$delete from public.provider_customers
+                   where id = 'c0000000-0000-4000-8000-000000000001'$q$, 'ok:1');
+SELECT t_scalar('took their animals',                    'postgres',      NULL,
+                $q$select count(*)::text from public.provider_pets
+                   where id = 'c0000000-0000-4000-8000-000000000002'$q$, '0');
+SELECT t_scalar('and their bookings',                    'postgres',      NULL,
+                $q$select count(*)::text from public.provider_appointments
+                   where id = 'c0000000-0000-4000-8000-000000000003'$q$, '0');
+
 \echo ''
 \echo '════ results ════'
 SELECT ord, label, expected, got, CASE WHEN ok THEN 'PASS' ELSE 'FAIL' END AS result

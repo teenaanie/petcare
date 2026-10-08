@@ -117,6 +117,16 @@ await page.waitForTimeout(800)
 // innerText returns RENDERED text, and the section headings carry Tailwind's
 // `uppercase`, so they come back shouted. Compare case-insensitively rather
 // than hard-coding the shouting, which would break the day someone restyles it.
+// The shell now opens on `My book` — the provider's own customers and diary —
+// because that is where a business works daily and most of their customers will
+// never use the app. The inform notes are the other half, so this suite has to
+// ask for them. Asserted rather than assumed: if the default ever flips back,
+// the first check below fails loudly instead of this file quietly testing the
+// wrong screen.
+ck('the shell opens on the book', (await page.innerText('body')).includes('My book'), true)
+await page.getByRole('button', { name: 'Shared with you' }).click()
+await page.waitForTimeout(900)
+
 const raw = await page.innerText('body')
 const t = raw
 const T = raw.toUpperCase()
