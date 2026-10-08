@@ -21,7 +21,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Loader2, AlertCircle, Plus, X, Users, CalendarDays, Phone, Mail, MessageCircle,
   Trash2, PawPrint, Link2, ChevronLeft, ChevronRight, Home, Check, Pencil,
-  NotebookPen, AlertTriangle,
+  NotebookPen, AlertTriangle, ClipboardCheck,
 } from 'lucide-react'
 import { getSupabaseProvider } from '../../lib/supabase.js'
 import { reportHandled } from '../../lib/errorReport.js'
@@ -29,9 +29,10 @@ import { todayIST } from '../../lib/dates.js'
 import { formatDay } from '../../lib/providerBrief.js'
 import ProviderBroadcast from './ProviderBroadcast.jsx'
 import Dictate from './Dictate.jsx'
-import { YourYear, CustomerHistory } from './BookNumbers.jsx'
-import { rupees } from '../../lib/providerStats.js'
+import { YourYear, CustomerHistory, TopCustomers } from './BookNumbers.jsx'
+import { rupees, monthDetail } from '../../lib/providerStats.js'
 import { bookWords, tileWords } from '../../lib/providerTypes.js'
+import { resolvePolicy, requirementIn, appliesTo } from '../../lib/boarding.js'
 import {
   getBook, saveCustomer, savePet, saveAppointment,
   deleteCustomer, deleteAppointment, groupAppointments, bookSummary,
@@ -435,9 +436,10 @@ function BookingDetail({ booking, customer, pets, onBack, onChanged, run, busy, 
 
 // ── One customer ────────────────────────────────────────────────────────────
 
-function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBooking, onChanged, run, busy, postedBy, words, providerType }) {
+function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBooking, onChanged, run, busy, postedBy, words, providerType, listing }) {
   const [addingPet, setAddingPet] = useState(false)
   const [booking, setBooking]     = useState(false)
+  const [sending, setSending]     = useState(null)   // null | 'busy' | a message
 
   const mine   = pets.filter(p => p.customerId === customer.id)
   const theirs = appointments.filter(a => a.customerId === customer.id)
@@ -473,7 +475,51 @@ function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBoo
               <Mail className="w-3.5 h-3.5" /> Email
             </a>
           )}
+
+          {/* Boarders only, and only when there is an address to send to. Most
+              of a boarder's customers never open the app — they rang, they are
+              coming on Friday, and what they want is the list. Retyping it into
+              WhatsApp from memory is how a requirement quietly stops being
+              asked for. */}
+          {providerType === 'Boarder' && customer.email && (
+            <button disabled={sending === 'busy'} className="btn-secondary inline-flex items-center gap-1.5 text-xs whitespace-nowrap"
+              onClick={async () => {
+                setSending('busy')
+                try {
+                  const policy = resolvePolicy(listing)
+                  const lines = (policy.required || [])
+                    .map(id => requirementIn(policy, id))
+                    .filter(r => r && (r.species === '*' || ['Dog', 'Cat'].some(sp => appliesTo(r, sp))))
+                    .map(r => ({ label: r.label, help: r.help }))
+                  if (policy.trial_required) {
+                    lines.push({ label: 'A trial visit before a first stay',
+                                 help: 'By appointment, a few days before — ask us to book one.' })
+                  }
+                  const sb = await getSupabaseProvider()
+                  const { data: { session } } = await sb.auth.getSession()
+                  const res = await fetch('/api/provider-mail?op=criteria', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json',
+                               authorization: `Bearer ${session?.access_token || ''}` },
+                    body: JSON.stringify({ customerId: customer.id, lines }),
+                  })
+                  const out = await res.json().catch(() => ({}))
+                  setSending(out?.sent ? `Sent to ${customer.email}.`
+                    : out?.reason === 'no_address' ? 'They have no email address on file.'
+                    : 'Could not send that.')
+                } catch (e) {
+                  reportHandled(e, { view: 'provider-book' })
+                  setSending('Could not send that.')
+                }
+              }}>
+              <ClipboardCheck className="w-3.5 h-3.5" />
+              {sending === 'busy' ? 'Sending…' : 'Send our criteria'}
+            </button>
+          )}
         </div>
+        {sending && sending !== 'busy' && (
+          <p className="text-xs mt-2" style={{ color: '#5f7a3a' }}>{sending}</p>
+        )}
       </div>
 
       {/* How much of your year this one customer is. Placed above their pets
@@ -570,6 +616,10 @@ function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBoo
 // ── The book ────────────────────────────────────────────────────────────────
 
 export default function ProviderBook({ providerIds = [], primaryProviderId, providerName, providerType, postedBy }) {
+  // The business's own listing, for the criteria a customer can be sent. Read
+  // through the function rather than the table: an unpublished listing cannot
+  // be read by its own owner through the directory's policy.
+  const [listing, setListing] = useState(null)
   const [book, setBook]   = useState(null)
   const [notes, setNotes] = useState([])
   const [error, setError] = useState(null)
@@ -594,13 +644,17 @@ export default function ProviderBook({ providerIds = [], primaryProviderId, prov
         .from('provider_notes').select('id, provider_id, pet_label')
         .in('provider_id', ids).order('sent_at', { ascending: false })
       setNotes((data || []).map(r => ({ id: r.id, providerId: r.provider_id, petLabel: r.pet_label })))
+      if (primaryProviderId) {
+        const { data: me } = await supabase.rpc('my_provider_details', { p_provider_id: primaryProviderId })
+        setListing((me || [])[0] || null)
+      }
       setError(null)
     } catch (e) {
       reportHandled(e, { view: 'provider-book' })
       setError(e.message || 'Could not load your book.')
       setBook({ customers: [], pets: [], appointments: [] })
     }
-  }, [ids])
+  }, [ids, primaryProviderId])
   useEffect(() => { load() }, [load])
 
   // Every write goes through here, so a failure is reported the same way
@@ -647,8 +701,66 @@ export default function ProviderBook({ providerIds = [], primaryProviderId, prov
     return <>{Err}<CustomerDetail customer={c} pets={book.pets} appointments={book.appointments}
       notes={notes.filter(n => n.providerId === c.providerId)}
       busy={busy} run={run} postedBy={postedBy} words={words} providerType={providerType}
+      listing={listing}
       onOpenBooking={id => setView({ kind: 'booking', id })}
       onBack={() => setView({ kind: 'dashboard' })} onChanged={load} /></>
+  }
+
+  // ── One month, behind a bar ───────────────────────────────────────────────
+  //
+  // The figure says fourteen; this is the fourteen. Grouped by customer rather
+  // than listed flat, because the same person booking three times in a month is
+  // one relationship and three rows would read as three.
+  if (view.kind === 'month') {
+    const groups = monthDetail(book, view.key)
+    const [y, m] = view.key.split('-')
+    const title = new Date(Date.UTC(Number(y), Number(m) - 1, 1))
+      .toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+    const totalVisits = groups.reduce((n, g) => n + g.visits.length, 0)
+    const totalNights = groups.reduce((n, g) => n + g.nights, 0)
+    const priced      = groups.reduce((n, g) => n + g.priced, 0)
+    const money       = groups.reduce((n, g) => n + g.amount, 0)
+
+    return (
+      <div className="space-y-3">
+        <button onClick={() => setView({ kind: 'dashboard' })} className="text-xs font-bold flex items-center gap-1" style={{ color: '#b08d57' }}>
+          <ChevronLeft className="w-3.5 h-3.5" /> Dashboard
+        </button>
+        <h2 className="font-black" style={{ color: '#7a4900' }}>{title}</h2>
+        <p className="text-sm" style={{ color: '#73775b' }}>
+          {totalVisits} {totalVisits === 1 ? words.entry : words.entries} across {groups.length}
+          {groups.length === 1 ? ' customer' : ' customers'}
+          {words.counts === 'nights' && totalNights > 0 && ` · ${totalNights} nights`}
+          {priced > 0 && ` · ${rupees(money)} from ${priced} of ${totalVisits}`}
+        </p>
+        {Err}
+
+        {groups.length === 0 && (
+          <p className="text-sm" style={{ color: '#73775b' }}>Nothing that month.</p>
+        )}
+        {groups.map(g => (
+          <div key={g.customerId} className="card">
+            <button onClick={() => setView({ kind: 'customer', id: g.customerId })}
+              className="w-full text-left flex items-center justify-between gap-3">
+              <span className="min-w-0">
+                <span className="font-bold text-sm block" style={{ color: '#4A2C0A' }}>{g.name}</span>
+                <span className="text-xs" style={{ color: '#73775b' }}>
+                  {g.visits.length} {g.visits.length === 1 ? words.entry : words.entries}
+                  {g.pets.length > 0 && ` · ${g.pets.join(', ')}`}
+                </span>
+              </span>
+              <ChevronRight className="w-4 h-4 shrink-0" style={{ color: '#b08d57' }} />
+            </button>
+            <div className="mt-1">
+              {g.visits.map(a => (
+                <BookingRow key={a.id} a={a} pet={petById[a.providerPetId]}
+                  onOpen={() => setView({ kind: 'booking', id: a.id })} />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    )
   }
 
   // ── A list behind a tile ──────────────────────────────────────────────────
@@ -770,7 +882,13 @@ export default function ProviderBook({ providerIds = [], primaryProviderId, prov
       {/* The shape of the year, under the figures for today. A boarder knows
           this month was busy; what they cannot know without this is that it was
           their third-best month in a year that peaks every Diwali. */}
-      <YourYear book={book} today={today} providerType={providerType} />
+      <YourYear book={book} today={today} providerType={providerType}
+        onPickMonth={key => setView({ kind: 'month', key })} />
+
+      {/* Who to think about when there is an offer to make. Under the year,
+          because it answers a question the year raises. */}
+      <TopCustomers book={book} today={today} providerType={providerType}
+        onOpen={id => setView({ kind: 'customer', id })} />
 
       {adding ? (
         <CustomerForm busy={busy} initial={{ name: '', phone: '', email: '', notes: '' }}

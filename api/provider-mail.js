@@ -16,6 +16,7 @@
 //   /api/provider-mail?op=broadcast     a business mailing its customers
 //   /api/provider-mail?op=stay-update   an owner hearing their pet's boarder posted
 //   /api/provider-mail?op=inform        a business hearing a customer sent a note
+//   /api/provider-mail?op=criteria      a boarder sending one customer their criteria
 //   /api/provider-mail                  an admin hearing about provider feedback
 //
 // The default is feedback rather than an error so that a mis-typed op cannot
@@ -26,6 +27,7 @@ import feedbackHandler   from './_lib/notify-provider-feedback.js'
 import broadcastHandler  from './_lib/provider-broadcast.js'
 import stayUpdateHandler from './_lib/stay-update-email.js'
 import informHandler     from './_lib/inform-provider-email.js'
+import criteriaHandler   from './_lib/boarding-criteria-email.js'
 import { toVercel } from './_adapt.js'
 
 async function handler(req) {
@@ -34,6 +36,7 @@ async function handler(req) {
   if (op === 'broadcast')   return broadcastHandler(req)
   if (op === 'stay-update') return stayUpdateHandler(req)
   if (op === 'inform')      return informHandler(req)
+  if (op === 'criteria')    return criteriaHandler(req)
   return feedbackHandler(req)
 }
 

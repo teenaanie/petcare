@@ -12,6 +12,7 @@
     "test:speech": "node scripts/test-speech.mjs",
     "test:provider-alert": "node scripts/test-provider-alert.mjs",
     "test:inform-alert": "node scripts/test-inform-alert.mjs",
+    "test:criteria-mail": "node scripts/test-criteria-email.mjs",
     "test:register": "node scripts/test-register-provider.mjs",
     "test:claim-approve": "node scripts/test-admin-claim-approve.mjs",
     "test:brief": "node scripts/test-provider-brief.mjs",

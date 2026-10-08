@@ -63,6 +63,7 @@ CREATE TABLE public.providers (
   -- itself, plus the criteria a pet parent reads before they travel.
   email           text,
   website         text,
+  services        text[],
   boarding_policy jsonb,
   is_approved boolean DEFAULT false
 );

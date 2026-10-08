@@ -21,6 +21,16 @@
 export const SERVICES = [
   'Boarding', 'Day Care', 'Dog Walking', 'Training', 'Grooming',
   'Pet Sitting', 'Pet Taxi', 'Adoption & Rescue', 'Photography', 'Dog Park',
+  // Added when providers began declaring their own services rather than having
+  // them derived from a Google category. One business is very often a boarder
+  // AND a groomer AND a counter selling food, and the two they could not say
+  // before were the shop and the visiting vet.
+  //
+  // 'Veterinary' as a SERVICE is not the same claim as the `Vet` TYPE: a
+  // boarding house with a vet who visits offers the service and is not a
+  // clinic, and the type still decides which tab of the directory they appear
+  // under.
+  'Pet Supplies', 'Veterinary',
 ]
 
 // Google's category → the service it implies. Matched case-insensitively

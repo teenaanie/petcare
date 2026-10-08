@@ -8,6 +8,7 @@ import { reportHandled } from '../../lib/errorReport.js'
 import {
   REQUIREMENT_CATALOG, GENERIC_POLICY, appliesTo, customRequirements, newCustomId,
 } from '../../lib/boarding.js'
+import { SERVICES } from '../../lib/taxonomy.js'
 
 // What a business can change about itself, and what it cannot.
 //
@@ -63,6 +64,7 @@ export default function ProviderDetails({ providerId, providerType }) {
   const [row, setRow]         = useState(null)
   const [form, setForm]       = useState({})
   const [policy, setPolicy]   = useState(null)
+  const [services, setServices] = useState([])
   const [busy, setBusy]       = useState(false)
   const [saved, setSaved]     = useState(null)
   const [error, setError]     = useState(null)
@@ -84,6 +86,7 @@ export default function ProviderDetails({ providerId, providerType }) {
         area: r?.area || '', description: r?.description || '',
       })
       setPolicy(r?.boarding_policy && typeof r.boarding_policy === 'object' ? r.boarding_policy : null)
+      setServices(Array.isArray(r?.services) ? r.services.filter(x => SERVICES.includes(x)) : [])
     } catch (e) {
       reportHandled(e, { view: 'provider-details' })
       setError(e.message || 'Could not load your details.')
@@ -102,6 +105,7 @@ export default function ProviderDetails({ providerId, providerType }) {
         p_phone: form.phone, p_whatsapp: form.whatsapp, p_email: form.email,
         p_website: form.website, p_hours: form.hours, p_address: form.address,
         p_area: form.area, p_description: form.description,
+        p_services: services,
       })
       if (error) throw error
       setSaved('Saved.')
@@ -205,6 +209,33 @@ export default function ProviderDetails({ providerId, providerType }) {
         <div className="mt-3">
           <Row label="Address" name="address" value={form.address} onChange={set} placeholder="Lane 5, Baner Road" />
         </div>
+        {/* One business, one TYPE for the tab they appear in, and a list of
+            everything else they do. Most small operators are two or three of
+            these at once — a boarder who grooms, a groomer with a counter of
+            food — and until now they could only be one. */}
+        <div className="mt-4">
+          <label className={lbl} style={{ color: '#b08d57' }}>What else you do</label>
+          <p className="text-xs mb-2" style={{ color: '#73775b' }}>
+            You are listed as a <strong>{row?.type || providerType}</strong> — that is the part of the
+            directory you appear in. Tick everything you actually offer; pet parents see these on
+            your listing.
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {SERVICES.map(sv => {
+              const on = services.includes(sv)
+              return (
+                <button key={sv} type="button"
+                  onClick={() => setServices(v => on ? v.filter(x => x !== sv) : [...v, sv])}
+                  className="px-3 py-1.5 rounded-full text-xs font-bold"
+                  style={on ? { backgroundColor: '#eef3e2', color: '#44562a', border: '1.5px solid #cfe0b4' }
+                            : { backgroundColor: '#FFFEF8', color: '#73775b', border: '1.5px solid #ebe3d3' }}>
+                  {on && '✓ '}{sv}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
         <div className="mt-3">
           <label className={lbl} style={{ color: '#b08d57' }} htmlFor="biz-description">About your business</label>
           <textarea id="biz-description" name="description" rows={3} className={field}

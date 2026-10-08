@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { TrendingUp, History } from 'lucide-react'
-import { customerStats, bookYear, rupees } from '../../lib/providerStats.js'
+import { TrendingUp, History, Trophy, ChevronRight } from 'lucide-react'
+import { customerStats, bookYear, rupees, topCustomers } from '../../lib/providerStats.js'
 import { bookWords } from '../../lib/providerTypes.js'
 import { formatDay } from '../../lib/providerBrief.js'
 
@@ -48,7 +48,7 @@ function Figure({ label, value, hint }) {
  * Every month gets a column even when it is empty — a chart that drops a quiet
  * month draws a straight line through the gap and calls it steady business.
  */
-export function MonthBars({ months, metric, unit }) {
+export function MonthBars({ months, metric, unit, onPick }) {
   const max  = Math.max(1, ...months.map(m => m[metric]))
   const peak = months.reduce((b, m) => (m[metric] > (b?.[metric] ?? -1) ? m : b), null)
   const now  = months[months.length - 1]
@@ -60,9 +60,18 @@ export function MonthBars({ months, metric, unit }) {
           const v = m[metric]
           const tall = v > 0 ? Math.max(3, Math.round((v / max) * 84)) : 0
           const loud = m.key === now.key || m.key === peak?.key
+          // A bar is a question: the figure says fourteen and the next thing
+          // asked is always "fourteen of whom". Tapping one answers it. A month
+          // with nothing in it is not a button, because there is nothing behind
+          // it to show.
+          const Tag = onPick && v > 0 ? 'button' : 'div'
           return (
-            <div key={m.key} className="flex-1 flex flex-col items-center justify-end h-full"
-              title={`${m.label} ${m.year} — ${v} ${unit}`}>
+            <Tag key={m.key} type={Tag === 'button' ? 'button' : undefined}
+              onClick={Tag === 'button' ? () => onPick(m.key) : undefined}
+              className="flex-1 flex flex-col items-center justify-end h-full"
+              style={Tag === 'button' ? { cursor: 'pointer' } : undefined}
+              aria-label={Tag === 'button' ? `See ${m.label} ${m.year}` : undefined}
+              title={`${m.label} ${m.year} — ${v} ${unit}${Tag === 'button' ? ' · tap to see who' : ''}`}>
               {/* Every month carries its number. The first version labelled only
                   the peak and the current month, which on a dashboard where
                   those are usually the SAME month meant exactly one number on
@@ -75,7 +84,7 @@ export function MonthBars({ months, metric, unit }) {
               <div aria-label={`${m.label} ${m.year}: ${v} ${unit}`}
                 className="w-full rounded-t"
                 style={{ height: tall, maxWidth: 24, backgroundColor: BAR, opacity: loud ? 1 : 0.72 }} />
-            </div>
+            </Tag>
           )
         })}
       </div>
@@ -121,7 +130,7 @@ function Toggle({ options, value, onChange }) {
 }
 
 /** The dashboard's year: this month in figures, then twelve months of shape. */
-export function YourYear({ book, today, providerType }) {
+export function YourYear({ book, today, providerType, onPickMonth, onOpenCustomer }) {
   const words = bookWords(providerType)
   const y = bookYear(book, today)
   const metrics = metricsFor(words, y.months)
@@ -161,7 +170,7 @@ export function YourYear({ book, today, providerType }) {
         </p>
       ) : (
         <>
-          <MonthBars months={monthsShown} metric={metric} unit={chosen.unit} />
+          <MonthBars months={monthsShown} metric={metric} unit={chosen.unit} onPick={onPickMonth} />
           <p className="text-xs mt-3" style={{ color: MUTED }}>
             {chosen.money
               ? <>{rupees(y.year.amount)} across the year, from the {y.year.priced} of {y.year.visits} {words.entries} you
@@ -171,6 +180,62 @@ export function YourYear({ book, today, providerType }) {
           </p>
         </>
       )}
+    </div>
+  )
+}
+
+/**
+ * Who comes back most.
+ *
+ * Ranked by visits TAKEN, not by money: the question behind it is "who would I
+ * give something to", and ranking by revenue ranks by who owns the biggest dog.
+ * A customer who books and cancels is not a top customer, so cancellations are
+ * nowhere in it.
+ *
+ * A list, not a chart. Ten names with a count each is a table's job — a bar
+ * chart of ten customers would be ten bars nobody can tell apart at a glance,
+ * and the thing being compared is the NAMES.
+ */
+export function TopCustomers({ book, today, providerType, onOpen }) {
+  const words = bookWords(providerType)
+  const rows = topCustomers(book, today)
+  if (rows.length < 3) return null   // a top ten of two is a customer list
+
+  const most = rows[0].visits
+
+  return (
+    <div className="card">
+      <p className="text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 mb-1" style={{ color: LABEL }}>
+        <Trophy className="w-3.5 h-3.5" /> Who comes back most
+      </p>
+      <p className="text-xs mb-3" style={{ color: MUTED }}>
+        The last 12 months, by {words.entries} taken. Cancellations are not counted.
+      </p>
+
+      <div>
+        {rows.map((c, i) => (
+          <button key={c.id} onClick={() => onOpen?.(c.id)}
+            className="w-full text-left flex items-center gap-3 py-2"
+            style={{ borderTop: i === 0 ? 'none' : '1px solid #f5f0e0' }}>
+            <span className="text-xs font-black w-5 shrink-0" style={{ color: LABEL }}>{i + 1}</span>
+            <span className="min-w-0 flex-1">
+              <span className="text-sm font-bold block truncate" style={{ color: INK }}>{c.name}</span>
+              <span className="text-xs" style={{ color: MUTED }}>
+                {c.visits} {c.visits === 1 ? words.entry : words.entries}
+                {words.counts === 'nights' && c.nights > 0 && ` · ${c.nights} nights`}
+                {c.priced > 0 && ` · ${rupees(c.amount)}`}
+              </span>
+            </span>
+            {/* A bar against the top customer, so the shape of the list reads
+                without comparing numbers one by one. */}
+            <span className="hidden sm:block w-24 h-1.5 rounded-full shrink-0" style={{ backgroundColor: '#f5f0e0' }}>
+              <span className="block h-full rounded-full"
+                style={{ width: `${Math.round((c.visits / most) * 100)}%`, backgroundColor: BAR }} />
+            </span>
+            <ChevronRight className="w-4 h-4 shrink-0" style={{ color: LABEL }} />
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

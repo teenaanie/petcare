@@ -84,11 +84,21 @@ ck('it opens on what is there now',
    await page.getByPlaceholder('Mon-Sun 8am-7pm').inputValue(), 'Mon-Sun 7am-8pm')
 ck('and says what it will not change', await has('are not editable here'), true)
 
+// One save carrying everything the form holds. Two saves would re-read the
+// listing in between and reset the typed fields from the stub, which is exactly
+// what the screen should do and not what this is testing.
+//
+// One business is very often a boarder AND a groomer AND a counter selling
+// food. The TYPE decides their tab; these say everything else they do.
 await page.getByPlaceholder('98765 43210').first().fill('9823011001')
+await page.getByRole('button', { name: /^(✓ )?Grooming$/ }).click()
+await page.getByRole('button', { name: /^(✓ )?Pet Supplies$/ }).click()
 await page.getByRole('button', { name: 'Save details' }).click()
 await page.waitForTimeout(700)
+ck('what else they do is saved', savedDetails?.p_services, ['Grooming', 'Pet Supplies'])
+
 ck('it saves through the function', Object.keys(savedDetails || {}).sort(),
-   ['p_address','p_area','p_description','p_email','p_hours','p_phone','p_provider_id','p_website','p_whatsapp'])
+   ['p_address','p_area','p_description','p_email','p_hours','p_phone','p_provider_id','p_services','p_website','p_whatsapp'])
 ck('with the new number', savedDetails?.p_phone, '9823011001')
 // The point of the whole design: these are not in the payload and cannot be.
 ck('and nothing it must not touch',

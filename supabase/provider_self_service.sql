@@ -19,9 +19,15 @@
 -- ── What a provider may and may not change ──────────────────────────────────
 --
 --   MAY    phone, whatsapp, email, hours, address, area, website, description,
---          and their boarding criteria.
+--          the SERVICES they offer, and their boarding criteria.
 --   MAY NOT  name, type, is_approved, place_id, maps_url, categories, lat/lng,
 --            rating, reviews_count, source.
+--
+-- `services` is in, and it is the answer to "we board AND groom AND sell food":
+-- one business, one TYPE deciding the tab they appear under, and a list of
+-- everything else they do. Validated against the vocabulary HERE, because the
+-- browser is not a validator and this column is read by the directory every pet
+-- parent searches.
 --
 -- `name` and `type` are out deliberately and it is not an oversight. The name
 -- is how a pet parent recognises the business they were recommended, and the
@@ -73,7 +79,8 @@ CREATE OR REPLACE FUNCTION public.update_my_provider(
   p_hours       text DEFAULT NULL,
   p_address     text DEFAULT NULL,
   p_area        text DEFAULT NULL,
-  p_description text DEFAULT NULL
+  p_description text DEFAULT NULL,
+  p_services    text[] DEFAULT NULL
 )
 RETURNS boolean
 LANGUAGE plpgsql
@@ -82,9 +89,25 @@ SET search_path TO 'public'
 AS $$
 DECLARE
   blank CONSTANT text := '';
+  -- The vocabulary from src/lib/taxonomy.js, repeated here on purpose. A
+  -- provider could POST anything, and `services` is read back by the directory
+  -- every pet parent searches. A service added to the app and not here fails
+  -- loudly on save rather than storing a label nothing filters on.
+  allowed CONSTANT text[] := ARRAY[
+    'Boarding','Day Care','Dog Walking','Training','Grooming','Pet Sitting',
+    'Pet Taxi','Adoption & Rescue','Photography','Dog Park','Pet Supplies','Veterinary'
+  ];
+  bad text;
 BEGIN
   IF NOT public.is_provider_member(p_provider_id) THEN
     RAISE EXCEPTION 'Not your business';
+  END IF;
+
+  IF p_services IS NOT NULL THEN
+    SELECT s INTO bad FROM unnest(p_services) AS s WHERE s <> ALL (allowed) LIMIT 1;
+    IF bad IS NOT NULL THEN
+      RAISE EXCEPTION 'Unknown service: %', bad;
+    END IF;
   END IF;
 
   UPDATE public.providers SET
@@ -103,15 +126,23 @@ BEGIN
     area        = CASE WHEN p_area        IS NULL THEN area
                        WHEN btrim(p_area) = blank THEN NULL ELSE btrim(p_area) END,
     description = CASE WHEN p_description IS NULL THEN description
-                       WHEN btrim(p_description) = blank THEN NULL ELSE btrim(p_description) END
+                       WHEN btrim(p_description) = blank THEN NULL ELSE btrim(p_description) END,
+    -- An empty array is a real answer ("I do only the one thing"), so only NULL
+    -- means leave it alone.
+    services    = CASE WHEN p_services IS NULL THEN services ELSE p_services END
   WHERE id = p_provider_id;
 
   RETURN FOUND;
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.update_my_provider(uuid, text, text, text, text, text, text, text, text) FROM public;
-GRANT EXECUTE ON FUNCTION public.update_my_provider(uuid, text, text, text, text, text, text, text, text) TO authenticated;
+REVOKE ALL ON FUNCTION public.update_my_provider(uuid, text, text, text, text, text, text, text, text, text[]) FROM public;
+GRANT EXECUTE ON FUNCTION public.update_my_provider(uuid, text, text, text, text, text, text, text, text, text[]) TO authenticated;
+
+-- The nine-argument version from phase 10 would otherwise sit alongside this one
+-- forever, and PostgREST would keep resolving a call that omits p_services to
+-- it. One signature, so there is one answer to what a provider may change.
+DROP FUNCTION IF EXISTS public.update_my_provider(uuid, text, text, text, text, text, text, text, text);
 
 -- ── Boarding criteria ───────────────────────────────────────────────────────
 --
@@ -166,6 +197,9 @@ GRANT EXECUTE ON FUNCTION public.update_my_boarding_policy(uuid, jsonb) TO authe
 --   a suspended claimant edits it ........................ raises
 --   NULL leaves a field alone ............................ unchanged
 --   an empty string clears it ............................ null
+--   a business says what else it does .................... services land
+--   a service nobody has heard of ........................ refused
+--   services can be emptied .............................. empty, not null
 --   the type and approval are untouched by any of it ..... unchanged
 --   a boarding policy is saved and read back ............. round trips
 --   a policy that is not an object ....................... raises

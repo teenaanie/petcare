@@ -121,6 +121,19 @@ await page.waitForTimeout(400)
 // wrong number.
 ck('money names its denominator',  await has('1 of 3 visits'), true)
 
+// A bar is a question: the figure says three and the next thing asked is
+// "three of whom". Tapping one answers it.
+await page.getByRole('button', { name: 'Visits', exact: true }).click()
+await page.waitForTimeout(400)
+const bar = page.getByRole('button', { name: /^See / }).last()
+ck('a month with something in it is tappable', await bar.count(), 1)
+await bar.click()
+await page.waitForTimeout(700)
+ck('it opens that month',        await has('Mrs Rao'), true)
+ck('and says what it holds',     await has('across 1 customer'), true)
+await page.getByRole('button', { name: 'Dashboard' }).click()
+await page.waitForTimeout(600)
+
 // One customer, their history in a vet's words.
 await page.getByRole('button', { name: 'All customers' }).click()
 await page.waitForTimeout(600)
