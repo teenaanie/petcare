@@ -709,6 +709,69 @@ SELECT t_scalar('and their bookings',                    'postgres',      NULL,
                 $q$select count(*)::text from public.provider_appointments
                    where id = 'c0000000-0000-4000-8000-000000000003'$q$, '0');
 
+
+\echo ''
+\echo '════ provider_book_detail.sql ════'
+
+-- A booking of its own, so deleting it at the end cannot disturb the block above.
+SELECT t_run   ('a business books a stay to log against','authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$insert into public.provider_customers (id, provider_id, name)
+                   values ('c1000000-0000-4000-8000-000000000001',
+                           'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Mr Log')$q$, 'ok:1');
+SELECT t_run   ('and the booking itself',                'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$insert into public.provider_appointments (id, provider_id, customer_id, starts_on, ends_on)
+                   values ('c1000000-0000-4000-8000-000000000002',
+                           'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+                           'c1000000-0000-4000-8000-000000000001',
+                           current_date, current_date + 4)$q$, 'ok:1');
+
+-- The two flags a front desk checks before an animal arrives.
+SELECT t_scalar('trial_done defaults to false',          'postgres',      NULL,
+                $q$select trial_done::text from public.provider_appointments
+                   where id = 'c1000000-0000-4000-8000-000000000002'$q$, 'false');
+SELECT t_scalar('criteria_met defaults to false',        'postgres',      NULL,
+                $q$select criteria_met::text from public.provider_appointments
+                   where id = 'c1000000-0000-4000-8000-000000000002'$q$, 'false');
+SELECT t_run   ('and the business can tick them',        'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$update public.provider_appointments set trial_done = true, criteria_met = true
+                   where id = 'c1000000-0000-4000-8000-000000000002'$q$, 'ok:1');
+
+-- The day log.
+SELECT t_run   ('a day of notes is written',             'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$insert into public.provider_appointment_logs
+                     (appointment_id, provider_id, on_date, body, created_by)
+                   values ('c1000000-0000-4000-8000-000000000002',
+                           'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', current_date,
+                           'Ate everything, slept through.',
+                           '33333333-3333-3333-3333-333333333333')$q$, 'ok:1');
+SELECT t_run   ('and read back',                         'authenticated', '33333333-3333-3333-3333-333333333333',
+                'select * from public.provider_appointment_logs', 'ok:1');
+
+SELECT t_run   ('a different business reads the log',    'authenticated', '55555555-5555-5555-5555-555555555555',
+                'select * from public.provider_appointment_logs', 'ok:0');
+SELECT t_run   ('the SUSPENDED claimant reads it',       'authenticated', '22222222-2222-2222-2222-222222222222',
+                'select * from public.provider_appointment_logs', 'ok:0');
+SELECT t_run   ('a pet parent reads it',                 'authenticated', '66666666-6666-4666-8666-666666666666',
+                'select * from public.provider_appointment_logs', 'ok:0');
+SELECT t_run   ('anon reads it',                         'anon',          NULL,
+                'select * from public.provider_appointment_logs', 'ok:0');
+
+-- The pair must be real, or a kennel could annotate another kennel's stay.
+SELECT t_run   ('logging against another''s booking',    'authenticated', '55555555-5555-5555-5555-555555555555',
+                $q$insert into public.provider_appointment_logs (appointment_id, provider_id, body)
+                   values ('c1000000-0000-4000-8000-000000000002',
+                           'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'not mine')$q$, 'denied');
+SELECT t_run   ('a blank entry',                         'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$insert into public.provider_appointment_logs (appointment_id, provider_id, body)
+                   values ('c1000000-0000-4000-8000-000000000002',
+                           'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '   ')$q$, 'error:23514');
+
+SELECT t_run   ('deleting the booking',                  'authenticated', '33333333-3333-3333-3333-333333333333',
+                $q$delete from public.provider_appointments
+                   where id = 'c1000000-0000-4000-8000-000000000002'$q$, 'ok:1');
+SELECT t_scalar('took its day log with it',              'postgres',      NULL,
+                $q$select count(*)::text from public.provider_appointment_logs$q$, '0');
+
 \echo ''
 \echo '════ results ════'
 SELECT ord, label, expected, got, CASE WHEN ok THEN 'PASS' ELSE 'FAIL' END AS result

@@ -176,30 +176,14 @@ ck('with the words typed', stayPost?.body, 'She ate everything and slept on the 
 ck('and no photo when none was added', stayPost?.photo_path, null)
 ck('the owner is notified', stayNotified?.updateId, 'su1')
 
-// The broadcast box: collapsed by default, and what it sends carries no
-// recipient list — the whole point is that the client never holds one.
-ck('the broadcast entry point is there', has('Message your customers'), true)
-await page.getByRole('button', { name: 'Message your customers' }).first().click()
-await page.waitForTimeout(500)
-const t2 = (await page.innerText('body')).toUpperCase()
-ck('it explains who will get it',
-   t2.includes('INCLUDED AN EMAIL ADDRESS'), true)
-ck('and that the provider cannot see them',
-   t2.includes('YOU WILL NOT SEE THEIR ADDRESSES'), true)
-await page.getByPlaceholder('Closed for Diwali').fill('Closed for Diwali')
-// By placeholder, not position. `textarea.first()` used to be the broadcast
-// box; adding the stay-update composer above it silently made it something
-// else, and the only symptom was a disabled Send button further down.
-await page.getByPlaceholder(/We are shut from the 20th/).fill('We are shut 20th to 23rd.')
-await page.getByRole('button', { name: /Send to your customers/ }).click()
-await page.waitForTimeout(900)
-ck('it posts the subject and body',
-   [broadcastPost?.subject, broadcastPost?.body],
-   ['Closed for Diwali', 'We are shut 20th to 23rd.'])
-ck('and names the business, not a list',
-   Object.keys(broadcastPost || {}).sort(), ['body', 'providerId', 'subject'])
-ck('the result is reported back',
-   (await page.innerText('body')).includes('Sent to 3 customers'), true)
+// Broadcasting has MOVED to the book dashboard — it is a thing a business does
+// to its own customer list, not something that belongs beside a stranger's
+// note. The end-to-end send (what it posts, and that it carries no recipient
+// list) is pinned in test:book-ui, where the box now lives. Here we only pin
+// that it is gone from this half, so the two suites cannot both think they own
+// it and neither actually test it.
+ck('broadcasting is not on the notes half', has('Message your customers'), false)
+ck('and nothing was sent from here', broadcastPost, null)
 
 ck('no page errors', errs.length, 0)
 if (errs.length) console.log(errs)
