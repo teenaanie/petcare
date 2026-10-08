@@ -61,6 +61,10 @@ export default function ProviderOnboarding({ email, onClaimed }) {
   const [note, setNote]       = useState('')
   const [picked, setPicked]   = useState(null)
   const [biz, setBiz]         = useState(EMPTY_BIZ)
+  // What the name they are typing already matches. The whole point of the add
+  // form is for businesses Google missed, and somebody who skipped the search
+  // is one keystroke from a second listing of a business that is already there.
+  const [maybe, setMaybe]     = useState([])
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState(null)
 
@@ -90,6 +94,27 @@ export default function ProviderOnboarding({ email, onClaimed }) {
     }, 300)
     return () => { cancelled = true; clearTimeout(t) }
   }, [term])
+
+  // The same search as above, run against the name being typed into the ADD
+  // form. 976 of the listings came from Google, so most people who reach this
+  // form are already in the directory and do not know it — and a duplicate
+  // costs an admin a decision they cannot make from the data.
+  useEffect(() => {
+    if (mode !== 'add') { setMaybe([]); return }
+    const q = (biz.name || '').trim()
+    if (q.length < 4) { setMaybe([]); return }
+    let cancelled = false
+    const t = setTimeout(async () => {
+      try {
+        const { data } = await (await getSupabaseProvider()).rpc('search_providers', {
+          approved_only: false, filter_type: null, filter_area: null,
+          search_term: q, page_limit: 4, page_offset: 0,
+        })
+        if (!cancelled) setMaybe((data || []).map(r => r.provider))
+      } catch { /* a failed hint must never block the form */ }
+    }, 400)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [mode, biz.name])
 
   async function claim(providerId) {
     setSaving(true); setError(null)
@@ -244,6 +269,31 @@ export default function ProviderOnboarding({ email, onClaimed }) {
 
             <div className="space-y-4">
               <Field name="name"     label="Business name"   placeholder="Unleash - The Dog Town" required value={biz.name} onChange={set} />
+
+              {/* Shown while they type, not after they submit: a duplicate is
+                  cheap to avoid here and expensive afterwards — two listings of
+                  one business, two claims in the review queue, and an admin who
+                  cannot tell from the data which one the customers will find. */}
+              {maybe.length > 0 && (
+                <div className="rounded-2xl p-3" style={{ backgroundColor: '#fff9e0', border: '1.5px solid #f2b83d' }}>
+                  <p className="text-xs font-bold mb-2" style={{ color: '#7a4900' }}>
+                    Already listed? Claim it instead of adding a second one.
+                  </p>
+                  <div className="space-y-1.5">
+                    {maybe.map(p => (
+                      <button key={p.id} type="button" disabled={saving}
+                        onClick={() => claim(p.id)}
+                        className="w-full text-left rounded-xl px-3 py-2"
+                        style={{ backgroundColor: '#FFFEF8', border: '1px solid #ebe3d3' }}>
+                        <span className="text-sm font-bold block" style={{ color: '#4A2C0A' }}>{p.name}</span>
+                        <span className="text-xs" style={{ color: '#73775b' }}>
+                          {[p.type, p.area, p.city].filter(Boolean).join(' · ')} — this is us
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <Field name="phone"    label="Phone"           placeholder="+91 98765 43210" required value={biz.phone} onChange={set} />
               <Field name="area"     label="Area"            placeholder="Baner" value={biz.area} onChange={set} />
               <Field name="city"     label="City"            placeholder="Pune" value={biz.city} onChange={set} />

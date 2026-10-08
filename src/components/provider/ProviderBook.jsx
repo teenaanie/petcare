@@ -59,6 +59,44 @@ function Field({ label, ...rest }) {
 }
 
 /** A phone number as WhatsApp wants it. Ten digits are assumed Indian. */
+/**
+ * The criteria a customer is sent, in the order the boarder keeps them.
+ *
+ * Shared by the two ways out — email, which the server sends, and WhatsApp,
+ * which the provider sends themselves — so the customer gets the same list
+ * whichever button is pressed. A requirement that reads differently depending
+ * on how it arrived is worse than one that only arrives one way.
+ */
+function criteriaLines(listing) {
+  const policy = resolvePolicy(listing)
+  const lines = (policy.required || [])
+    .map(id => requirementIn(policy, id))
+    .filter(r => r && (r.species === '*' || ['Dog', 'Cat'].some(sp => appliesTo(r, sp))))
+    .map(r => ({ label: r.label, help: r.help }))
+  if (policy.trial_required) {
+    lines.push({ label: 'A trial visit before a first stay',
+                 help: 'By appointment, a few days before — ask us to book one.' })
+  }
+  return lines
+}
+
+/**
+ * The same criteria as plain text, for WhatsApp.
+ *
+ * No markdown and no bullets beyond a dash: WhatsApp renders neither, and a
+ * message full of asterisks reads as a mistake. Help lines are kept — they are
+ * the half that stops "tick protection" being read as "a collar will do".
+ */
+function criteriaMessage(lines, listing, customer) {
+  const who = listing?.name || 'us'
+  const head = `${customer?.name ? customer.name + ', here' : 'Here'} is what we need before your pet's stay at ${who}:`
+  const body = lines.map(l => `- ${l.label}${l.help ? ` (${l.help})` : ''}`).join('\n')
+  const tail = listing?.phone
+    ? `\n\nAnything you are unsure about, just ask — ${listing.phone}.`
+    : '\n\nAnything you are unsure about, just ask.'
+  return `${head}\n\n${body}${tail}`
+}
+
 function waLink(phone) {
   const d = String(phone || '').replace(/\D/g, '')
   if (!d) return null
@@ -486,15 +524,7 @@ function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBoo
               onClick={async () => {
                 setSending('busy')
                 try {
-                  const policy = resolvePolicy(listing)
-                  const lines = (policy.required || [])
-                    .map(id => requirementIn(policy, id))
-                    .filter(r => r && (r.species === '*' || ['Dog', 'Cat'].some(sp => appliesTo(r, sp))))
-                    .map(r => ({ label: r.label, help: r.help }))
-                  if (policy.trial_required) {
-                    lines.push({ label: 'A trial visit before a first stay',
-                                 help: 'By appointment, a few days before — ask us to book one.' })
-                  }
+                  const lines = criteriaLines(listing)
                   const sb = await getSupabaseProvider()
                   const { data: { session } } = await sb.auth.getSession()
                   const res = await fetch('/api/provider-mail?op=criteria', {
@@ -513,8 +543,24 @@ function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBoo
                 }
               }}>
               <ClipboardCheck className="w-3.5 h-3.5" />
-              {sending === 'busy' ? 'Sending…' : 'Send our criteria'}
+              {sending === 'busy' ? 'Sending…' : 'Email our criteria'}
             </button>
+          )}
+
+          {/* The same list, by WhatsApp — which is how most of a boarder's
+              customers actually talk to them, and the only one of the two that
+              works for a customer with a number and no email address.
+              Deliberately a wa.me link rather than anything server-side: Pippy
+              has no WhatsApp account and cannot send as the business. This
+              opens their own WhatsApp with the message written, and they press
+              send, which also means the customer gets it from a number they
+              recognise. */}
+          {providerType === 'Boarder' && wa && (
+            <a href={`${wa}?text=${encodeURIComponent(criteriaMessage(criteriaLines(listing), listing, customer))}`}
+              target="_blank" rel="noopener noreferrer"
+              className="btn-secondary inline-flex items-center gap-1.5 text-xs whitespace-nowrap">
+              <ClipboardCheck className="w-3.5 h-3.5" /> WhatsApp our criteria
+            </a>
           )}
         </div>
         {sending && sending !== 'busy' && (
