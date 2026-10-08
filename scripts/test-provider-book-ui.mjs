@@ -106,7 +106,24 @@ ck('carrying the business it belongs to', posted.customers[0]?.provider_id, PROV
 ck('and who added them', posted.customers[0]?.created_by, UID)
 t = await page.innerText('body')
 ck('and it opens them straight away', t.includes('Add a pet') && t.includes('Book a stay'), true)
-ck('with a way to reach them', await page.getByRole('link', { name: 'WhatsApp' }).count() > 0, true)
+ck('with a way to reach them', await page.getByRole('link', { name: 'WhatsApp', exact: true }).count() > 0, true)
+
+// Sending the criteria by WhatsApp is a wa.me link the provider presses send
+// on, not something Pippy sends: there is no WhatsApp account here, and a
+// customer should get it from a number they recognise. So what is pinned is the
+// LINK — that it goes to their number and carries the criteria as text.
+const waCriteria = page.getByRole('link', { name: 'WhatsApp our criteria' })
+ck('the criteria can go by WhatsApp', await waCriteria.count(), 1)
+{
+  const href = await waCriteria.getAttribute('href')
+  const text = decodeURIComponent((href.split('?text=')[1] || ''))
+  ck('to the number in the book',   href.startsWith('https://wa.me/919876500001'), true)
+  ck('naming the customer',         text.includes('Mrs Rao'), true)
+  ck('carrying a requirement',      text.includes('Rabies vaccination current'), true)
+  // WhatsApp renders no markdown, so a message full of asterisks reads as a
+  // mistake rather than as emphasis.
+  ck('and no markdown',             /\*\*/.test(text), false)
+}
 
 await page.getByRole('button', { name: 'Add a pet' }).click()
 await page.waitForTimeout(300)

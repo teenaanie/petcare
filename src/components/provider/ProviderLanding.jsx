@@ -1,8 +1,11 @@
+import { useState, useEffect } from 'react'
 import {
   NotebookPen, CalendarCheck, ClipboardList, Inbox, Camera, Megaphone,
-  MapPin, ShieldCheck,
+  MapPin, ShieldCheck, Search, Loader2, Check,
 } from 'lucide-react'
 import PippyLogo from '../PippyLogo.jsx'
+import { getSupabaseProvider } from '../../lib/supabase.js'
+import { reportHandled } from '../../lib/errorReport.js'
 
 // The signed-out page at /business.
 //
@@ -73,6 +76,102 @@ function DashboardPeek() {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * "Is my business already listed?", answered without an account.
+ *
+ * Before this, the only way to find out was to sign in at /business and search
+ * — so a business owner had to create an account to learn whether they already
+ * had a listing, which is the wrong way round and is how the same kennel ends
+ * up in the directory twice.
+ *
+ * Signed out on purpose, and it needs nothing: search_providers() is granted to
+ * `anon` because it is how a pet parent browses the directory. It is called
+ * here with approved_only — the published directory, which is what "are we
+ * listed?" actually means.
+ */
+function FindYourListing() {
+  const [term, setTerm]       = useState('')
+  const [rows, setRows]       = useState(null)
+  const [busy, setBusy]       = useState(false)
+
+  useEffect(() => {
+    const q = term.trim()
+    if (q.length < 3) { setRows(null); return }
+    let cancelled = false
+    setBusy(true)
+    const t = setTimeout(async () => {
+      try {
+        const supabase = await getSupabaseProvider()
+        const { data, error } = await supabase.rpc('search_providers', {
+          approved_only: true, filter_type: null, filter_area: null,
+          search_term: q, page_limit: 6, page_offset: 0,
+        })
+        if (cancelled) return
+        if (error) throw error
+        setRows((data || []).map(r => r.provider))
+      } catch (e) {
+        if (cancelled) return
+        reportHandled(e, { view: 'provider-landing' })
+        setRows([])
+      } finally {
+        if (!cancelled) setBusy(false)
+      }
+    }, 350)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [term])
+
+  return (
+    <div className="rounded-3xl p-5 sm:p-6" style={{ backgroundColor: '#fffef8', border: '1px solid #ebe3d3' }}>
+      <label className="block text-sm font-extrabold mb-2" htmlFor="find-listing"
+        style={{ color: '#7a4900', fontFamily: 'var(--font-display)' }}>
+        Look yourself up
+      </label>
+      <div className="relative">
+        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#b08d57' }} />
+        <input id="find-listing" value={term} onChange={e => setTerm(e.target.value)}
+          className="w-full rounded-2xl pl-9 pr-3 py-3 text-sm"
+          style={{ backgroundColor: '#ffffff', border: '1px solid #ebe3d3', color: '#4A2C0A' }}
+          placeholder="Your business name" autoComplete="organization" />
+      </div>
+
+      {busy && (
+        <p className="text-xs mt-3 flex items-center gap-1.5" style={{ color: '#73775b' }}>
+          <Loader2 className="w-3 h-3 animate-spin" /> Looking…
+        </p>
+      )}
+
+      {rows && rows.length > 0 && (
+        <>
+          <div className="mt-3 space-y-2">
+            {rows.map(p => (
+              <div key={p.id} className="rounded-2xl px-4 py-3"
+                style={{ backgroundColor: '#fff9e0', border: '1px solid #ebe3d3' }}>
+                <p className="m-0 text-sm font-extrabold" style={{ color: '#7a4900' }}>{p.name}</p>
+                <p className="m-0 text-xs" style={{ color: '#73775b' }}>
+                  {[p.type, p.area, p.city].filter(Boolean).join(' · ')}
+                </p>
+              </div>
+            ))}
+          </div>
+          <p className="text-sm mt-3" style={{ color: '#73775b' }}>
+            <Check className="w-4 h-4 inline-block mr-1" style={{ color: '#5f7a3a' }} />
+            That is you? <a href="#signin" className="underline font-bold" style={{ color: '#7a4900' }}>
+              Sign in</a> and claim it — the listing and anything already on it becomes yours.
+          </p>
+        </>
+      )}
+
+      {rows && rows.length === 0 && !busy && (
+        <p className="text-sm mt-3" style={{ color: '#73775b' }}>
+          Nothing by that name. You can add your business after you{' '}
+          <a href="#signin" className="underline font-bold" style={{ color: '#7a4900' }}>sign in</a> —
+          same form, one step.
+        </p>
+      )}
     </div>
   )
 }
@@ -186,12 +285,11 @@ export default function ProviderLanding({ children }) {
               ))}
             </div>
           </div>
-          <div className="flex-shrink-0 flex items-center gap-3 rounded-2xl px-5 py-4"
-            style={{ backgroundColor: '#fffef8' }}>
-            <MapPin className="w-5 h-5 shrink-0" style={{ color: '#22424b' }} />
-            <span className="text-sm font-extrabold" style={{ color: '#22424b' }}>
-              Listings in Pune
-            </span>
+          <div className="flex-shrink-0 w-full lg:w-[22rem]">
+            <FindYourListing />
+            <p className="text-xs mt-2 flex items-center gap-1.5" style={{ color: '#22424b' }}>
+              <MapPin className="w-3.5 h-3.5 shrink-0" /> Listings in Pune
+            </p>
           </div>
         </section>
 

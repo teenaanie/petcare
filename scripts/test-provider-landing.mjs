@@ -38,6 +38,15 @@ await ctx.route('**/auth/v1/otp*', r => {
   return r.fulfill({ json: {} })
 })
 await ctx.route('**/rest/v1/**', r => r.fulfill({ json: [] }))
+// The public lookup. A business owner should not have to make an account to
+// learn whether they already have a listing — that is how the same kennel ends
+// up in the directory twice.
+let lookedUp = null
+await ctx.route('**/rest/v1/rpc/search_providers*', r => {
+  lookedUp = JSON.parse(r.request().postData() || '{}')
+  return r.fulfill({ json: [{ provider: { id: 'p1', name: 'Paws Retreat Boarding & Day Care',
+                                          type: 'Boarder', area: 'Baner', city: 'Pune' } }] })
+})
 
 const page = await ctx.newPage()
 const errs = []; page.on('pageerror', e => errs.push(e.message))
@@ -63,6 +72,18 @@ ck('so is broadcasting',           has('Message your customers'), true)
 ck('claiming is explained',        has('How it starts'), true)
 // The half of the deal a provider will otherwise think is a missing feature.
 ck('and what they CANNOT see',     has('You see what you are sent'), true)
+// ── Looking yourself up, signed out ─────────────────────────────────────────
+ck('the lookup is offered',  has('Look yourself up'), true)
+await page.getByPlaceholder('Your business name').fill('Paws Retreat')
+await page.waitForTimeout(900)
+ck('it asks the directory',  lookedUp?.search_term, 'Paws Retreat')
+// The published directory, not the review queue: "are we listed?" means listed.
+ck('and only the published part', lookedUp?.approved_only, true)
+const after = (await page.innerText('body')).toUpperCase()
+ck('the listing comes back',  after.includes('PAWS RETREAT BOARDING'), true)
+ck('with where it is',        after.includes('BANER'), true)
+ck('and a way to claim it',   after.includes('CLAIM IT'), true)
+
 ck('a pet parent is sent home',
    await page.getByRole('link', { name: /Go to the Pippy app/ }).count() > 0, true)
 

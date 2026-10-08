@@ -87,7 +87,7 @@ const VIEWS = new Set([
   'provider-inbox', 'provider-broadcast', 'provider-sign-in', 'provider-book',
   // Phase 10: a business editing its own listing and its own boarding criteria,
   // and dictating into its own free-text boxes.
-  'provider-details', 'provider-voice',
+  'provider-details', 'provider-voice', 'provider-landing',
 ])
 
 // How a report reached us. Two values, and deliberately a closed set like
