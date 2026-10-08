@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Loader2, AlertCircle, Check, ChevronDown, ChevronRight, Store, ClipboardCheck,
+  Plus, Trash2,
 } from 'lucide-react'
 import { getSupabaseProvider } from '../../lib/supabase.js'
 import { reportHandled } from '../../lib/errorReport.js'
-import { REQUIREMENT_CATALOG, GENERIC_POLICY, appliesTo } from '../../lib/boarding.js'
+import {
+  REQUIREMENT_CATALOG, GENERIC_POLICY, appliesTo, customRequirements, newCustomId,
+} from '../../lib/boarding.js'
 
 // What a business can change about itself, and what it cannot.
 //
@@ -55,6 +58,8 @@ function Panel({ icon: Icon, title, subtitle, open, onToggle, children }) {
 
 export default function ProviderDetails({ providerId, providerType }) {
   const [open, setOpen]       = useState(null)   // 'details' | 'criteria' | null
+  const [ownLabel, setOwnLabel] = useState('')
+  const [ownHelp, setOwnHelp]   = useState('')
   const [row, setRow]         = useState(null)
   const [form, setForm]       = useState({})
   const [policy, setPolicy]   = useState(null)
@@ -132,11 +137,43 @@ export default function ProviderDetails({ providerId, providerType }) {
   const required  = new Set(policy?.required || (policy ? [] : GENERIC_POLICY.required))
   const usingGeneric = !policy
 
+  const own = customRequirements(policy)
+
+  function basePolicy() {
+    return { ...(policy || {}),
+             required: policy?.required || [...GENERIC_POLICY.required],
+             trial_required: policy?.trial_required ?? GENERIC_POLICY.trial_required }
+  }
+
   function toggleRequirement(id) {
     const next = new Set(required)
     if (next.has(id)) next.delete(id); else next.add(id)
-    savePolicy({ ...(policy || {}), required: [...next],
-                 trial_required: policy?.trial_required ?? GENERIC_POLICY.trial_required })
+    savePolicy({ ...basePolicy(), required: [...next] })
+  }
+
+  function addOwn() {
+    const label = ownLabel.trim()
+    if (!label) return
+    const base = basePolicy()
+    const id = newCustomId(label, policy)
+    savePolicy({
+      ...base,
+      custom: [...(policy?.custom || []), { id, label, help: ownHelp.trim() || undefined }],
+      // Added AND ticked: nobody types a requirement they do not require.
+      required: [...new Set([...(base.required || []), id])],
+    })
+    setOwnLabel(''); setOwnHelp('')
+  }
+
+  function removeOwn(id) {
+    const base = basePolicy()
+    savePolicy({
+      ...base,
+      custom: (policy?.custom || []).filter(c => c?.id !== id),
+      // Out of `required` too, or the id stays in the list with nothing behind
+      // it and the pet parent sees a requirement with no words.
+      required: (base.required || []).filter(x => x !== id),
+    })
   }
 
   return (
@@ -230,6 +267,62 @@ export default function ProviderDetails({ providerId, providerType }) {
                   </button>
                 )
               })}
+          </div>
+
+          {/* A boarder's own criteria. The catalogue above is what the research
+              found boarders asking for; this is for everything it could not
+              have predicted — a blanket that smells of home, the lift key, the
+              society's pet registration. They are always manual: nothing in a
+              pet's records can confirm one, and ticking a box the owner never
+              ticked would be worse than asking. */}
+          {own.length > 0 && (
+            <div className="space-y-2 mt-2">
+              {own.map(c => (
+                <div key={c.id} className="flex items-start gap-3 p-3 rounded-xl"
+                  style={{ backgroundColor: required.has(c.id) ? '#eef3e2' : '#FFFEF8',
+                           border: `1.5px solid ${required.has(c.id) ? '#cfe0b4' : '#ebe3d3'}` }}>
+                  <button disabled={busy} onClick={() => toggleRequirement(c.id)}
+                    aria-label={required.has(c.id) ? `Stop asking for ${c.label}` : `Ask for ${c.label}`}
+                    className="w-5 h-5 rounded mt-0.5 flex items-center justify-center shrink-0"
+                    style={{ backgroundColor: required.has(c.id) ? '#5f7a3a' : '#e0d8c0' }}>
+                    {required.has(c.id) && <Check className="w-3.5 h-3.5" style={{ color: 'white' }} />}
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold" style={{ color: '#4A2C0A' }}>
+                      {c.label}
+                      <span className="font-normal" style={{ color: '#b08d57' }}> · yours</span>
+                    </p>
+                    {c.help && <p className="text-xs mt-0.5" style={{ color: '#73775b' }}>{c.help}</p>}
+                  </div>
+                  <button disabled={busy} title="Remove this criterion"
+                    aria-label={`Remove ${c.label}`}
+                    onClick={() => { if (confirm(`Remove "${c.label}"?`)) removeOwn(c.id) }}
+                    style={{ color: '#c0392b' }}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="rounded-xl p-3 mt-2" style={{ backgroundColor: '#fff9e0', border: '1.5px dashed #e0d8c0' }}>
+            <label className={lbl} style={{ color: '#b08d57' }} htmlFor="own-label">
+              Ask for something of your own
+            </label>
+            <input id="own-label" className={field} value={ownLabel}
+              onChange={e => setOwnLabel(e.target.value)}
+              placeholder="A blanket that smells of home" />
+            <input className={`${field} mt-2`} value={ownHelp}
+              onChange={e => setOwnHelp(e.target.value)}
+              placeholder="One line of explanation (optional)" />
+            <button disabled={busy || !ownLabel.trim()} onClick={addOwn}
+              className="btn-primary mt-2 gap-1.5">
+              <Plus className="w-4 h-4" /> Add this
+            </button>
+            <p className="text-xs mt-2" style={{ color: '#73775b' }}>
+              Your customers see it on their checklist with everything else. Pippy cannot
+              check this one against their records, so it is theirs to tick.
+            </p>
           </div>
 
           <button disabled={busy} className="w-full text-left flex items-start gap-3 p-3 rounded-xl mt-2"

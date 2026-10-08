@@ -3,7 +3,7 @@ import { reportHandled } from '../lib/errorReport.js'
 import { Search, MapPin, Phone, Clock, ExternalLink, MessageCircle, Stethoscope, Scissors, ShoppingBag, Home, Camera, Flower2, Loader2, AlertCircle, ClipboardCheck, ChevronDown, ChevronRight, Footprints, GraduationCap } from 'lucide-react'
 // MapPin used in ProviderCard address row
 import { getProviders, getProviderFacets } from '../lib/storage.js'
-import { resolvePolicy, hasCustomPolicy, REQUIREMENT_CATALOG, GENERIC_PROVENANCE } from '../lib/boarding.js'
+import { resolvePolicy, hasCustomPolicy, requirementIn, GENERIC_PROVENANCE } from '../lib/boarding.js'
 import { visitPrepFor } from '../lib/visitPrep.js'
 import { trackEvent } from '../lib/analytics.js'
 
@@ -57,8 +57,11 @@ function BoardingRequirements({ provider }) {
 
   // The catalogue already carries a label and a one-line explanation for every
   // requirement, so the directory doesn't keep a second copy of that wording.
-  const label = id => REQUIREMENT_CATALOG.find(r => r.id === id)?.label || id
-  const help  = id => REQUIREMENT_CATALOG.find(r => r.id === id)?.help  || ''
+  // Through requirementIn() rather than the catalogue alone, because a boarder
+  // can now add criteria of their own — those live on the policy, and looking
+  // only at the catalogue printed the raw id ("own_blanket") at a pet parent.
+  const label = id => requirementIn(policy, id)?.label || id
+  const help  = id => requirementIn(policy, id)?.help  || ''
   const windows = (policy.slot_windows || []).map(w => `${w.from}–${w.to}`).join(' · ')
 
   return (
