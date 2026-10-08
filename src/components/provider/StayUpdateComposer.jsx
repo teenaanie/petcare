@@ -11,6 +11,7 @@
 import { useState, useEffect } from 'react'
 import { Camera, Send, Loader2, AlertCircle, Trash2, X } from 'lucide-react'
 import { getSupabaseProvider } from '../../lib/supabase.js'
+import Dictate from './Dictate.jsx'
 import { reportHandled } from '../../lib/errorReport.js'
 import {
   postStayUpdate, getStayUpdatesForNote, deleteStayUpdate, signedPhotoUrl,
@@ -134,6 +135,11 @@ export default function StayUpdateComposer({ note, postedBy }) {
       <textarea value={body} onChange={e => setBody(e.target.value)} rows={2}
         maxLength={600} className="input w-full text-sm"
         placeholder="She ate everything and slept on the sofa." disabled={busy} />
+
+      {/* The owner reads this one, so it matters more than most that the words
+          are the provider's own. Dictation lands in the box and stops; nothing
+          is sent by talking. */}
+      <Dictate label="Say it" onText={t => setBody(b => (b ? `${b.trimEnd()} ${t}` : t).slice(0, 600))} />
 
       <div className="flex items-center gap-2 mt-2">
         <label className="text-xs font-bold px-2.5 py-1.5 rounded-lg cursor-pointer flex items-center gap-1.5"

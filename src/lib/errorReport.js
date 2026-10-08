@@ -85,8 +85,9 @@ const VIEWS = new Set([
   'inform-provider', 'inform-provider-draft', 'inform-provider-send',
   'stay-updates', 'stay-update-post', 'stay-update-delete',
   'provider-inbox', 'provider-broadcast', 'provider-sign-in', 'provider-book',
-  // Phase 10: a business editing its own listing and its own boarding criteria.
-  'provider-details',
+  // Phase 10: a business editing its own listing and its own boarding criteria,
+  // and dictating into its own free-text boxes.
+  'provider-details', 'provider-voice',
 ])
 
 // How a report reached us. Two values, and deliberately a closed set like
