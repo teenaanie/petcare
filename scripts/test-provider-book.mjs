@@ -5,7 +5,7 @@
 // booking must not sit in "coming up", or a quiet week reads as a busy one and
 // the provider plans staff around animals that are not arriving.
 
-import { groupAppointments, APPOINTMENT_KINDS, APPOINTMENT_STATUS } from '../src/lib/providerBook.js'
+import { groupAppointments, bookSummary, APPOINTMENT_KINDS, APPOINTMENT_STATUS } from '../src/lib/providerBook.js'
 
 let failed = 0
 function check(label, got, want) {
@@ -55,6 +55,38 @@ check('the kinds a provider can pick', APPOINTMENT_KINDS,
       ['Boarding', 'Day care', 'Grooming', 'Walk', 'Other'])
 check('and the statuses the CHECK allows', APPOINTMENT_STATUS,
       ['booked', 'completed', 'cancelled', 'no_show'])
+
+
+// ── The numbers the dashboard leads with ────────────────────────────────────
+//
+// needsAttention is the one that earns a tile. A stay arriving within the week
+// whose trial is not done or whose criteria are not met is the thing a boarder
+// must act on BEFORE the animal turns up, and it is invisible in a plain list.
+
+const S = (o) => ({ id: Math.random().toString(36), status: 'booked', ...o })
+const SUM = [
+  S({ startsOn: '2026-11-05', endsOn: '2026-11-15' }),                                  // here
+  S({ startsOn: '2026-11-12', endsOn: '2026-11-14', trialDone: true,  criteriaMet: true }),  // soon, ready
+  S({ startsOn: '2026-11-13', endsOn: '2026-11-15', trialDone: false, criteriaMet: true }),  // soon, no trial
+  S({ startsOn: '2026-11-14', endsOn: '2026-11-16', trialDone: true,  criteriaMet: false }), // soon, no criteria
+  S({ startsOn: '2026-12-20', endsOn: '2026-12-25', trialDone: false, criteriaMet: false }), // far off
+  S({ startsOn: '2026-01-01', endsOn: '2026-01-05', status: 'completed' }),             // past
+]
+const sum = bookSummary({ customers: [1,2,3], pets: [1,2,3,4], appointments: SUM }, TODAY)
+
+check('it counts who is in',            sum.here, 1)
+check('and who is coming',              sum.upcoming, 4)
+check('and what is behind',             sum.past, 1)
+check('customers and pets come straight through', [sum.customers, sum.pets], [3, 4])
+check('a stay within the week missing its trial needs attention',
+      sum.needsAttention, 2)
+check('one further out does NOT, yet',
+      bookSummary({ appointments: [SUM[4]] }, TODAY).needsAttention, 0)
+check('and a ready one never does',
+      bookSummary({ appointments: [SUM[1]] }, TODAY).needsAttention, 0)
+check('an empty book is all zeroes',
+      bookSummary({}, TODAY),
+      { here: 0, upcoming: 0, customers: 0, pets: 0, past: 0, needsAttention: 0 })
 
 console.log(failed ? `\n${failed} failed` : '\nall passed')
 process.exit(failed ? 1 : 0)

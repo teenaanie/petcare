@@ -25,6 +25,7 @@ const fromAppointment = r => ({
   providerPetId: r.provider_pet_id, kind: r.kind,
   startsOn: r.starts_on, endsOn: r.ends_on, startsAt: r.starts_at,
   status: r.status, notes: r.notes, createdAt: r.created_at,
+  trialDone: !!r.trial_done, criteriaMet: !!r.criteria_met,
 })
 
 export const APPOINTMENT_KINDS  = ['Boarding', 'Day care', 'Grooming', 'Walk', 'Other']
@@ -95,6 +96,7 @@ export async function saveAppointment(supabase, fields) {
   const {
     id, providerId, customerId, providerPetId, kind,
     startsOn, endsOn, startsAt, status, notes, createdBy,
+    trialDone, criteriaMet,
   } = fields
   if (!startsOn) throw new Error('A booking needs a start date.')
   if (endsOn && endsOn < startsOn) throw new Error('The end date is before the start date.')
@@ -104,6 +106,7 @@ export async function saveAppointment(supabase, fields) {
     kind: kind || 'Boarding', starts_on: startsOn, ends_on: endsOn || null,
     starts_at: startsAt || null, status: status || 'booked',
     notes: notes?.trim() || null,
+    trial_done: !!trialDone, criteria_met: !!criteriaMet,
   }
   const q = id
     ? supabase.from('provider_appointments').update({ ...row, updated_at: new Date().toISOString() }).eq('id', id)
@@ -148,4 +151,73 @@ export function groupAppointments(appointments = [], today) {
   out.upcoming.sort((x, y) => String(x.startsOn).localeCompare(String(y.startsOn)))
   out.current.sort((x, y) => String(x.startsOn).localeCompare(String(y.startsOn)))
   return out
+}
+
+// ── The day log ─────────────────────────────────────────────────────────────
+//
+// Written one entry at a time over the days of a stay, by whoever is on shift.
+// A row each rather than a blob on the booking: two people with the same stay
+// open would otherwise overwrite each other's line.
+
+const fromLog = r => ({
+  id: r.id, appointmentId: r.appointment_id, providerId: r.provider_id,
+  onDate: r.on_date, body: r.body, createdAt: r.created_at,
+})
+
+export async function getLogs(supabase, appointmentId) {
+  if (!supabase || !appointmentId) return []
+  const { data, error } = await supabase
+    .from('provider_appointment_logs').select('*')
+    .eq('appointment_id', appointmentId)
+    .order('on_date', { ascending: false })
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return (data || []).map(fromLog)
+}
+
+export async function saveLog(supabase, fields) {
+  const { appointmentId, providerId, onDate, body, createdBy } = fields
+  const text = (body || '').trim()
+  if (!text) throw new Error('Write something first.')
+  const { data, error } = await supabase.from('provider_appointment_logs').insert({
+    appointment_id: appointmentId, provider_id: providerId,
+    on_date: onDate || undefined, body: text, created_by: createdBy,
+  }).select().single()
+  if (error) throw error
+  return fromLog(data)
+}
+
+export async function deleteLog(supabase, id) {
+  const { error } = await supabase.from('provider_appointment_logs').delete().eq('id', id)
+  if (error) throw error
+}
+
+/**
+ * The numbers the dashboard leads with.
+ *
+ * Counts, not a chart: a handful of headline figures is a KPI row, and a
+ * one-bar bar chart of "5 pets here" would be a worse way to say five.
+ *
+ * `needsAttention` is the one that earns its place. A stay starting within the
+ * week whose trial is not done or whose criteria are not met is the thing a
+ * boarder must act on BEFORE the animal arrives, and it is invisible in a plain
+ * list of bookings.
+ */
+export function bookSummary({ customers = [], pets = [], appointments = [] }, today) {
+  const g = groupAppointments(appointments, today)
+  const soon = new Date(`${today}T00:00:00Z`)
+  soon.setUTCDate(soon.getUTCDate() + 7)
+  const within7 = soon.toISOString().slice(0, 10)
+
+  const needsAttention = g.upcoming.filter(
+    a => a.startsOn <= within7 && (!a.trialDone || !a.criteriaMet)).length
+
+  return {
+    here:      g.current.length,
+    upcoming:  g.upcoming.length,
+    customers: customers.length,
+    pets:      pets.length,
+    past:      g.past.length,
+    needsAttention,
+  }
 }
