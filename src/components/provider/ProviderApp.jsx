@@ -7,6 +7,7 @@ import ProviderAuth from './ProviderAuth.jsx'
 import ProviderOnboarding from './ProviderOnboarding.jsx'
 import ProviderFeedback from './ProviderFeedback.jsx'
 import ProviderInbox from './ProviderInbox.jsx'
+import ProviderBook from './ProviderBook.jsx'
 import ProviderBroadcast from './ProviderBroadcast.jsx'
 
 // The provider shell. Mounted only at /business (see src/main.jsx), lazily, so
@@ -64,6 +65,7 @@ export default function ProviderApp() {
   const [session, setSession]   = useState(null)
   const [loading, setLoading]   = useState(true)
   const [accounts, setAccounts] = useState(null)
+  const [half, setHalf] = useState('book')
   const [error, setError]       = useState(null)
 
   useEffect(() => {
@@ -146,6 +148,10 @@ export default function ProviderApp() {
   if (accounts === null) return <Booting />
 
   const email = session.user.email || session.user.phone || ''
+  // Every business this person is active on. Computed once rather than inline,
+  // because an inline .map() is a new array on every render and the children
+  // key their loading effects on it.
+  const activeIds = accounts.filter(a => a.status === 'active').map(a => a.provider_id)
   const active    = accounts.find(a => a.status === 'active')
   const pending   = accounts.find(a => a.status === 'pending')
   const suspended = accounts.find(a => a.status === 'suspended')
@@ -253,10 +259,31 @@ export default function ProviderApp() {
       {/* Every business this person is active on, not just the one named above:
           someone running a kennel and a grooming salon has one sign-in and
           should see both books. RLS scopes it either way. */}
-      <div className="mt-6">
-        <ProviderInbox
-          providerIds={accounts.filter(a => a.status === 'active').map(a => a.provider_id)}
-          postedBy={session.user.id} />
+      {/* Two halves, and they are independent on purpose. `Shared with you` is
+          what customers push; `My book` is the provider's own records and works
+          with nobody using the app at all. The book comes first because most
+          businesses will live there and only some of their customers will ever
+          send a note. */}
+      <div className="flex gap-1.5 mt-6">
+        {[['book', 'My book'], ['shared', 'Shared with you']].map(([k, l]) => (
+          <button key={k} onClick={() => setHalf(k)}
+            className="px-3.5 py-2 rounded-xl text-sm font-bold transition-all"
+            style={half === k ? { backgroundColor: '#f2b83d', color: '#7a4900' }
+                              : { backgroundColor: '#f5f0e0', color: '#73775b' }}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-4">
+        {half === 'book' ? (
+          <ProviderBook
+            providerIds={activeIds}
+            primaryProviderId={active.provider_id}
+            postedBy={session.user.id} />
+        ) : (
+          <ProviderInbox providerIds={activeIds} postedBy={session.user.id} />
+        )}
       </div>
 
       {/* Scoped to the business named in the header rather than to every active

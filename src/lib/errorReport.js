@@ -84,7 +84,7 @@ const VIEWS = new Set([
   // rather than the whole suite.
   'inform-provider', 'inform-provider-draft', 'inform-provider-send',
   'stay-updates', 'stay-update-post', 'stay-update-delete',
-  'provider-inbox', 'provider-broadcast', 'provider-sign-in',
+  'provider-inbox', 'provider-broadcast', 'provider-sign-in', 'provider-book',
 ])
 
 // How a report reached us. Two values, and deliberately a closed set like
