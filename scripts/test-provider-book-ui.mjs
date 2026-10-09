@@ -42,6 +42,16 @@ await ctx.addInitScript(([k, s]) => localStorage.setItem(k, JSON.stringify(s)),
   ['pippy-provider-auth', SESSION])
 
 const table = (name, store) => async r => {
+  // PATCH has to update in place, or "it is an update, not a second row"
+  // passes for the wrong reason — the stub would be the thing keeping the
+  // count at one.
+  if (r.request().method() === 'PATCH') {
+    const patch = JSON.parse(r.request().postData())
+    const id = (new URL(r.request().url()).searchParams.get('id') || '').replace('eq.', '')
+    const row = store.find(x => x.id === id)
+    if (row) Object.assign(row, patch)
+    return r.fulfill({ json: row || null })
+  }
   if (r.request().method() === 'POST') {
     const row = JSON.parse(r.request().postData())
     const one = Array.isArray(row) ? row[0] : row
@@ -151,6 +161,32 @@ ck('with the dates given', [posted.appointments[0]?.starts_on, posted.appointmen
 ck('the amount was recorded', posted.appointments[0]?.amount, 4500)
 ck('the trial flag was recorded', posted.appointments[0]?.trial_done, true)
 ck('and criteria left unticked', posted.appointments[0]?.criteria_met, false)
+
+// ── Editing what was typed ──────────────────────────────────────────────────
+//
+// A number changes, somebody marries, and what an animal needs is the thing a
+// boarder learns AFTER the first stay — "scared of the dryer", "only eats if
+// you sit with her". Before this both were typed once and never again, and the
+// only way to fix a digit was to delete the customer, which takes their pets
+// and their whole history with it.
+await page.locator('button[title="Edit their details"]').click()
+await page.waitForTimeout(400)
+await page.getByPlaceholder('98765 00000').fill('9876500002')
+await page.getByPlaceholder('Pays by UPI. Prefers evening pickup.').fill('Pays by UPI.')
+await page.getByRole('button', { name: 'Save customer' }).click()
+await page.waitForTimeout(900)
+ck('a customer can be corrected',
+   [posted.customers.length, customers[0]?.phone, customers[0]?.notes],
+   [1, '9876500002', 'Pays by UPI.'])
+ck('and it is an update, not a second row', customers.length, 1)
+
+await page.locator('button[title="Edit Simba"]').click()
+await page.waitForTimeout(400)
+await page.getByPlaceholder('Nervous with men in hats.').fill('Scared of the dryer. Towel finish.')
+await page.getByRole('button', { name: 'Save pet' }).click()
+await page.waitForTimeout(900)
+ck('a pet can be given a note later', pets[0]?.notes, 'Scared of the dryer. Towel finish.')
+ck('and it stays one pet',            pets.length, 1)
 
 // Open the booking: edit it, and log a day against it.
 // By BUTTON, not by text: "Boarding · 1" also appears as a chip in the history

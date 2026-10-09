@@ -9,6 +9,8 @@
 // These are the provider's records about their own business, and RLS scopes
 // every one of them to `is_provider_member(provider_id)`.
 
+import { topCustomers } from './providerStats.js'
+
 const fromCustomer = r => ({
   id: r.id, providerId: r.provider_id, name: r.name,
   phone: r.phone, email: r.email, notes: r.notes, createdAt: r.created_at,
@@ -225,6 +227,13 @@ export function bookSummary({ customers = [], pets = [], appointments = [] }, to
   const needsAttention = flags ? g.upcoming.filter(
     a => a.startsOn <= within7 && (!a.trialDone || !a.criteriaMet)).length : 0
 
+  // The tile this feeds is a door to the ranked list, so it is counted BY that
+  // list rather than beside it — same 12-month window, same exclusions, same
+  // "the customer still exists" rule. Counting it again here with a second
+  // definition is how a tile comes to read 7 and open a list of 4.
+  const regulars = topCustomers({ customers, appointments }, today, { limit: Infinity })
+    .filter(r => r.visits > 1).length
+
   return {
     here:      g.current.length,
     upcoming:  g.upcoming.length,
@@ -232,5 +241,6 @@ export function bookSummary({ customers = [], pets = [], appointments = [] }, to
     pets:      pets.length,
     past:      g.past.length,
     needsAttention,
+    regulars,
   }
 }

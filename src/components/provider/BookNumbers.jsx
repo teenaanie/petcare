@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { TrendingUp, History, Trophy, ChevronRight } from 'lucide-react'
+import { TrendingUp, History, ChevronRight } from 'lucide-react'
 import { customerStats, bookYear, rupees, topCustomers } from '../../lib/providerStats.js'
 import { bookWords } from '../../lib/providerTypes.js'
 import { formatDay } from '../../lib/providerBrief.js'
@@ -160,8 +160,10 @@ export function YourYear({ book, today, providerType, onPickMonth, onOpenCustome
           : <Figure label="This year" value={y.year.visits} hint={`${words.entries} in 12 months`} />}
         <Figure label="Busiest day" value={y.thisMonth.peak.count}
           hint={y.thisMonth.peak.on ? formatDay(y.thisMonth.peak.on) : 'Nothing booked'} />
-        <Figure label="Came back" value={`${y.returning}/${y.booked}`}
-          hint="Customers with more than one" />
+        {/* "Came back" moved out to its own tile, which opens the ranking.
+            Saying it twice on one screen made the tile look like a repeat
+            rather than the way in. */}
+        <Figure label="New customers" value={y.newThisMonth} hint="Added this month" />
       </div>
 
       {nothingYet ? (
@@ -175,8 +177,7 @@ export function YourYear({ book, today, providerType, onPickMonth, onOpenCustome
             {chosen.money
               ? <>{rupees(y.year.amount)} across the year, from the {y.year.priced} of {y.year.visits} {words.entries} you
                   put a price on. The rest are not counted.</>
-              : <>Busiest month: {y.busiest.label} {y.busiest.year} ({y.busiest.visits} {words.entries}).
-                  {y.newThisMonth > 0 && ` ${y.newThisMonth} new customer${y.newThisMonth === 1 ? '' : 's'} this month.`}</>}
+              : <>Busiest month: {y.busiest.label} {y.busiest.year} ({y.busiest.visits} {words.entries}).</>}
           </p>
         </>
       )}
@@ -196,20 +197,23 @@ export function YourYear({ book, today, providerType, onPickMonth, onOpenCustome
  * chart of ten customers would be ten bars nobody can tell apart at a glance,
  * and the thing being compared is the NAMES.
  */
-export function TopCustomers({ book, today, providerType, onOpen }) {
+export function TopCustomers({ book, today, providerType, onOpen, minVisits = 2 }) {
   const words = bookWords(providerType)
-  const rows = topCustomers(book, today)
-  if (rows.length < 3) return null   // a top ten of two is a customer list
+  // `minVisits` is 2 because this list sits behind a tile that counts people
+  // who came back. A tile reading 4 that opens six rows — the last two of them
+  // one-time customers — makes the figure look wrong when it is not.
+  const rows = topCustomers(book, today).filter(c => c.visits >= minVisits)
+  if (rows.length === 0) {
+    return <p className="text-sm" style={{ color: MUTED }}>Nobody has been back yet this year.</p>
+  }
 
   const most = rows[0].visits
 
   return (
     <div className="card">
-      <p className="text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 mb-1" style={{ color: LABEL }}>
-        <Trophy className="w-3.5 h-3.5" /> Who comes back most
-      </p>
       <p className="text-xs mb-3" style={{ color: MUTED }}>
-        The last 12 months, by {words.entries} taken. Cancellations are not counted.
+        Everybody who has been in more than once in the last 12 months, by {words.entries} taken.
+        Cancellations are not counted.
       </p>
 
       <div>
