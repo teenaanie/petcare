@@ -71,6 +71,12 @@ export default function ProviderApp() {
   const [loading, setLoading]   = useState(true)
   const [accounts, setAccounts] = useState(null)
   const [half, setHalf] = useState('book')
+  // Which business they are looking at, when they run more than one. Kept by
+  // provider_id rather than by index so it survives a claim being approved and
+  // changing the order.
+  const [atId, setAtId] = useState(() => {
+    try { return localStorage.getItem('pippy_provider_at') || null } catch { return null }
+  })
   const [error, setError]       = useState(null)
 
   useEffect(() => {
@@ -156,8 +162,22 @@ export default function ProviderApp() {
   // Every business this person is active on. Computed once rather than inline,
   // because an inline .map() is a new array on every render and the children
   // key their loading effects on it.
-  const activeIds = accounts.filter(a => a.status === 'active').map(a => a.provider_id)
-  const active    = accounts.find(a => a.status === 'active')
+  // ── Running more than one business ────────────────────────────────────────
+  //
+  // Somebody who boards AND grooms is two listings in the directory, because
+  // `type` decides which tab a pet parent finds them under and they belong in
+  // both. One sign-in holds both claims — nothing needed linking, the two
+  // claims simply carry the same address — but this screen used to show only
+  // the FIRST and quietly merge their books: every new customer filed under
+  // business one, a groomer's screen asking a kennel's questions, and the name
+  // at the top belonging to whichever claim happened to be older.
+  //
+  // So: one book at a time, and a switcher. A merged book would be wrong even
+  // if it were deliberate — the two have different customers, different words
+  // and, for a boarder, criteria a groomer has no use for.
+  const actives   = accounts.filter(a => a.status === 'active')
+  const active    = actives.find(a => a.provider_id === atId) || actives[0]
+  const activeIds = active ? [active.provider_id] : []
   const pending   = accounts.find(a => a.status === 'pending')
   const suspended = accounts.find(a => a.status === 'suspended')
 
@@ -253,17 +273,39 @@ export default function ProviderApp() {
       <Header onSignOut={signOut} />
 
       <div className="card">
-        <p className="text-xs font-bold uppercase tracking-wide mb-1" style={{ color: '#b08d57' }}>Signed in as</p>
+        <p className="text-xs font-bold uppercase tracking-wide mb-1" style={{ color: '#b08d57' }}>
+          {actives.length > 1 ? 'Working on' : 'Signed in as'}
+        </p>
         <h1 className="text-xl font-black mb-1" style={{ color: '#7a4900' }}>{active.provider_name}</h1>
         <p className="text-sm" style={{ color: '#b08d57' }}>
           {[active.claimed_type || active.provider_type, active.provider_area, active.provider_city]
             .filter(Boolean).join(' · ')}
         </p>
+
+        {/* Only when there is something to switch TO. One business should not
+            be made to look at a chooser with one thing in it. */}
+        {actives.length > 1 && (
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {actives.map(a => {
+              const on = a.provider_id === active.provider_id
+              return (
+                <button key={a.provider_id}
+                  onClick={() => {
+                    setAtId(a.provider_id)
+                    try { localStorage.setItem('pippy_provider_at', a.provider_id) } catch { /* it still switches */ }
+                  }}
+                  className="px-3 py-1.5 rounded-full text-xs font-bold text-left"
+                  style={on ? { backgroundColor: '#f2b83d', color: '#7a4900' }
+                            : { backgroundColor: '#f5f0e0', color: '#73775b' }}>
+                  {a.provider_name}
+                  <span className="font-normal"> · {a.claimed_type || a.provider_type}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Every business this person is active on, not just the one named above:
-          someone running a kennel and a grooming salon has one sign-in and
-          should see both books. RLS scopes it either way. */}
       {/* Two halves, and they are independent on purpose. `Shared with you` is
           what customers push; `My book` is the provider's own records and works
           with nobody using the app at all. The book comes first because most

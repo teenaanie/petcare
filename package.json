@@ -22,6 +22,7 @@
     "test:stats": "node scripts/test-provider-stats.mjs",
     "test:book-ui": "node scripts/test-provider-book-ui.mjs",
     "test:book-vet": "node scripts/test-provider-book-vet.mjs",
+    "test:switch": "node scripts/test-provider-switch.mjs",
     "test:details": "node scripts/test-provider-details.mjs",
     "test:own-criteria": "node scripts/test-boarding-custom.mjs",
     "test:voice-provider": "node scripts/test-provider-voice.mjs",
