@@ -4,6 +4,7 @@ import { Stethoscope, Syringe, AlertTriangle, Bell, Calendar, CheckCircle, Clock
 import { getMedicalHistory, getVaccinations, getAllergies, getReminders } from '../lib/storage.js'
 import { format, parseISO, isValid, isBefore, addDays } from 'date-fns'
 import { firstValidDate, isRealDate } from '../lib/dates.js'
+import { rupees, detailLine } from '../lib/money.js'
 
 const UNDATED = 'Date not recorded'
 
@@ -44,7 +45,7 @@ function buildEvents(medicalRecords, vaccinations, allergies, reminders) {
       id: `med-${r.id}`, kind: 'medical',
       date, sortDate: date || firstValidDate(r.createdAt),
       title: r.title,
-      subtitle: `${r.type}${r.vet ? ` · ${r.vet}` : ''}${r.cost ? ` · $${r.cost}` : ''}`,
+      subtitle: detailLine(r.type, r.vet, rupees(r.cost)),
       body: r.description,
       isAbnormal: r.isAbnormal, abnormalities: r.abnormalities || [],
       isFuture: date ? date > today : false,
@@ -91,7 +92,7 @@ function buildEvents(medicalRecords, vaccinations, allergies, reminders) {
       id: `alg-${r.id}`, kind: 'allergy',
       date, sortDate: date || firstValidDate(r.createdAt),
       title: `Allergy: ${r.allergen}`,
-      subtitle: `${r.type} · ${r.severity}${r.reactions?.length ? ` · ${r.reactions.join(', ')}` : ''}`,
+      subtitle: detailLine(r.type, r.severity, r.reactions?.length ? r.reactions.join(', ') : null),
       body: r.notes,
       isFuture: date ? date > today : false,
       raw: r,

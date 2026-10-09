@@ -31,8 +31,14 @@ const PET = { id:PET_ID, user_id:UID, name:'Pippin', species:'Dog', breed:'Beagl
   insurance_policy:'POLICY-1', created_at:new Date().toISOString() }
 const VAX  = [{ id:'v1', pet_id:PET_ID, name:'Rabies', date_given:'2026-06-15', is_done:false }]
 const MEDS = [{ id:'m1', pet_id:PET_ID, name:'Apoquel', dosage:'16mg', frequency:'twice daily', end_date:null, is_done:false }]
-const RECS = [{ id:'r1', pet_id:PET_ID, title:'Ear infection', date:'2026-08-12',
-                description:'SECRET VET PROSE', vet:'Dr Who', cost:2400 }]
+const RECS = [
+  { id:'r1', pet_id:PET_ID, title:'Ear infection', date:'2026-08-12',
+    description:'SECRET VET PROSE', vet:'Dr Who', type:'Consultation', cost:240000 },
+  // type and cost both NULL — both columns are nullable, and this is the row
+  // that used to render "undefined" and a dollar sign.
+  { id:'r2', pet_id:PET_ID, title:'Nail trim', date:'2026-07-01',
+    description:null, vet:null, type:null, cost:null },
+]
 const MINE = [{ id:'u1', user_id:UID, provider_id:PROV, pet_id:null, category:'Boarder',
                 name:'Unleash - The Dog Town', is_primary:true, created_at:new Date().toISOString() }]
 const DIRECTORY = [
@@ -117,6 +123,11 @@ t = await body()
 ck('5 the health timeline is there', /health timeline/i.test(t), true)
 ck('6 the vaccination is on it',     /rabies/i.test(t), true)
 ck('7 and the medical record too',   /ear infection/i.test(t), true)
+// The two bugs the walk found, now pinned where a user would see them.
+ck('7a money is rupees, not dollars', /₹2,40,000/.test(t) && !/\$2,?40,?000/.test(t), true)
+ck('7b and grouped the Indian way',   t.includes('₹2,40,000'), true)
+ck('7c a null field never prints',    /undefined/.test(t), false)
+ck('7d and leaves no stray separator', /Nail trim\s*·/.test(t), false)
 // Each filter chip, one at a time, back to All — scoped to the timeline's own
 // chip row. Unscoped, "Reminders" also matches the left-rail nav item and the
 // walk navigates away mid-assertion.

@@ -3,6 +3,7 @@ import { reportHandled } from '../lib/errorReport.js'
 import { Plus, Trash2, Stethoscope, TriangleAlert } from 'lucide-react'
 import { getMedicalHistory, saveMedicalRecord, deleteMedicalRecord } from '../lib/storage.js'
 import { format } from 'date-fns'
+import { rupees, detailLine } from '../lib/money.js'
 
 // Keep in step with MEDICAL_TYPES in src/lib/voiceUpdateRecords.js, or a
 // record created by voice has a type this screen cannot show or edit.
@@ -121,7 +122,7 @@ export default function MedicalHistory({ pet }) {
                     </span>
                   )}
                 </div>
-                {r.date && <p className="text-sm text-gray-400 mt-0.5">{format(new Date(r.date), 'MMM d, yyyy')}{r.vet ? ` · ${r.vet}` : ''}{r.cost ? ` · $${r.cost}` : ''}</p>}
+                {r.date && <p className="text-sm text-gray-400 mt-0.5">{detailLine(format(new Date(r.date), 'MMM d, yyyy'), r.vet, rupees(r.cost))}</p>}
                 {r.description && <p className="text-sm text-gray-600 mt-1 whitespace-pre-line">{r.description}</p>}
 
                 {/* Abnormalities detail */}

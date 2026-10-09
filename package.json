@@ -55,7 +55,8 @@
     "test:pet-sharing": "node scripts/test-pet-sharing.mjs",
     "test:register-dupe": "node scripts/test-register-duplicate.mjs",
     "test:walk-provider": "node scripts/test-walk-provider.mjs",
-    "test:walk-customer": "node scripts/test-walk-customer.mjs"
+    "test:walk-customer": "node scripts/test-walk-customer.mjs",
+    "test:money": "node scripts/test-money.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
