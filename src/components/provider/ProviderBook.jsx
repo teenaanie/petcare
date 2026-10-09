@@ -518,6 +518,8 @@ function BookingDetail({ booking, customer, pets, onBack, onChanged, run, busy, 
 function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBooking, onChanged, run, busy, postedBy, words, providerType, listing }) {
   const [addingPet, setAddingPet] = useState(false)
   const [booking, setBooking]     = useState(false)
+  const [editing, setEditing]     = useState(false)
+  const [editPet, setEditPet]     = useState(null)   // a pet id, while it is being edited
   const [sending, setSending]     = useState(null)   // null | 'busy' | a message
 
   const mine   = pets.filter(p => p.customerId === customer.id)
@@ -531,9 +533,32 @@ function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBoo
         <ChevronLeft className="w-3.5 h-3.5" /> Back
       </button>
 
+      {editing ? (
+        <CustomerForm busy={busy} initial={customer}
+          onCancel={() => setEditing(false)}
+          onSave={f => run(async sb => {
+            await saveCustomer(sb, { ...f, id: customer.id, providerId: customer.providerId })
+            setEditing(false)
+          })} />
+      ) : (
       <div className="card">
-        <h2 className="font-black" style={{ color: '#7a4900' }}>{customer.name}</h2>
-        {customer.notes && <p className="text-sm mt-1 whitespace-pre-wrap" style={{ color: '#4A2C0A' }}>{customer.notes}</p>}
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="font-black" style={{ color: '#7a4900' }}>{customer.name}</h2>
+          {/* A number changes, somebody marries, a note needs a line adding.
+              Before this a customer was typed once and never again, and the
+              only way to fix a digit was to delete them — which takes their
+              pets and their whole history with it. */}
+          <button onClick={() => setEditing(true)} title="Edit their details"
+            className="p-1.5 rounded-lg shrink-0" style={{ color: '#7a4900' }}>
+            <Pencil className="w-4 h-4" />
+          </button>
+        </div>
+        {(customer.phone || customer.email) && (
+          <p className="text-xs mt-0.5" style={{ color: '#b08d57' }}>
+            {[customer.phone, customer.email].filter(Boolean).join(' · ')}
+          </p>
+        )}
+        {customer.notes && <p className="text-sm mt-2 whitespace-pre-wrap" style={{ color: '#4A2C0A' }}>{customer.notes}</p>}
 
         {/* Reaching one customer, as opposed to broadcasting to all of them.
             Plain links: the provider has these details because they typed them,
@@ -608,6 +633,7 @@ function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBoo
           <p className="text-xs mt-2" style={{ color: '#5f7a3a' }}>{sending}</p>
         )}
       </div>
+      )}
 
       {/* How much of your year this one customer is. Placed above their pets
           because it answers the question somebody opens a customer to ask —
@@ -624,18 +650,39 @@ function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBoo
         </div>
         {mine.length === 0 && !addingPet && <p className="text-sm" style={{ color: '#73775b' }}>None yet.</p>}
         {mine.map(p => (
-          <div key={p.id} className="text-sm py-1.5" style={{ color: '#4A2C0A' }}>
-            <span className="font-bold">{p.name}</span>
-            <span style={{ color: '#b08d57' }}>
-              {[p.breed, p.species].filter(Boolean).length ? ` · ${[p.breed, p.species].filter(Boolean).join(' · ')}` : ''}
-            </span>
-            {p.noteId && (
-              <span className="ml-2 text-xs inline-flex items-center gap-1" style={{ color: '#5f7a3a' }}>
-                <Link2 className="w-3 h-3" /> linked to their Pippy note
+          editPet === p.id ? (
+            <div key={p.id} className="my-2">
+              <PetForm busy={busy} notes={notes} initial={p}
+                onCancel={() => setEditPet(null)}
+                onSave={f => run(async sb => {
+                  await savePet(sb, { ...f, id: p.id, providerId: p.providerId, customerId: customer.id })
+                  setEditPet(null)
+                })} />
+            </div>
+          ) : (
+          <div key={p.id} className="text-sm py-1.5 flex items-start justify-between gap-2" style={{ color: '#4A2C0A' }}>
+            <div className="min-w-0">
+              <span className="font-bold">{p.name}</span>
+              <span style={{ color: '#b08d57' }}>
+                {[p.breed, p.species].filter(Boolean).length ? ` · ${[p.breed, p.species].filter(Boolean).join(' · ')}` : ''}
               </span>
-            )}
-            {p.notes && <p className="text-xs" style={{ color: '#73775b' }}>{p.notes}</p>}
+              {p.noteId && (
+                <span className="ml-2 text-xs inline-flex items-center gap-1" style={{ color: '#5f7a3a' }}>
+                  <Link2 className="w-3 h-3" /> linked to their Pippy note
+                </span>
+              )}
+              {/* What this animal needs is the thing a boarder most often
+                  learns AFTER the first stay — "scared of the dryer", "only
+                  eats if you sit with her". It was typed once at the start,
+                  when nobody knew it yet. */}
+              {p.notes && <p className="text-xs whitespace-pre-wrap" style={{ color: '#73775b' }}>{p.notes}</p>}
+            </div>
+            <button onClick={() => setEditPet(p.id)} title={`Edit ${p.name}`}
+              className="p-1 rounded-lg shrink-0" style={{ color: '#b08d57' }}>
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
           </div>
+          )
         ))}
         {addingPet && (
           <div className="mt-2">
@@ -860,7 +907,8 @@ export default function ProviderBook({ providerIds = [], primaryProviderId, prov
   // ── A list behind a tile ──────────────────────────────────────────────────
   if (view.kind === 'list') {
     const TITLES = { here: tiles.here, upcoming: tiles.upcoming, past: tiles.past,
-                     customers: 'Customers', attention: 'Needs attention' }
+                     customers: 'Customers', attention: 'Needs attention',
+                     top: 'Who comes back most' }
     const soon = new Date(`${today}T00:00:00Z`); soon.setUTCDate(soon.getUTCDate() + 7)
     const within7 = soon.toISOString().slice(0, 10)
     const rows = view.bucket === 'here'      ? diary.current
@@ -880,11 +928,16 @@ export default function ProviderBook({ providerIds = [], primaryProviderId, prov
           <ChevronLeft className="w-3.5 h-3.5" /> Dashboard
         </button>
         <h2 className="font-black" style={{ color: '#7a4900' }}>
-          {TITLES[view.bucket]} ({view.bucket === 'customers' ? book.customers.length : rows.length})
+          {TITLES[view.bucket]} ({view.bucket === 'top'       ? summary.regulars
+                                  : view.bucket === 'customers' ? book.customers.length
+                                  : rows.length})
         </h2>
         {Err}
 
-        {view.bucket === 'customers' ? (
+        {view.bucket === 'top' ? (
+          <TopCustomers book={book} today={today} providerType={providerType}
+            onOpen={id => setView({ kind: 'customer', id })} />
+        ) : view.bucket === 'customers' ? (
           <>
             <input value={search} onChange={e => setSearch(e.target.value)}
               className="input w-full" placeholder="Search by name or phone…" />
@@ -930,9 +983,13 @@ export default function ProviderBook({ providerIds = [], primaryProviderId, prov
           on a phone, four from `lg` — where "with you now" keeps its weight by
           spanning two columns and two rows rather than by being the only thing
           on its line. */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* THREE columns on a wide screen, not four. The hero spans two of them
+          and two rows — four cells — and the five tiles beside it then fill a
+          3x3 exactly. At four columns the seventh tile sat alone on a row of
+          its own, which looks like a mistake rather than a layout. */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         {summary.needsAttention > 0 && (
-          <div className="col-span-2 lg:col-span-4">
+          <div className="col-span-2 lg:col-span-3">
             <Tile tone="warn" label="Needs attention" value={summary.needsAttention}
               hint="Arriving within a week with a trial or criteria outstanding"
               onClick={() => setView({ kind: 'list', bucket: 'attention' })} />
@@ -971,6 +1028,16 @@ export default function ProviderBook({ providerIds = [], primaryProviderId, prov
           onClick={() => setView({ kind: 'list', bucket: 'customers' })} />
         <Tile label="Pets" value={summary.pets} hint="Across those customers"
           onClick={() => setView({ kind: 'list', bucket: 'customers' })} />
+        {/* Who to think about when there is an offer to make. A tile like
+            everything else on this screen rather than ten rows sitting open:
+            the dashboard is figures you tap into, and a list that is always
+            there pushes the rest of it off the page. */}
+        {summary.regulars > 0 && (
+          <div className="col-span-2 lg:col-span-1">
+            <Tile label="Regulars" value={summary.regulars} hint="Came back more than once this year"
+              onClick={() => setView({ kind: 'list', bucket: 'top' })} />
+          </div>
+        )}
       </div>
 
       {/* The shape of the year, under the figures for today. A boarder knows
@@ -978,11 +1045,6 @@ export default function ProviderBook({ providerIds = [], primaryProviderId, prov
           their third-best month in a year that peaks every Diwali. */}
       <YourYear book={book} today={today} providerType={providerType}
         onPickMonth={key => setView({ kind: 'month', key })} />
-
-      {/* Who to think about when there is an offer to make. Under the year,
-          because it answers a question the year raises. */}
-      <TopCustomers book={book} today={today} providerType={providerType}
-        onOpen={id => setView({ kind: 'customer', id })} />
 
       {adding ? (
         <CustomerForm busy={busy} initial={{ name: '', phone: '', email: '', notes: '' }}

@@ -7,6 +7,7 @@
 
 import { groupAppointments, bookSummary, APPOINTMENT_KINDS, APPOINTMENT_STATUS } from '../src/lib/providerBook.js'
 import { bookWords, tileWords } from '../src/lib/providerTypes.js'
+import { topCustomers } from '../src/lib/providerStats.js'
 
 let failed = 0
 function check(label, got, want) {
@@ -87,7 +88,7 @@ check('and a ready one never does',
       bookSummary({ appointments: [SUM[1]] }, TODAY).needsAttention, 0)
 check('an empty book is all zeroes',
       bookSummary({}, TODAY),
-      { here: 0, upcoming: 0, customers: 0, pets: 0, past: 0, needsAttention: 0 })
+      { here: 0, upcoming: 0, customers: 0, pets: 0, past: 0, needsAttention: 0, regulars: 0 })
 
 
 // ── The attention tile belongs to boarders alone ────────────────────────────
@@ -109,6 +110,38 @@ check('an empty book is all zeroes',
   check('a kennel still says "with you now"',  tileWords(bookWords('Boarder')).here, 'With you now')
   check('a vet says "in today"',               tileWords(bookWords('Vet')).here, 'In today')
   check('and a shop counts past purchases',    tileWords(bookWords('Store')).past, 'Past purchases')
+}
+
+
+// ── Regulars ────────────────────────────────────────────────────────────────
+//
+// The figure behind the tile that opens the ranked list, so it has to count
+// the people that list ranks and nobody else — if the two were worked out
+// separately the tile would come to read 7 and open a list of 4.
+{
+  const B = (customerId, startsOn, status = 'completed') =>
+    ({ customerId, startsOn, endsOn: startsOn, status })
+  const who = ['c1', 'c2', 'c3', 'c4', 'c5'].map(id => ({ id, name: id }))
+  const s = bookSummary({ customers: who, appointments: [
+    B('c1', '2026-09-01'), B('c1', '2026-10-01'),        // twice: a regular
+    B('c2', '2026-09-01'),                               // once: not yet
+    B('c3', '2026-09-01'), B('c3', '2026-10-01', 'cancelled'),
+    B('c4', '2026-09-01', 'no_show'), B('c4', '2026-10-01', 'no_show'),
+    B('c5', '2024-01-01'), B('c5', '2024-02-01'),        // twice, but long ago
+  ] }, TODAY)
+  check('somebody who came twice is a regular', s.regulars, 1)
+  check('a cancellation does not make one',      s.regulars, 1)
+  check('and neither do two no-shows',           s.regulars, 1)
+  check('nor two visits outside the 12 months',  s.regulars, 1)
+
+  // The tile must never name a number the list cannot show.
+  const ranked = topCustomers({ customers: who, appointments: [
+    B('c1', '2026-09-01'), B('c1', '2026-10-01'), B('c2', '2026-09-01'),
+  ] }, TODAY).filter(r => r.visits > 1).length
+  check('the tile counts what the list ranks', ranked,
+        bookSummary({ customers: who, appointments: [
+          B('c1', '2026-09-01'), B('c1', '2026-10-01'), B('c2', '2026-09-01'),
+        ] }, TODAY).regulars)
 }
 
 console.log(failed ? `\n${failed} failed` : '\nall passed')

@@ -121,6 +121,18 @@ await page.waitForTimeout(400)
 // wrong number.
 ck('money names its denominator',  await has('1 of 3 visits'), true)
 
+// Who comes back most is a TILE now, not ten rows sitting open on the
+// dashboard: the screen is figures you tap into, and a list that is always
+// there pushes the rest of it off the page.
+ck('regulars are a tile',      await has('Regulars'), true)
+ck('not a list on the dashboard', await has('by visits taken'), false)
+await page.getByText('Regulars', { exact: false }).first().click()
+await page.waitForTimeout(700)
+ck('tapping it opens the ranking', await has('Who comes back most'), true)
+ck('with the customer named',      await has('Mrs Rao'), true)
+await page.getByRole('button', { name: 'Dashboard' }).click()
+await page.waitForTimeout(600)
+
 // A bar is a question: the figure says three and the next thing asked is
 // "three of whom". Tapping one answers it.
 await page.getByRole('button', { name: 'Visits', exact: true }).click()
