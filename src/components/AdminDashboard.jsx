@@ -745,6 +745,26 @@ function ProviderForm({ initial, onSave, onCancel, saving, claim }) {
           <label className="label text-xs">WhatsApp number</label>
           <input name="whatsapp" value={form.whatsapp} onChange={set} className="input w-full" placeholder="+91 98765 43210" />
         </div>
+        {/* The business's PUBLIC contact address, and the one a pet parent
+            saves when they add this listing to their own providers. Not the
+            address above: that one is how the owner signs in, it lives on the
+            claim precisely so it stays off this world-readable table, and
+            copying it down here would publish it. The provider can edit this
+            same field themselves under "Your details"; the admin form was the
+            only place that could neither see nor correct it. */}
+        <div>
+          <label className="label text-xs">Contact email</label>
+          <input name="email" type="email" value={form.email || ''} onChange={set}
+            className="input w-full" placeholder="hello@theirbusiness.com" />
+          <p className="text-xs mt-1" style={{ color: '#b08d57' }}>
+            Published with the listing. Not the address they sign in with.
+          </p>
+        </div>
+        <div>
+          <label className="label text-xs">Website</label>
+          <input name="website" value={form.website || ''} onChange={set}
+            className="input w-full" placeholder="https://theirbusiness.com" />
+        </div>
         <div>
           <label className="label text-xs">Hours</label>
           <input name="hours" value={form.hours} onChange={set} className="input w-full" placeholder="Mon–Sat 9am–7pm" />

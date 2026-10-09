@@ -26,7 +26,8 @@ const SESSION = { access_token:'stub', token_type:'bearer', expires_in:360000,
 
 // Exactly the live row: listing published, claim still pending, user_id null.
 const PROVIDER = { id:'p1', name:'Test Boarder', type:'Boarder', area:'Baner', city:'Pune',
-  address:null, phone:'9876500000', whatsapp:null, email:null, website:null, hours:null,
+  address:null, phone:'9876500000', whatsapp:null, email:'hello@testboarder.in',
+  website:'https://testboarder.in', hours:null,
   photo_url:null, maps_url:null, is_approved:false, source:'self_registered',
   services:[], specializations:[], description:null }
 const CLAIM = { id:'c1', provider_id:'p1', status:'pending', role:'owner', claimed_type:'Boarder',
@@ -89,9 +90,35 @@ t = await page.innerText('body')
 ck('edit form shows who registered it', t.includes('Registered by'), true)
 ck('with their address', t.includes('teena09292602@gmail.com'), true)
 ck('and says it is not published', t.includes('Not shown in the directory'), true)
+
+// ── The listing's own contact details ───────────────────────────────────────
+//
+// providers.email and providers.website are real columns — the provider can
+// edit both themselves under "Your details" — but this form had no box for
+// either, so an admin could neither read nor correct them. The two addresses
+// on this screen are DIFFERENT things and the test keeps them apart: the claim
+// address above is how the owner signs in and is never published; this one is
+// the business's public contact.
+const emailBox   = page.locator('input[name="email"]')
+const websiteBox = page.locator('input[name="website"]')
+ck('the form has a contact email box', await emailBox.count(), 1)
+ck('carrying what is stored',          await emailBox.inputValue(), 'hello@testboarder.in')
+ck('and a website box',                await websiteBox.inputValue(), 'https://testboarder.in')
+ck('the sign-in address is not in it', await emailBox.inputValue() === CLAIM.email, false)
+ck('and the form says which is which', t.includes('Not the address they sign in with'), true)
+
 await page.screenshot({ path:'/tmp/pippy-claim-edit.png', fullPage:true })
-await page.getByRole('button', { name:'Cancel' }).first().click()
-await page.waitForTimeout(500)
+
+await emailBox.fill('bookings@testboarder.in')
+await page.getByRole('button', { name:'Save Provider' }).click()
+await page.waitForTimeout(900)
+ck('an edit is written', providerPatches.length, 1)
+ck('with the new address', providerPatches[0]?.email, 'bookings@testboarder.in')
+ck('and the website untouched', providerPatches[0]?.website, 'https://testboarder.in')
+providerPatches.length = 0   // the approve assertions below count from zero
+
+const cancel = page.getByRole('button', { name:'Cancel' }).first()
+if (await cancel.count()) { await cancel.click(); await page.waitForTimeout(500) }
 
 // The click that was broken.
 await page.locator('button[title="Approve"]').first().click()
