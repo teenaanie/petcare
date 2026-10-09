@@ -37,6 +37,16 @@ const CLAIM = { id:'c1', provider_id:'p1', status:'pending', role:'owner', claim
   provider_city:'Pune', provider_phone:'9876500000',
   provider_is_approved:false, provider_source:'self_registered' }
 
+// A second person, already in this listing's book, signed in under a
+// different address. This is the shape the warning on the claim card exists
+// for: approving CLAIM below does not replace them, it joins them.
+const OWNER_ACCOUNT = { id:'c0', provider_id:'p1', status:'active', role:'owner',
+  claimed_type:'Boarder', claim_note:null, email:'realowner@testboarder.in', phone:null,
+  created_at:new Date(Date.now() - 86400000).toISOString(),
+  provider_name:'Test Boarder', provider_type:'Boarder', provider_area:'Baner',
+  provider_city:'Pune', provider_phone:'9876500000',
+  provider_is_approved:false, provider_source:'self_registered' }
+
 let fails = 0
 const ck = (l, got, want) => { const ok = JSON.stringify(got) === JSON.stringify(want); if (!ok) fails++
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${l.padEnd(52)} ${JSON.stringify(got)}`) }
@@ -54,7 +64,7 @@ await ctx.route('**/auth/v1/user*', r => r.fulfill({ json: OWNER }))
 await ctx.route('**/rest/v1/rpc/get_all_users_for_admin*', r => r.fulfill({ json: [] }))
 await ctx.route('**/rest/v1/rpc/search_providers*', r =>
   r.fulfill({ json: [{ provider: PROVIDER, total_count: 1 }] }))
-await ctx.route('**/rest/v1/rpc/admin_provider_claims*', r => r.fulfill({ json: [CLAIM] }))
+await ctx.route('**/rest/v1/rpc/admin_provider_claims*', r => r.fulfill({ json: [CLAIM, OWNER_ACCOUNT] }))
 await ctx.route('**/rest/v1/rpc/approve_provider_claim*', r => {
   approveRpc = JSON.parse(r.request().postData()); return r.fulfill({ json: null })
 })
@@ -125,6 +135,28 @@ await page.locator('button[title="Approve"]').first().click()
 await page.waitForTimeout(1200)
 ck('approve went through the claim RPC', approveRpc, { p_account_id: 'c1' })
 ck('and did NOT half-approve the listing', providerPatches, [])
+
+// ── A listing that already has an owner ─────────────────────────────────────
+//
+// is_provider_member() is satisfied by ANY active row, so approving a second
+// claim does not replace the first — the two of them read and write the same
+// customers, pets and bookings from then on. That is right for a business
+// adding its manager and wrong for a stranger who typed a real business's
+// name into the claim form, and without this banner the two cards look
+// identical. The admin cannot be asked to hold the whole account table in
+// their head while clicking Approve.
+await page.getByRole('button', { name:'Claims', exact:true }).click()
+await page.waitForTimeout(1200)
+t = await page.innerText('body')
+ck('the claim card warns of an owner',
+   t.includes('This listing already has an owner'), true)
+ck('and says what approving does',
+   t.includes('adds a second person to the same book'), true)
+ck('naming who is already in there', t.includes('realowner@testboarder.in'), true)
+ck('without blocking the decision',
+   await page.getByRole('button', { name:'Approve' }).count() > 0, true)
+await page.screenshot({ path:'/tmp/pippy-claim-warn.png', fullPage:true })
+
 ck('no page errors', errs.length, 0)
 if (errs.length) console.log(errs)
 

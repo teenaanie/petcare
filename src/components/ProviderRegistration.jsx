@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { reportHandled } from '../lib/errorReport.js'
+import { getSupabase, isConfigured } from '../lib/supabase.js'
 import { PawPrint, Loader2, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react'
 import PippyLogo from './PippyLogo.jsx'
 
@@ -19,6 +20,38 @@ export default function ProviderRegistration() {
 
   const set = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }))
   const canSubmit = form.name.trim() && form.phone.trim() && status !== 'submitting'
+
+  // What the name being typed already matches in the directory.
+  //
+  // 968 of the listings came from Google and have never been asked, so most
+  // businesses reaching this form are already in Pippy and do not know it.
+  // The link at the bottom of the page said so and was read by nobody; a
+  // duplicate is cheap to avoid HERE and expensive afterwards — two rows for
+  // one business, two claims, and an admin who cannot tell from the data
+  // which one a customer will find.
+  //
+  // The same hint the signed-in claim flow has had. Two honest limits:
+  // search_providers() forces approved_only for a signed-out caller, so this
+  // sees the published directory and not another pending registration; and
+  // only name, type and place are rendered — never the email a listing may
+  // carry — because this page is public.
+  const [maybe, setMaybe] = useState([])
+  useEffect(() => {
+    if (!isConfigured) return
+    const q = form.name.trim()
+    if (q.length < 4) { setMaybe([]); return }
+    let cancelled = false
+    const t = setTimeout(async () => {
+      try {
+        const { data } = await (await getSupabase()).rpc('search_providers', {
+          approved_only: true, filter_type: null, filter_area: null,
+          search_term: q, page_limit: 4, page_offset: 0,
+        })
+        if (!cancelled) setMaybe((data || []).map(r => r.provider))
+      } catch { /* a failed hint must never block the form */ }
+    }, 400)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [form.name])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -97,6 +130,30 @@ export default function ProviderRegistration() {
                 <label className="label">Business / Provider Name *</label>
                 <input name="name" value={form.name} onChange={set} className="input w-full" required
                   placeholder="e.g. PawCare Clinic" disabled={status === 'submitting'} />
+
+                {maybe.length > 0 && status !== 'success' && (
+                  <div className="rounded-2xl p-3 mt-2"
+                    style={{ backgroundColor: '#fff9e0', border: '1.5px solid #f2b83d' }}>
+                    <p className="text-xs font-bold" style={{ color: '#7a4900' }}>
+                      Already on Pippy? Claim it instead of adding a second listing.
+                    </p>
+                    <ul className="mt-2 space-y-1">
+                      {maybe.map(p => (
+                        <li key={p.id} className="rounded-xl px-3 py-2"
+                          style={{ backgroundColor: '#FFFEF8', border: '1px solid #ebe3d3' }}>
+                          <span className="text-sm font-bold block" style={{ color: '#4A2C0A' }}>{p.name}</span>
+                          <span className="text-xs" style={{ color: '#73775b' }}>
+                            {[p.type, p.area, p.city].filter(Boolean).join(' · ')}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                    <a href="/business" className="text-xs font-bold underline inline-block mt-2"
+                      style={{ color: '#b08d57' }}>
+                      Claim your business instead
+                    </a>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="label">Type *</label>
