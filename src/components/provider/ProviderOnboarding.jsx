@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Search, Loader2, AlertCircle, Check, Building2, ArrowLeft, Plus } from 'lucide-react'
 import { getSupabaseProvider } from '../../lib/supabase.js'
 import { PROVIDER_TYPES } from '../../lib/taxonomy.js'
+import { takeClaimPick } from '../../lib/claimPick.js'
 
 // Claim your business, or add it if it is not listed.
 //
@@ -65,6 +66,15 @@ export default function ProviderOnboarding({ email, onClaimed }) {
   // form is for businesses Google missed, and somebody who skipped the search
   // is one keystroke from a second listing of a business that is already there.
   const [maybe, setMaybe]     = useState([])
+
+  // Somebody who looked themselves up on the way in already told us which
+  // business is theirs. Asking them to search for it a second time, on the
+  // other side of a six-digit code, is the kind of small forgetting that makes
+  // a product feel like a form.
+  useEffect(() => {
+    const pick = takeClaimPick()
+    if (pick) setTerm(pick.name)
+  }, [])
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState(null)
 
