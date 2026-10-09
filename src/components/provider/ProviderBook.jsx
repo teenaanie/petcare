@@ -675,6 +675,13 @@ export default function ProviderBook({ providerIds = [], primaryProviderId, prov
   const [search, setSearch] = useState('')
 
   const ids = useMemo(() => [...new Set(providerIds.filter(Boolean))], [providerIds])
+
+  // Switching business puts you back on its dashboard. Staying where you were
+  // would leave somebody looking at a list — "Customers (14)", a booking, a
+  // customer's history — that now belongs to a different business than the one
+  // whose name is at the top, and the ids in `view` would not resolve anyway.
+  useEffect(() => { setView({ kind: 'dashboard' }); setAdding(false); setSearch('') },
+    [primaryProviderId])
   // What this trade calls things. A vet records a visit and what was given; a
   // shop records a purchase and what was bought. Same three tables, different
   // words — src/lib/providerTypes.js.

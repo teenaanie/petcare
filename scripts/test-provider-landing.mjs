@@ -82,7 +82,27 @@ ck('and only the published part', lookedUp?.approved_only, true)
 const after = (await page.innerText('body')).toUpperCase()
 ck('the listing comes back',  after.includes('PAWS RETREAT BOARDING'), true)
 ck('with where it is',        after.includes('BANER'), true)
-ck('and a way to claim it',   after.includes('CLAIM IT'), true)
+
+// A row that looks like a result and does nothing when pressed reads as a
+// broken page, so each one is a button that picks it.
+const row = page.getByRole('button', { name: /Paws Retreat Boarding/ })
+ck('the result is tappable',  await row.count(), 1)
+await row.click()
+await page.waitForTimeout(300)
+ck('and picking it offers the way in',
+   await page.getByRole('link', { name: /Sign in to claim/ }).count(), 1)
+// Carried across the sign-in, so the claim screen does not ask them to search
+// for the same business again on the other side of a six-digit code.
+ck('the choice is remembered for the claim screen',
+   await page.evaluate(() => JSON.parse(sessionStorage.getItem('pippy_provider_claim_pick') || 'null')?.name),
+   'Paws Retreat Boarding & Day Care')
+
+// Above the fold: the question it answers is the one a business owner arrives
+// with, and it used to be four sections down.
+ck('it is in the first screenful', await page.evaluate(() => {
+  const el = [...document.querySelectorAll('label')].find(l => l.textContent.includes('Look yourself up'))
+  return el ? el.getBoundingClientRect().top < window.innerHeight : false
+}), true)
 
 ck('a pet parent is sent home',
    await page.getByRole('link', { name: /Go to the Pippy app/ }).count() > 0, true)

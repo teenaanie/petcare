@@ -6,6 +6,7 @@ import {
 import PippyLogo from '../PippyLogo.jsx'
 import { getSupabaseProvider } from '../../lib/supabase.js'
 import { reportHandled } from '../../lib/errorReport.js'
+import { rememberClaimPick } from '../../lib/claimPick.js'
 
 // The signed-out page at /business.
 //
@@ -97,12 +98,14 @@ function FindYourListing() {
   const [term, setTerm]       = useState('')
   const [rows, setRows]       = useState(null)
   const [busy, setBusy]       = useState(false)
+  const [picked, setPicked]   = useState(null)
 
   useEffect(() => {
     const q = term.trim()
     if (q.length < 3) { setRows(null); return }
     let cancelled = false
     setBusy(true)
+    setPicked(null)
     const t = setTimeout(async () => {
       try {
         const supabase = await getSupabaseProvider()
@@ -146,22 +149,54 @@ function FindYourListing() {
 
       {rows && rows.length > 0 && (
         <>
+          {/* Tappable, because a row that looks like a result and does nothing
+              when you press it reads as a broken page. Choosing one carries
+              through the sign-in: the claim screen on the other side opens on
+              this business instead of asking them to search for it again. */}
           <div className="mt-3 space-y-2">
-            {rows.map(p => (
-              <div key={p.id} className="rounded-2xl px-4 py-3"
-                style={{ backgroundColor: '#fff9e0', border: '1px solid #ebe3d3' }}>
-                <p className="m-0 text-sm font-extrabold" style={{ color: '#7a4900' }}>{p.name}</p>
-                <p className="m-0 text-xs" style={{ color: '#73775b' }}>
-                  {[p.type, p.area, p.city].filter(Boolean).join(' · ')}
-                </p>
-              </div>
-            ))}
+            {rows.map(p => {
+              const on = picked?.id === p.id
+              return (
+                <button key={p.id} type="button"
+                  onClick={() => {
+                    setPicked(p)
+                    // Carried to the claim screen on the other side of the
+                    // sign-in. It grants nothing — see src/lib/claimPick.js.
+                    rememberClaimPick(p)
+                  }}
+                  className="w-full text-left rounded-2xl px-4 py-3 flex items-start gap-2"
+                  style={on ? { backgroundColor: '#eef3e2', border: '1.5px solid #5f7a3a' }
+                            : { backgroundColor: '#fff9e0', border: '1px solid #ebe3d3' }}>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-extrabold" style={{ color: '#7a4900' }}>{p.name}</span>
+                    <span className="block text-xs" style={{ color: '#73775b' }}>
+                      {[p.type, p.area, p.city].filter(Boolean).join(' · ')}
+                    </span>
+                  </span>
+                  {on
+                    ? <Check className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#5f7a3a' }} />
+                    : <span className="text-[11px] font-bold shrink-0 mt-0.5" style={{ color: '#b08d57' }}>
+                        This is us
+                      </span>}
+                </button>
+              )
+            })}
           </div>
-          <p className="text-sm mt-3" style={{ color: '#73775b' }}>
-            <Check className="w-4 h-4 inline-block mr-1" style={{ color: '#5f7a3a' }} />
-            That is you? <a href="#signin" className="underline font-bold" style={{ color: '#7a4900' }}>
-              Sign in</a> and claim it — the listing and anything already on it becomes yours.
-          </p>
+
+          {picked ? (
+            <a href="#signin"
+              className="mt-3 w-full text-center font-black rounded-2xl px-5 py-3 text-sm block"
+              style={{ backgroundColor: '#ffde59', color: '#7a4900' }}>
+              {/* A long name cut mid-word reads worse than not naming it. Most
+                  are short; the ones that are not are "X - The Something,
+                  Something & Something", where the tail adds nothing. */}
+              {picked.name.length > 24 ? 'Sign in to claim it' : `Sign in to claim ${picked.name}`}
+            </a>
+          ) : (
+            <p className="text-xs mt-3" style={{ color: '#73775b' }}>
+              Tap the one that is yours.
+            </p>
+          )}
         </>
       )}
 
@@ -227,8 +262,14 @@ export default function ProviderLanding({ children }) {
             </div>
           </div>
 
-          <div className="lg:flex-1 flex justify-center">
-            <DashboardPeek />
+          {/* The lookup sits HERE, in the first screen, because the question it
+              answers — "am I already on this thing?" — is the one a business
+              owner arrives with, and it was four sections down where nobody
+              scrolled to it. The product shot moves below it: a picture can
+              wait, an answer cannot. */}
+          <div className="lg:flex-1 flex flex-col items-center gap-5 w-full">
+            <div className="w-full max-w-[24rem]"><FindYourListing /></div>
+            <div className="hidden lg:block"><DashboardPeek /></div>
           </div>
         </section>
 
@@ -285,11 +326,12 @@ export default function ProviderLanding({ children }) {
               ))}
             </div>
           </div>
-          <div className="flex-shrink-0 w-full lg:w-[22rem]">
-            <FindYourListing />
-            <p className="text-xs mt-2 flex items-center gap-1.5" style={{ color: '#22424b' }}>
-              <MapPin className="w-3.5 h-3.5 shrink-0" /> Listings in Pune
-            </p>
+          <div className="flex-shrink-0 flex items-center gap-3 rounded-2xl px-5 py-4"
+            style={{ backgroundColor: '#fffef8' }}>
+            <MapPin className="w-5 h-5 shrink-0" style={{ color: '#22424b' }} />
+            <span className="text-sm font-extrabold" style={{ color: '#22424b' }}>
+              Listings in Pune
+            </span>
           </div>
         </section>
 
