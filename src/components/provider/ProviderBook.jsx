@@ -135,8 +135,26 @@ function Tile({ label, value, hint, tone = 'plain', hero = false, onClick, child
 
 // ── Forms ───────────────────────────────────────────────────────────────────
 
-function CustomerForm({ initial, onSave, onCancel, busy }) {
+/**
+ * Adding a customer, and — for somebody who runs two businesses — adding them
+ * to both at once.
+ *
+ * The two books stay separate, which is right: what you write about a dog at
+ * the grooming table is not something the kennel's record should inherit, and
+ * a top-ten that blended grooming visits into boarding stays would mean
+ * nothing. What is NOT right is typing the same phone number twice.
+ *
+ * So the copy carries the CONTACT DETAILS and nothing else — no notes, no
+ * pets, no history. Each business keeps its own account of them from the day
+ * it starts.
+ *
+ * Only on the way IN. Editing a customer later does not fan out: the copies
+ * are two records from that moment on, and a silent write into another
+ * business's book is exactly what the separation is there to prevent.
+ */
+function CustomerForm({ initial, onSave, onCancel, busy, alsoAdd = [] }) {
   const [f, setF] = useState(initial)
+  const [also, setAlso] = useState([])
   const set = e => setF(p => ({ ...p, [e.target.name]: e.target.value }))
   return (
     <div className="rounded-2xl p-4 space-y-3" style={{ backgroundColor: '#fff9e0', border: '1.5px solid #f2b83d' }}>
@@ -151,8 +169,31 @@ function CustomerForm({ initial, onSave, onCancel, busy }) {
           placeholder="Pays by UPI. Prefers evening pickup." />
         <Dictate label="Say it" onText={t => setF(p => ({ ...p, notes: appended(p.notes, t) }))} />
       </div>
+      {alsoAdd.length > 0 && (
+        <div>
+          <label className={lbl}>Also add them to</label>
+          <div className="flex flex-wrap gap-1.5 mt-1">
+            {alsoAdd.map(b => {
+              const on = also.includes(b.id)
+              return (
+                <button key={b.id} type="button"
+                  onClick={() => setAlso(v => on ? v.filter(x => x !== b.id) : [...v, b.id])}
+                  className="px-3 py-1.5 rounded-full text-xs font-bold"
+                  style={on ? { backgroundColor: '#eef3e2', color: '#44562a', border: '1.5px solid #cfe0b4' }
+                            : { backgroundColor: '#FFFEF8', color: '#73775b', border: '1.5px solid #ebe3d3' }}>
+                  {on && '✓ '}{b.name}
+                </button>
+              )
+            })}
+          </div>
+          <p className="text-xs mt-1.5" style={{ color: '#73775b' }}>
+            Their name and how to reach them, nothing else. Each book keeps its own notes and history.
+          </p>
+        </div>
+      )}
+
       <div className="flex gap-2">
-        <button onClick={() => onSave(f)} disabled={busy || !f.name?.trim()} className="btn-primary flex-1 justify-center">
+        <button onClick={() => onSave(f, also)} disabled={busy || !f.name?.trim()} className="btn-primary flex-1 justify-center">
           {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save customer'}
         </button>
         <button onClick={onCancel} className="btn-secondary">Cancel</button>
@@ -661,7 +702,7 @@ function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBoo
 
 // ── The book ────────────────────────────────────────────────────────────────
 
-export default function ProviderBook({ providerIds = [], primaryProviderId, providerName, providerType, postedBy }) {
+export default function ProviderBook({ providerIds = [], primaryProviderId, providerName, providerType, postedBy, otherBusinesses = [] }) {
   // The business's own listing, for the criteria a customer can be sent. Read
   // through the function rather than the table: an unpublished listing cannot
   // be read by its own owner through the directory's policy.
@@ -945,11 +986,26 @@ export default function ProviderBook({ providerIds = [], primaryProviderId, prov
 
       {adding ? (
         <CustomerForm busy={busy} initial={{ name: '', phone: '', email: '', notes: '' }}
+          alsoAdd={otherBusinesses}
           onCancel={() => setAdding(false)}
-          onSave={f => run(async sb => {
+          onSave={(f, also = []) => run(async sb => {
             // Straight into the new customer, because the next thing anybody
             // does is add their pet and book them in.
             const c = await saveCustomer(sb, { ...f, providerId: primaryProviderId, createdBy: postedBy })
+
+            // The copies carry the contact details and NOTHING else — no notes,
+            // no pets, no history. Each book keeps its own account of them.
+            //
+            // One at a time rather than in parallel: this is two writes at the
+            // most, and a failed second copy must not leave the first one's
+            // error unreported while the screen moves on.
+            for (const id of also) {
+              if (!otherBusinesses.some(b => b.id === id)) continue   // not theirs to write to
+              await saveCustomer(sb, {
+                providerId: id, name: f.name, phone: f.phone, email: f.email,
+                notes: null, createdBy: postedBy,
+              })
+            }
             setAdding(false); setView({ kind: 'customer', id: c.id })
           })} />
       ) : (
