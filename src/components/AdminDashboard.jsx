@@ -824,7 +824,7 @@ const CLAIM_STATUS = {
   suspended: { label: 'Suspended', bg: '#fdeaea', text: '#8a2b20' },
 }
 
-function ClaimCard({ claim, onSet, busy }) {
+function ClaimCard({ claim, onSet, busy, alsoOnListing = [] }) {
   const cfg = CLAIM_STATUS[claim.status] || { label: claim.status, bg: '#f5f0e0', text: '#5f624b' }
   // The claimant said what they do; the directory says something else. Not
   // wrong on its own — a day care that also grooms picks either honestly — but
@@ -877,6 +877,37 @@ function ClaimCard({ claim, onSet, busy }) {
           </p>
         )}
       </div>
+
+      {/* Somebody else is already in this book. Approving does not replace
+          them — is_provider_member() is satisfied by ANY active row, so the
+          two of them read and write the same customers, pets and bookings
+          from then on. That is right for a business adding its manager and
+          wrong for a stranger who typed a real business's name into the
+          claim form, and the two look identical on this card without this.
+          Only the owner's address can tell them apart, so it is shown. */}
+      {alsoOnListing.length > 0 && claim.status === 'pending' && (
+        <div className="mt-3 rounded-xl px-2.5 py-2 text-xs"
+          style={{ backgroundColor: '#fdeaea', color: '#8a2b20' }}>
+          <p className="font-bold flex items-start gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
+            <span>
+              This listing already has {alsoOnListing.length === 1 ? 'an owner' : `${alsoOnListing.length} owners`} —
+              approving adds a second person to the same book
+            </span>
+          </p>
+          <ul className="mt-1.5 space-y-0.5">
+            {alsoOnListing.map(a => (
+              <li key={a.id} className="truncate" style={{ color: '#a14336' }}>
+                {a.email || a.phone || 'someone with no address on file'}
+                {a.claimed_type ? ` · ${a.claimed_type}` : ''}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1.5" style={{ color: '#a14336' }}>
+            Right for a colleague they vouch for. Check before approving a stranger.
+          </p>
+        </div>
+      )}
 
       <div className="flex gap-2 mt-4">
         {claim.status !== 'active' && (
@@ -931,6 +962,18 @@ function ClaimsPanel() {
   const pendingCount = claims.filter(c => c.status === 'pending').length
   const shown = pendingOnly ? claims.filter(c => c.status === 'pending') : claims
 
+  // Who ELSE is already in each listing's book. admin_provider_claims()
+  // returns every account on every listing, not just the pending ones, so
+  // this needs no second query — only a claim's own row left out of its own
+  // warning. Suspended accounts are not counted: they have been turned off,
+  // and warning about them would make the banner mean nothing.
+  const activeByProvider = {}
+  for (const c of claims) {
+    if (c.status !== 'active') continue
+    ;(activeByProvider[c.provider_id] ||= []).push(c)
+  }
+  const othersOn = c => (activeByProvider[c.provider_id] || []).filter(a => a.id !== c.id)
+
   if (loading) {
     return (
       <div className="flex items-center justify-center gap-2 py-16" style={{ color: '#73775b' }}>
@@ -977,7 +1020,8 @@ function ClaimsPanel() {
         </div>
       ) : (
         <div className="space-y-2">
-          {shown.map(c => <ClaimCard key={c.id} claim={c} onSet={handleSet} busy={busy} />)}
+          {shown.map(c => <ClaimCard key={c.id} claim={c} onSet={handleSet} busy={busy}
+                            alsoOnListing={othersOn(c)} />)}
         </div>
       )}
     </>
