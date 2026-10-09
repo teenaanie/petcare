@@ -53,7 +53,9 @@
     "check:suspense": "node scripts/check-suspense.mjs",
     "test:health-prompt": "node scripts/test-health-prompt.mjs",
     "test:pet-sharing": "node scripts/test-pet-sharing.mjs",
-    "test:register-dupe": "node scripts/test-register-duplicate.mjs"
+    "test:register-dupe": "node scripts/test-register-duplicate.mjs",
+    "test:walk-provider": "node scripts/test-walk-provider.mjs",
+    "test:walk-customer": "node scripts/test-walk-customer.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
