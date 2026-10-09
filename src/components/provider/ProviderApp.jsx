@@ -329,7 +329,10 @@ export default function ProviderApp() {
             primaryProviderId={active.provider_id}
             providerName={active.provider_name}
             providerType={active.claimed_type || active.provider_type}
-            postedBy={session.user.id} />
+            postedBy={session.user.id}
+            otherBusinesses={actives
+              .filter(a => a.provider_id !== active.provider_id)
+              .map(a => ({ id: a.provider_id, name: a.provider_name }))} />
         ) : (
           <ProviderInbox providerIds={activeIds} postedBy={session.user.id} />
         )}

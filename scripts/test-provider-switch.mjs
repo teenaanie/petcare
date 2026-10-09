@@ -61,6 +61,7 @@ await ctx.addInitScript(([k, s]) => localStorage.setItem(k, JSON.stringify(s)),
 
 let askedFor = []        // every provider_id the book has queried customers for
 let postedCustomer = null
+const posted = []
 await ctx.route('**/rest/v1/**', r => r.fulfill({ json: [] }))
 await ctx.route('**/auth/v1/**', r => r.fulfill({ json: USER }))
 await ctx.route('**/rest/v1/rpc/**', r => r.fulfill({ json: [] }))
@@ -69,7 +70,8 @@ await ctx.route('**/rest/v1/provider_notes*', r => r.fulfill({ json: [] }))
 await ctx.route('**/rest/v1/provider_customers*', r => {
   if (r.request().method() === 'POST') {
     postedCustomer = JSON.parse(r.request().postData())
-    return r.fulfill({ status: 201, json: { id: 'new1', ...postedCustomer } })
+    posted.push(postedCustomer)
+    return r.fulfill({ status: 201, json: { id: `new${posted.length}`, ...postedCustomer } })
   }
   const inList = new URL(r.request().url()).searchParams.get('provider_id') || ''
   askedFor.push(inList)
@@ -132,6 +134,40 @@ await page.getByPlaceholder('Mrs Rao').fill('New Salon Customer')
 await page.getByRole('button', { name: 'Save customer' }).click()
 await page.waitForTimeout(900)
 ck('a new customer joins the business on screen', postedCustomer?.provider_id, SALON)
+
+// ── Copying one customer into both books ────────────────────────────────────
+//
+// The two books stay separate — what you write about a dog at the grooming
+// table is not the kennel's to inherit — but typing the same phone number
+// twice is nobody's idea of separation. So the copy carries the CONTACT
+// DETAILS and nothing else.
+// Adding a customer opens them, so the way back to the dashboard from here is
+// their Back button, not the list's.
+posted.length = 0
+await page.getByRole('button', { name: 'Back' }).first().click()
+await page.waitForTimeout(600)
+await page.getByRole('button', { name: 'Add a customer' }).click()
+await page.waitForTimeout(400)
+ck('the other business is offered', await has('Also add them to'), true)
+ck('and named',                     await has('Paws Retreat Boarding'), true)
+
+await page.getByPlaceholder('Mrs Rao').fill('Mrs Shared')
+await page.getByPlaceholder('98765 00000').fill('9000000123')
+await page.getByPlaceholder('Pays by UPI. Prefers evening pickup.').fill('Grooming only, hates the dryer.')
+await page.getByRole('button', { name: /Paws Retreat Boarding/ }).last().click()
+await page.getByRole('button', { name: 'Save customer' }).click()
+await page.waitForTimeout(1200)
+
+ck('they land in both books',
+   posted.map(c => c.provider_id).sort(), [KENNEL, SALON].sort())
+const copy = posted.find(c => c.provider_id === KENNEL)
+const here = posted.find(c => c.provider_id === SALON)
+ck('the copy carries the name',   copy?.name, 'Mrs Shared')
+ck('and how to reach them',       copy?.phone, '9000000123')
+// The half that matters: a note is about one business's relationship with
+// them, and the other book has not earned it.
+ck('but NOT the notes',           copy?.notes, null)
+ck('while the original keeps them', here?.notes, 'Grooming only, hates the dryer.')
 
 // And the choice survives a reload, or a provider switches business every time
 // they open the app.
