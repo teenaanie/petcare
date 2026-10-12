@@ -11,6 +11,7 @@ import { savePet, saveVaccination, saveMedicine, saveAllergy } from '../lib/stor
 import { announcePetAdded } from '../lib/notify.js'
 import { saveCondition } from '../lib/conditions.js'
 import { suggestName, rememberName } from '../lib/petMeds.js'
+import ReminderPicker from './ReminderPicker.jsx'
 import { trackEvent } from '../lib/analytics.js'
 import { reportHandled } from '../lib/errorReport.js'
 
@@ -81,6 +82,9 @@ function Review({ parsed, onBack, onSaved }) {
     return hit ? hit.name : null
   }
 
+  // Pets saved on this run, waiting to be offered reminders.
+  const [savedPets, setSavedPets] = useState(null)
+
   const [picked, setPicked] = useState(() => {
     const m = {}
     parsed.pets?.forEach((p, i) => {
@@ -101,6 +105,9 @@ function Review({ parsed, onBack, onSaved }) {
   async function save() {
     setSaving(true); setError(null)
     const summary = { pets: 0, vaccinations: 0, medicines: 0, allergies: 0, conditions: 0 }
+    // The pets themselves, not just a count: the reminder step that follows
+    // needs their ids and species.
+    const created = []
     try {
       for (let i = 0; i < (parsed.pets || []).length; i++) {
         if (!picked[`pet-${i}`]) continue
@@ -114,6 +121,7 @@ function Review({ parsed, onBack, onSaved }) {
           color: p.color || '', notes: p.notes || '',
         })
         summary.pets++
+        created.push(saved)
         // This screen creates pets too, so it announces them as well —
         // otherwise a pet added by voice would never be reported.
         announcePetAdded(saved?.id)
@@ -158,7 +166,9 @@ function Review({ parsed, onBack, onSaved }) {
         }
       }
       setDone(summary)
-      onSaved?.(summary)
+      // Not finished yet: offer reminders, the same question the form path
+      // asks. This path never asked at all.
+      setSavedPets(created)
     } catch (e) {
       // The raw text is still held by the parent, so nothing is lost.
       reportHandled(e, { view: 'voice-intake' })
@@ -169,19 +179,32 @@ function Review({ parsed, onBack, onSaved }) {
 
   if (done) {
     return (
-      <div className="text-center py-8 px-4 rounded-2xl" style={{ backgroundColor: '#eef3e2' }}>
-        <Check className="w-8 h-8 mx-auto mb-2" style={{ color: '#44562a' }} />
-        <p className="font-black" style={{ color: '#44562a' }}>
-          Saved {done.pets} {done.pets === 1 ? 'pet' : 'pets'}
-        </p>
-        <p className="text-sm mt-1" style={{ color: '#44562a' }}>
-          {[
-            done.vaccinations && `${done.vaccinations} vaccination${done.vaccinations === 1 ? '' : 's'}`,
-            done.medicines && `${done.medicines} medicine${done.medicines === 1 ? '' : 's'}`,
-            done.allergies && `${done.allergies} allerg${done.allergies === 1 ? 'y' : 'ies'}`,
-            done.conditions && `${done.conditions} condition${done.conditions === 1 ? '' : 's'}`,
-          ].filter(Boolean).join(' · ') || 'Profile only — add records whenever you like.'}
-        </p>
+      <div className="space-y-4">
+        <div className="text-center py-6 px-4 rounded-2xl" style={{ backgroundColor: '#eef3e2' }}>
+          <Check className="w-8 h-8 mx-auto mb-2" style={{ color: '#44562a' }} />
+          <p className="font-black" style={{ color: '#44562a' }}>
+            Saved {done.pets} {done.pets === 1 ? 'pet' : 'pets'}
+          </p>
+          <p className="text-sm mt-1" style={{ color: '#44562a' }}>
+            {[
+              done.vaccinations && `${done.vaccinations} vaccination${done.vaccinations === 1 ? '' : 's'}`,
+              done.medicines && `${done.medicines} medicine${done.medicines === 1 ? '' : 's'}`,
+              done.allergies && `${done.allergies} allerg${done.allergies === 1 ? 'y' : 'ies'}`,
+              done.conditions && `${done.conditions} condition${done.conditions === 1 ? '' : 's'}`,
+            ].filter(Boolean).join(' · ') || 'Profile only — add records whenever you like.'}
+          </p>
+        </div>
+
+        {/* The question the form path has always asked and this one never did:
+            an owner added a pet by voice and was never offered a reminder. */}
+        {savedPets && savedPets.length > 0 && (
+          <ReminderPicker pets={savedPets} onDone={() => onSaved?.(done)} />
+        )}
+        {(!savedPets || savedPets.length === 0) && (
+          <button onClick={() => onSaved?.(done)} className="btn-primary w-full justify-center text-sm">
+            Done
+          </button>
+        )}
       </div>
     )
   }

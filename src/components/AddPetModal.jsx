@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Sparkles, X, CheckCircle, Circle, Bell, ChevronRight, Loader2 } from 'lucide-react'
+import { Sparkles, X, ChevronRight, Loader2 } from 'lucide-react'
 import VoiceIntake from './VoiceIntake.jsx'
-import { savePet, saveReminder } from '../lib/storage.js'
-import { suggestionsFor, remindersToSave } from '../lib/careSuggestions.js'
+import { savePet } from '../lib/storage.js'
+import ReminderPicker from './ReminderPicker.jsx'
 import { announcePetAdded } from '../lib/notify.js'
 import PetAvatar from './PetAvatar.jsx'
 import { trackEvent } from '../lib/analytics.js'
@@ -41,25 +41,18 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
     ...(existing?.id ? { id: existing.id, createdAt: existing.createdAt } : {}),
   })
 
-  // Reminders step: which suggestions are selected
-  const suggestions = suggestionsFor(form.species)
   const [intake, setIntake] = useState(false)
-  // Nothing is ticked. The previous default selected everything and called the
-  // screen "pre-selected", which a customer reasonably experienced as Pippy
-  // adding reminders by itself -- including a vaccination their dog had
-  // already had.
-  const [selected, setSelected] = useState(() => new Set())
-  // Dates the owner corrected, keyed the same way. "Due in 12 months" is only
-  // right if the jab was today.
-  const [dates, setDates] = useState({})
 
   function handleChange(e) {
     const { name, value } = e.target
     setForm(f => ({ ...f, [name]: value }))
-    if (name === 'species') {
-      const newSuggestions = RECOMMENDATIONS[value] || RECOMMENDATIONS.Other
-      setSelected(new Set(newSuggestions.map((_, i) => i)))
-    }
+    // This used to reach for a RECOMMENDATIONS constant to re-tick every
+    // suggestion when the species changed. The constant moved to
+    // src/lib/careSuggestions.js and the reference was left behind, which made
+    // every species change throw a ReferenceError from this handler -- after
+    // setForm had already applied the change, so nothing visibly broke and
+    // nobody noticed. The picker derives its own suggestions from the species
+    // now, and there is nothing left here to keep in step.
   }
 
   // Rendered inside the modal, above the form. Saving through intake returns
@@ -98,27 +91,6 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
       setSaving(false)
     }
   }
-
-  function toggleReminder(key) {
-    setSelected(s => {
-      const next = new Set(s)
-      next.has(key) ? next.delete(key) : next.add(key)
-      return next
-    })
-  }
-
-  async function handleAddReminders() {
-    setSaving(true)
-    try {
-      const toSave = remindersToSave(suggestions, selected, savedPet.id, dates)
-      await Promise.all(toSave.map(saveReminder))
-    } finally {
-      setSaving(false)
-      onSaved(savedPet)
-    }
-  }
-
-  function handleSkip() { onSaved(savedPet) }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -230,89 +202,11 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
               </button>
             </div>
 
-            <div className="p-6 space-y-3">
-              <p className="text-sm" style={{ color: '#7a4900' }}>
-                Would you like any reminders for your {form.species.toLowerCase()}?
-                Tap the ones you want. Nothing is added unless you pick it.
-              </p>
-
-              <div className="space-y-2 mt-1">
-                {suggestions.map(r => {
-                  const isOn  = selected.has(r.key)
-                  const color = TYPE_COLORS[r.type] || '#73775b'
-                  const due   = dates[r.key] || r.dueDate
-                  return (
-                    <div key={r.key} className="rounded-2xl transition-all"
-                      style={{
-                        backgroundColor: '#fffef8',
-                        border: `1.5px solid ${isOn ? '#f2b83d' : '#ebe3d3'}`,
-                        opacity: isOn ? 1 : 0.7,
-                      }}>
-                      <button type="button" onClick={() => toggleReminder(r.key)}
-                        aria-pressed={isOn}
-                        className="w-full text-left flex items-start gap-3 p-4">
-                        <div className="flex-shrink-0 mt-0.5">
-                          {isOn
-                            ? <CheckCircle className="w-5 h-5" style={{ color: '#c99a2e' }} />
-                            : <Circle className="w-5 h-5" style={{ color: '#e0d3b4' }} />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-black" style={{ color: '#7a4900' }}>{r.label}</span>
-                            <span className="text-xs px-2 py-0.5 rounded-full font-bold"
-                              style={{ backgroundColor: color + '15', color }}>
-                              {r.type}
-                            </span>
-                          </div>
-                          <p className="text-xs mt-0.5" style={{ color: '#73775b' }}>
-                            {r.frequency} · First due {new Date(due).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                          </p>
-                          {r.notes && (
-                            <p className="text-xs mt-0.5 italic" style={{ color: '#73775b' }}>{r.notes}</p>
-                          )}
-                        </div>
-                      </button>
-
-                      {/* The date only matters once they want the reminder, and
-                          it is the thing that was wrong: a booster "in 12
-                          months" is only right if the jab was today. */}
-                      {isOn && (
-                        <div className="px-4 pb-4 -mt-1 pl-12">
-                          {r.assumesToday && (
-                            <p className="text-xs mb-1.5" style={{ color: '#9a7b2e' }}>
-                              This assumes it was done today. If it was earlier, set the real next-due date.
-                            </p>
-                          )}
-                          <label className="flex items-center gap-2 text-xs font-bold" style={{ color: '#73775b' }}>
-                            First due
-                            <input
-                              type="date"
-                              value={due}
-                              onChange={e => setDates(d => ({ ...d, [r.key]: e.target.value }))}
-                              className="input text-xs py-1 px-2 w-auto"
-                            />
-                          </label>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-
-              <div className="flex gap-3 pt-3">
-                <button onClick={handleSkip} className="btn-secondary flex-1 justify-center text-sm">
-                  {selected.size === 0 ? 'No reminders, thanks' : 'Skip for now'}
-                </button>
-                <button onClick={handleAddReminders} disabled={saving || selected.size === 0}
-                  className="btn-primary flex-1 justify-center gap-2 text-sm">
-                  {saving
-                    ? <Loader2 className="w-4 h-4 animate-spin" />
-                    : <Bell className="w-4 h-4" />}
-                  {selected.size === 0
-                    ? 'Pick some above'
-                    : `Add ${selected.size} reminder${selected.size === 1 ? '' : 's'}`}
-                </button>
-              </div>
+            <div className="p-6">
+              <ReminderPicker
+                pets={savedPet ? [savedPet] : []}
+                onDone={() => onSaved(savedPet)}
+              />
             </div>
           </>
         )}
