@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { guidanceFor, hasUrgent } from '../lib/breedGuidance.js'
 import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
 
 // ── Breed health lookup ───────────────────────────────────────────────────────
@@ -80,11 +81,13 @@ function getAlerts(species, breed) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function BreedAlert({ pet }) {
+export default function BreedAlert({ pet, onFindVet }) {
   const [expanded, setExpanded] = useState(false)
 
   const alerts = getAlerts(pet.species, pet.breed)
   if (!alerts || alerts.length === 0) return null
+
+  const urgent = hasUrgent(alerts)
 
   return (
     <div className="card mb-4" style={{ border: '1.5px solid #ffde59', backgroundColor: '#fff9e0' }}>
@@ -99,10 +102,10 @@ export default function BreedAlert({ pet }) {
           </div>
           <div>
             <p className="font-black text-sm" style={{ color: '#7a4900' }}>
-              {pet.breed} Health Watch
+              Looking after a {pet.breed}
             </p>
             <p className="text-xs" style={{ color: '#9a6a12' }}>
-              {alerts.length} known breed-specific concern{alerts.length > 1 ? 's' : ''}
+              {alerts.length} thing{alerts.length > 1 ? 's' : ''} worth knowing, and what helps
             </p>
           </div>
         </div>
@@ -113,17 +116,41 @@ export default function BreedAlert({ pet }) {
 
       {expanded && (
         <div className="mt-3 pt-3" style={{ borderTop: '1px solid #ffde59' }}>
-          <ul className="space-y-1.5">
-            {alerts.map((a, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm" style={{ color: '#7a4900' }}>
-                <span className="mt-0.5 flex-shrink-0">⚠️</span>
-                <span>{a}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="text-xs mt-3 italic" style={{ color: '#9a6a12' }}>
-            This is general breed information — not a diagnosis. Discuss with your vet at next check-up.
+          <p className="text-xs mb-3" style={{ color: '#7a4900' }}>
+            These are things {pet.breed}s are more prone to than average. It does
+            not mean your pet has any of them{urgent ? ', but one below is worth reading today' : ''}.
           </p>
+
+          <ul className="space-y-3">
+            {alerts.map((a, i) => {
+              const g = guidanceFor(a)
+              return (
+                <li key={i} className="text-sm">
+                  <p className="font-bold flex items-start gap-2" style={{ color: '#7a4900' }}>
+                    <span className="mt-0.5 flex-shrink-0">{g.urgent ? '🚨' : g.positive ? '✅' : '•'}</span>
+                    <span>{a}</span>
+                  </p>
+                  {/* The point of the change: never a risk without a next step. */}
+                  <p className="text-xs mt-1 ml-6" style={{ color: g.urgent ? '#b3401f' : '#6b6b55' }}>
+                    {g.helps}
+                  </p>
+                </li>
+              )
+            })}
+          </ul>
+
+          <div className="mt-4 pt-3 flex flex-wrap items-center gap-3" style={{ borderTop: '1px solid #ffde59' }}>
+            {onFindVet && (
+              <button type="button" onClick={onFindVet}
+                className="text-xs font-bold px-3 py-1.5 rounded-lg"
+                style={{ backgroundColor: '#ffde59', color: '#7a4900' }}>
+                Find a vet near you
+              </button>
+            )}
+            <p className="text-xs italic flex-1" style={{ color: '#9a6a12' }}>
+              General breed information, not a diagnosis. Your vet knows your animal.
+            </p>
+          </div>
         </div>
       )}
     </div>

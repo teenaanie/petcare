@@ -300,6 +300,8 @@ export default function App() {
             <ChunkErrorBoundary><Suspense fallback={<LoadingScreen />}><ProviderDirectory onPrepForStay={startBoardingPrep} /></Suspense></ChunkErrorBoundary>
           ) : selectedPet ? (
             <PetDetail
+            // The breed panel offers a way to act on what it says.
+            onFindVet={() => { setMyProvidersView(false); setServicesView(true); setAdminView(false); setSelectedPet(null) }}
               pet={selectedPet}
               activeTab={activeTab}
               prefillProviderId={boardingPrefill}
