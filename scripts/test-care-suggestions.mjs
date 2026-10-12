@@ -16,6 +16,7 @@ import {
   suggestionsFor, remindersToSave, suggestionKey, SUGGESTED_SPECIES,
 } from '../src/lib/careSuggestions.js'
 import { nextDueDate } from '../api/_lib/morning-reminders.js'
+import { readFileSync } from 'node:fs'
 
 let pass = 0, fail = 0
 const ok = (name, cond, got) => {
@@ -152,6 +153,38 @@ console.log('\nWhat gets saved matches what storage expects')
   ok('ticking everything saves everything', all.length === sugg.length)
   ok('an unknown key in the selection is ignored',
      remindersToSave(sugg, ['nonsense'], 'pet-9').length === 0)
+}
+
+console.log('\nEditing a suggested reminder must not rename it')
+{
+  // A reminder's `type` is its displayed NAME, and the ones offered here carry
+  // a descriptive label. Those labels are deliberately NOT in the reminder
+  // screen's own TYPES list, so a <select> restricted to TYPES would show the
+  // first option instead and saving would rename "Annual vaccination booster"
+  // to "Vaccination". This pins the coupling, because the fix is a two-line
+  // ternary that looks like noise to anyone tidying up.
+  const screen = readFileSync('src/components/Reminders.jsx', 'utf8')
+  const TYPES = (screen.match(/const TYPES = \[([^\]]+)\]/)?.[1] || '')
+    .split(',').map(t => t.trim().replace(/^'|'$/g, ''))
+
+  const labels = [...new Set(
+    SUGGESTED_SPECIES.flatMap(sp => suggestionsFor(sp, TODAY).map(s => s.label)))]
+  const outsideVocab = labels.filter(l => !TYPES.includes(l))
+  ok('the suggested names are outside the reminder screen vocabulary',
+     outsideVocab.length === labels.length, { labels: labels.length, outsideVocab: outsideVocab.length })
+
+  // The guard itself: the type select must consider the CURRENT value, not
+  // just the fixed list.
+  const select = screen.match(/<select value=\{form\.type\}[\s\S]{0,400}?<\/select>/)?.[0] || ''
+  ok('the type dropdown keeps a value it does not list',
+     /!TYPES\.includes\(form\.type\)/.test(select),
+     select.replace(/\s+/g, ' ').slice(0, 160))
+
+  // And the edit path must carry isDone, because saveReminder writes
+  // `is_done: record.isDone || false` -- omitting it un-completes a reminder
+  // that was already ticked off.
+  ok('the edit form carries isDone so a done reminder stays done',
+     /isDone:\s*!!r\.isDone/.test(screen))
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`)
