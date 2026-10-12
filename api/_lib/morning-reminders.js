@@ -125,6 +125,7 @@ const RECURRENCE = {
   'fortnightly':    { days: 14 },
   'every 2 weeks':  { days: 14 },
   'monthly':        { months: 1 },
+  'every 2 months': { months: 2 },
   'every 3 months': { months: 3 },
   'quarterly':      { months: 3 },
   'every 6 months': { months: 6 },

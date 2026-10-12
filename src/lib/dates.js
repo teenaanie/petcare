@@ -56,3 +56,21 @@ export function addDaysISO(iso, days) {
   d.setUTCDate(d.getUTCDate() + days)
   return d.toISOString().split('T')[0]
 }
+
+/**
+ * `months` after the YYYY-MM-DD date `iso`, clamped to the end of the month.
+ *
+ * 31 January plus one month is 28 February, not 3 March. This mirrors
+ * addMonthsClamped in api/_lib/morning-reminders.js on purpose: a suggested
+ * reminder's first due date and every repeat after it are worked out by
+ * different code, and they must not disagree about what "in a month" means.
+ */
+export function addMonthsISO(iso, months) {
+  const d = new Date(`${iso}T00:00:00Z`)
+  if (Number.isNaN(d.getTime())) return null
+  const day  = d.getUTCDate()
+  const out  = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + months, 1))
+  const last = new Date(Date.UTC(out.getUTCFullYear(), out.getUTCMonth() + 1, 0)).getUTCDate()
+  out.setUTCDate(Math.min(day, last))
+  return out.toISOString().split('T')[0]
+}
