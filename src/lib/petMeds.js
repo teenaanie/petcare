@@ -51,7 +51,24 @@ export const MEDICINES = [
   'Bravecto', 'Zymopet', 'Laxitil', 'Moxybact', 'Romtic', 'Ripeen',
   'Vendice', 'Felin D', 'Genta', 'NMELO',
   'Azithromycin', 'Ceftriaxone', 'Atorvastatin',
+  // Flea and tick products, which are the ones owners say out loud most often
+  // and the ones Whisper mangles worst -- an owner said "Simparica for ticks"
+  // and got back something unrelated, because the word was not in this list
+  // for Whisper to bias towards.
+  'Simparica', 'Simparica Trio', 'NexGard', 'NexGard Spectra',
+  'Frontline', 'Frontline Plus', 'Revolution', 'Credelio', 'Seresto',
+  'Advantix', 'Advocate', 'Milbemax', 'Drontal',
+  // Common prescriptions alongside them.
+  'Apoquel', 'Cytopoint', 'Panacur', 'Metacam',
 ]
+
+// NOTE: this list now fills PROMPT_CHAR_BUDGET. transcriptionPrompt() takes
+// names in order until the budget is spent, so anything added below here is
+// dropped before it reaches Whisper -- and learned names, which come first,
+// push the tail of this list out as an owner confirms more of their own.
+// Adding a name means removing one, or raising the budget (the server caps the
+// prompt at 900 characters, so there is room, but a longer prompt biases less
+// sharply towards any single word).
 
 // Names the owner has confirmed on a review screen since. Stored per browser,
 // because it is their vocabulary and it does not belong to anyone else.

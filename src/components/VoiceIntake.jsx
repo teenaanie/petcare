@@ -10,6 +10,7 @@ import VoicePanel from './VoicePanel.jsx'
 import { savePet, saveVaccination, saveMedicine, saveAllergy } from '../lib/storage.js'
 import { announcePetAdded } from '../lib/notify.js'
 import { saveCondition } from '../lib/conditions.js'
+import { suggestName, rememberName } from '../lib/petMeds.js'
 import { trackEvent } from '../lib/analytics.js'
 import { reportHandled } from '../lib/errorReport.js'
 
@@ -40,7 +41,7 @@ const EXAMPLE = "Bruno is a 6 year old beagle, brown and white, about 19 kilos. 
 
 // ── Review row ───────────────────────────────────────────────────────────────
 
-function Row({ checked, onToggle, icon: Icon, title, detail, color }) {
+function Row({ checked, onToggle, icon: Icon, title, detail, color, suggestion, onAccept }) {
   return (
     <label className="flex items-start gap-2.5 p-2.5 rounded-xl cursor-pointer"
       style={{ backgroundColor: checked ? '#fff9e0' : '#f4f1ea' }}>
@@ -49,6 +50,18 @@ function Row({ checked, onToggle, icon: Icon, title, detail, color }) {
       <div className="min-w-0 flex-1">
         <p className="text-sm font-bold" style={{ color: '#7a4900' }}>{title}</p>
         {detail && <p className="text-xs" style={{ color: '#73775b' }}>{detail}</p>}
+        {/* Product names are what speech gets wrong: an owner said "Simparica
+            for ticks" and the name came back as something else entirely. The
+            review screen already existed; it just never offered the spelling
+            it knows about. */}
+        {suggestion && (
+          <button type="button"
+            onClick={e => { e.preventDefault(); e.stopPropagation(); onAccept(suggestion) }}
+            className="text-xs font-bold mt-1 px-2 py-0.5 rounded-lg"
+            style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
+            Did you mean {suggestion}?
+          </button>
+        )}
       </div>
     </label>
   )
@@ -59,6 +72,15 @@ function Row({ checked, onToggle, icon: Icon, title, detail, color }) {
 function Review({ parsed, onBack, onSaved }) {
   // Everything starts ticked; dropping a wrong row is one tap, and nothing is
   // saved until the button is pressed.
+  // Spelling corrections the owner accepted, keyed the same way as `picked`.
+  const [names, setNames] = useState({})
+  const nameFor = (key, original) => names[key] ?? original
+  const suggestionFor = (key, original) => {
+    if (names[key]) return null                       // already corrected
+    const hit = suggestName(original)
+    return hit ? hit.name : null
+  }
+
   const [picked, setPicked] = useState(() => {
     const m = {}
     parsed.pets?.forEach((p, i) => {
@@ -100,13 +122,19 @@ function Review({ parsed, onBack, onSaved }) {
         for (let j = 0; j < (p.vaccinations || []).length; j++) {
           if (!picked[`vac-${i}-${j}`]) continue
           const v = p.vaccinations[j]
-          await saveVaccination({ petId: saved.id, name: v.name, dateGiven: v.dateGiven || '', nextDue: v.nextDue || '' })
+          const vName = nameFor(`vac-${i}-${j}`, v.name)
+          // Confirmed on a review screen, so it is worth biasing the next
+          // recording with. See src/lib/petMeds.js.
+          rememberName(vName)
+          await saveVaccination({ petId: saved.id, name: vName, dateGiven: v.dateGiven || '', nextDue: v.nextDue || '' })
           summary.vaccinations++
         }
         for (let j = 0; j < (p.medicines || []).length; j++) {
           if (!picked[`med-${i}-${j}`]) continue
           const m = p.medicines[j]
-          await saveMedicine({ petId: saved.id, name: m.name, dosage: m.dosage || '', frequency: m.frequency || '', category: m.category || 'Other' })
+          const mName = nameFor(`med-${i}-${j}`, m.name)
+          rememberName(mName)
+          await saveMedicine({ petId: saved.id, name: mName, dosage: m.dosage || '', frequency: m.frequency || '', category: m.category || 'Other' })
           summary.medicines++
         }
         for (let j = 0; j < (p.allergies || []).length; j++) {
@@ -192,12 +220,16 @@ function Review({ parsed, onBack, onSaved }) {
 
           {(p.vaccinations || []).map((v, j) => (
             <Row key={`v${j}`} checked={!!picked[`vac-${i}-${j}`]} onToggle={() => toggle(`vac-${i}-${j}`)}
-              icon={Syringe} color="#2f7286" title={v.name}
+              icon={Syringe} color="#2f7286" title={nameFor(`vac-${i}-${j}`, v.name)}
+              suggestion={suggestionFor(`vac-${i}-${j}`, v.name)}
+              onAccept={n => setNames(s => ({ ...s, [`vac-${i}-${j}`]: n }))}
               detail={[v.dateGiven && `given ${v.dateGiven}`, v.nextDue && `next ${v.nextDue}`].filter(Boolean).join(' · ') || 'No dates given'} />
           ))}
           {(p.medicines || []).map((m, j) => (
             <Row key={`m${j}`} checked={!!picked[`med-${i}-${j}`]} onToggle={() => toggle(`med-${i}-${j}`)}
-              icon={Pill} color="#7a5c9e" title={m.name}
+              icon={Pill} color="#7a5c9e" title={nameFor(`med-${i}-${j}`, m.name)}
+              suggestion={suggestionFor(`med-${i}-${j}`, m.name)}
+              onAccept={n => setNames(s => ({ ...s, [`med-${i}-${j}`]: n }))}
               detail={[m.dosage, m.frequency, m.category].filter(Boolean).join(' · ')} />
           ))}
           {(p.allergies || []).map((a, j) => (

@@ -183,7 +183,7 @@ const StayUpdates = lazy(() => import('./StayUpdates.jsx'))
 import { trackEvent } from '../lib/analytics.js'
 import { withRetry } from '../lib/net.js'
 
-export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, onPetDeleted, prefillProviderId, onPrefillUsed, dataRefresh = 0 }) {
+export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, onPetDeleted, prefillProviderId, onPrefillUsed, dataRefresh = 0, onFindVet }) {
   const [showEdit, setShowEdit]                   = useState(false)
   const [showHealthSummary, setShowHealthSummary] = useState(false)
   const [showEmergencyCard, setShowEmergencyCard] = useState(false)
@@ -338,7 +338,7 @@ export default function PetDetail({ pet, activeTab, onTabChange, onPetUpdated, o
       </div>
 
       {/* Breed health alert */}
-      {pet.breed && activeTab === 'timeline' && <BreedAlert pet={pet} />}
+      {pet.breed && activeTab === 'timeline' && <BreedAlert pet={pet} onFindVet={onFindVet} />}
 
       {/* Tab content. Every view below is a lazy chunk, so this needs a
           Suspense boundary: without one, switching tabs suspends with no
