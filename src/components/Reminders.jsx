@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, Bell, BellOff, BellRing, MessageCircle, CheckCircle, AlertCircle, Loader2, Mic, MicOff, Wand2, X, Check } from 'lucide-react'
+import { Plus, Trash2, Bell, BellOff, BellRing, MessageCircle, CheckCircle, AlertCircle, Loader2, Mic, MicOff, Wand2, X, Check, Pencil } from 'lucide-react'
 import { getReminders, saveReminder, deleteReminder, markReminderDone } from '../lib/storage.js'
 import { pushSupported, getPushSubscriptionStatus, subscribeToPush, unsubscribeFromPush } from '../lib/push.js'
 import { format, parseISO, isValid } from 'date-fns'
@@ -52,7 +52,10 @@ async function parseVoiceReminder(transcript) {
 export default function Reminders({ pet }) {
   const [reminders, setReminders]   = useState([])
   const [showForm, setShowForm]     = useState(false)
-  const [form, setForm]             = useState({ type: 'Vaccination', dueDate: '', frequency: 'Once', email: '', whatsapp: '', notes: '' })
+  const BLANK_FORM = { type: 'Vaccination', dueDate: '', frequency: 'Once', email: '', whatsapp: '', notes: '', isDone: false }
+  const [form, setForm]             = useState(BLANK_FORM)
+  // The reminder being edited, or null when the form is adding a new one.
+  const [editingId, setEditingId]   = useState(null)
   const [togglingId, setTogglingId] = useState(null)
 
   // Voice AI state
@@ -110,18 +113,44 @@ export default function Reminders({ pet }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    await saveReminder({ ...form, petId: pet.id })
-    // The TYPE is a fixed vocabulary ('Vaccination', 'Grooming'); the notes
-    // are free text and are not sent.
-    trackEvent('reminder_created', {
-      // 'Vet Checkup' -> 'Vet_Checkup'. The filter rejects spaces on purpose,
-      // because free text is letters and spaces too; this is a fixed list.
-      type: (form.type || '').replace(/\s+/g, '_'),
-      frequency: form.frequency,
-    })
-    setForm({ type: 'Vaccination', dueDate: '', frequency: 'Once', email: '', whatsapp: '', notes: '' })
-    setShowForm(false)
+    await saveReminder({ ...form, petId: pet.id, ...(editingId ? { id: editingId } : {}) })
+    // Only a genuinely new reminder is a creation. Counting an edit as one
+    // would quietly inflate the figure every time somebody fixed a date.
+    if (!editingId) {
+      // The TYPE is a fixed vocabulary ('Vaccination', 'Grooming'); the notes
+      // are free text and are not sent.
+      trackEvent('reminder_created', {
+        // 'Vet Checkup' -> 'Vet_Checkup'. The filter rejects spaces on purpose,
+        // because free text is letters and spaces too; this is a fixed list.
+        type: (form.type || '').replace(/\s+/g, '_'),
+        frequency: form.frequency,
+      })
+    }
+    closeForm()
     load()
+  }
+
+  function startEdit(r) {
+    setForm({
+      type:      r.type      || '',
+      dueDate:   r.dueDate   || '',
+      frequency: r.frequency || 'Once',
+      email:     r.email     || '',
+      whatsapp:  r.whatsapp  || '',
+      notes:     r.notes     || '',
+      // Carried, not shown: saveReminder writes `is_done: record.isDone ||
+      // false`, so dropping it would un-complete a reminder that was done.
+      isDone:    !!r.isDone,
+    })
+    setEditingId(r.id)
+    setShowForm(true)
+    setVoiceMode(false)
+  }
+
+  function closeForm() {
+    setForm(BLANK_FORM)
+    setEditingId(null)
+    setShowForm(false)
   }
 
   async function handleDelete(id) {
@@ -235,7 +264,7 @@ export default function Reminders({ pet }) {
             <Mic className="w-4 h-4" /> Voice
           </button>
           <button
-            onClick={() => { setShowForm(s => !s); setVoiceMode(false) }}
+            onClick={() => { if (showForm) { closeForm() } else { setForm(BLANK_FORM); setEditingId(null); setShowForm(true) } ; setVoiceMode(false) }}
             className="btn-primary flex items-center gap-2 text-sm"
           >
             <Plus className="w-4 h-4" /> Add Reminder
@@ -397,14 +426,15 @@ export default function Reminders({ pet }) {
       {showForm && (
         <div className="card mb-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold">New Reminder</h3>
-            <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+            <h3 className="font-semibold">{editingId ? 'Edit Reminder' : 'New Reminder'}</h3>
+            <button onClick={closeForm} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
           </div>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="label">Type *</label>
               <select value={form.type} onChange={e => setForm(f => ({...f, type: e.target.value}))} className="input">
-                {TYPES.map(t => <option key={t}>{t}</option>)}
+                {(form.type && !TYPES.includes(form.type) ? [form.type, ...TYPES] : TYPES)
+                  .map(t => <option key={t}>{t}</option>)}
               </select>
             </div>
             <div>
@@ -430,8 +460,8 @@ export default function Reminders({ pet }) {
               <textarea value={form.notes} onChange={e => setForm(f => ({...f, notes: e.target.value}))} className="input" rows={2} placeholder="Any additional details..." />
             </div>
             <div className="sm:col-span-2 flex justify-end gap-3">
-              <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>
-              <button type="submit" className="btn-primary">Save Reminder</button>
+              <button type="button" onClick={closeForm} className="btn-secondary">Cancel</button>
+              <button type="submit" className="btn-primary">{editingId ? 'Save Changes' : 'Save Reminder'}</button>
             </div>
           </form>
         </div>
@@ -472,18 +502,27 @@ export default function Reminders({ pet }) {
                 {r.dueDate && <p className="text-sm text-gray-400 mt-0.5">Due: {format(new Date(r.dueDate), 'MMMM d, yyyy')}</p>}
                 {r.notes && <p className="text-sm text-gray-600 mt-1">{r.notes}</p>}
               </div>
-              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all ml-3">
+              <div className="flex items-center gap-3 sm:gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all ml-3">
                 <button
                   onClick={() => handleToggleDone(r)}
                   disabled={togglingId === r.id}
                   title={r.isDone ? 'Mark as pending' : 'Mark as done'}
-                  className={`p-1.5 rounded-lg transition-colors ${r.isDone ? 'text-gray-400 hover:text-gray-600 bg-gray-100' : 'text-green-600 hover:bg-green-50'}`}
+                  className={`p-2.5 sm:p-1.5 rounded-lg transition-colors ${r.isDone ? 'text-gray-400 hover:text-gray-600 bg-gray-100' : 'text-green-600 hover:bg-green-50'}`}
                 >
                   {togglingId === r.id
                     ? <Loader2 className="w-4 h-4 animate-spin" />
                     : <Check className="w-4 h-4" />}
                 </button>
-                <button onClick={() => handleDelete(r.id)} className="text-red-400 hover:text-red-600 p-1.5">
+                <button
+                  onClick={() => startEdit(r)}
+                  title="Edit this reminder"
+                  aria-label="Edit this reminder"
+                  className="p-2.5 sm:p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-colors">
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button onClick={() => handleDelete(r.id)} title="Delete this reminder"
+                  aria-label="Delete this reminder"
+                  className="text-red-400 hover:text-red-600 p-2.5 sm:p-1.5 rounded-lg">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
