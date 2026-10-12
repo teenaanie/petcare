@@ -2,71 +2,13 @@ import { useState } from 'react'
 import { Sparkles, X, CheckCircle, Circle, Bell, ChevronRight, Loader2 } from 'lucide-react'
 import VoiceIntake from './VoiceIntake.jsx'
 import { savePet, saveReminder } from '../lib/storage.js'
+import { suggestionsFor, remindersToSave } from '../lib/careSuggestions.js'
 import { announcePetAdded } from '../lib/notify.js'
 import PetAvatar from './PetAvatar.jsx'
 import { trackEvent } from '../lib/analytics.js'
 
 const SPECIES = ['Dog', 'Cat', 'Bird', 'Rabbit', 'Hamster', 'Fish', 'Reptile', 'Other']
 const GENDERS = ['Male', 'Female', 'Unknown']
-
-// ── Reminder recommendations by species ──────────────────────────────────────
-
-function addMonths(n) {
-  const d = new Date()
-  d.setMonth(d.getMonth() + n)
-  return d.toISOString().split('T')[0]
-}
-function addDays(n) {
-  const d = new Date()
-  d.setDate(d.getDate() + n)
-  return d.toISOString().split('T')[0]
-}
-
-const RECOMMENDATIONS = {
-  Dog: [
-    { type: 'Vaccination',   label: 'Annual vaccination booster',      dueDate: addMonths(12), frequency: 'Yearly',   notes: 'Core vaccines: Distemper, Parvovirus, Hepatitis, Rabies' },
-    { type: 'Deworming',     label: 'Deworming',                        dueDate: addMonths(3),  frequency: 'Every 3 months', notes: 'Regular deworming for intestinal parasites' },
-    { type: 'Flea & Tick',   label: 'Flea & tick prevention',          dueDate: addMonths(1),  frequency: 'Monthly',  notes: 'Apply topical/oral flea & tick treatment' },
-    { type: 'Dental',        label: 'Dental checkup & cleaning',       dueDate: addMonths(12), frequency: 'Yearly',   notes: 'Professional dental scaling if needed' },
-    { type: 'Health Check',  label: 'Annual wellness exam',            dueDate: addMonths(12), frequency: 'Yearly',   notes: 'Full physical exam with blood work' },
-    { type: 'Grooming',      label: 'Grooming session',                dueDate: addMonths(2),  frequency: 'Every 2 months', notes: 'Bath, trim nails, clean ears' },
-  ],
-  Cat: [
-    { type: 'Vaccination',   label: 'Annual vaccination booster',      dueDate: addMonths(12), frequency: 'Yearly',   notes: 'Core vaccines: Feline Herpesvirus, Calicivirus, Panleukopenia, Rabies' },
-    { type: 'Deworming',     label: 'Deworming',                        dueDate: addMonths(3),  frequency: 'Every 3 months', notes: 'Regular deworming for intestinal parasites' },
-    { type: 'Flea & Tick',   label: 'Flea prevention',                 dueDate: addMonths(1),  frequency: 'Monthly',  notes: 'Topical or oral flea treatment' },
-    { type: 'Dental',        label: 'Dental checkup',                  dueDate: addMonths(12), frequency: 'Yearly',   notes: 'Check for tartar buildup and gum disease' },
-    { type: 'Health Check',  label: 'Annual wellness exam',            dueDate: addMonths(12), frequency: 'Yearly',   notes: 'Full physical with blood panel' },
-  ],
-  Bird: [
-    { type: 'Health Check',  label: 'Annual wellness exam',            dueDate: addMonths(12), frequency: 'Yearly',   notes: 'Full avian check-up with vet' },
-    { type: 'Grooming',      label: 'Nail & beak trim',                dueDate: addMonths(3),  frequency: 'Every 3 months', notes: 'Keep nails and beak at safe length' },
-    { type: 'Vaccination',   label: 'PBFD / Polyomavirus test',        dueDate: addMonths(12), frequency: 'Yearly',   notes: 'Screening for common avian viruses' },
-  ],
-  Rabbit: [
-    { type: 'Vaccination',   label: 'Annual vaccination (RHDV & VHD)', dueDate: addMonths(12), frequency: 'Yearly',   notes: 'Rabbit Haemorrhagic Disease & Myxomatosis vaccines' },
-    { type: 'Health Check',  label: 'Bi-annual wellness exam',         dueDate: addMonths(6),  frequency: 'Every 6 months', notes: 'Dental and full physical check' },
-    { type: 'Grooming',      label: 'Nail trim',                       dueDate: addMonths(2),  frequency: 'Every 2 months', notes: 'Trim nails to prevent overgrowth' },
-    { type: 'Deworming',     label: 'E. cuniculi treatment',           dueDate: addMonths(6),  frequency: 'Every 6 months', notes: 'Fenbendazole course as preventative' },
-  ],
-  Hamster: [
-    { type: 'Health Check',  label: 'Monthly health check',            dueDate: addMonths(1),  frequency: 'Monthly',  notes: 'Check weight, coat, teeth, and behaviour' },
-    { type: 'Grooming',      label: 'Cage deep clean',                 dueDate: addDays(30),   frequency: 'Monthly',  notes: 'Full bedding change and cage sanitise' },
-  ],
-  Fish: [
-    { type: 'Health Check',  label: 'Water quality test',              dueDate: addDays(14),   frequency: 'Every 2 weeks', notes: 'Check pH, ammonia, nitrite, nitrate levels' },
-    { type: 'Grooming',      label: 'Tank deep clean',                 dueDate: addMonths(1),  frequency: 'Monthly',  notes: 'Gravel vacuum, filter clean, partial water change' },
-  ],
-  Reptile: [
-    { type: 'Health Check',  label: 'Annual wellness exam',            dueDate: addMonths(12), frequency: 'Yearly',   notes: 'Reptile-specialist vet check' },
-    { type: 'Deworming',     label: 'Parasite screening',              dueDate: addMonths(6),  frequency: 'Every 6 months', notes: 'Fecal test for internal parasites' },
-    { type: 'Grooming',      label: 'Shedding check',                  dueDate: addMonths(2),  frequency: 'Every 2 months', notes: 'Ensure full shed, check for retained skin' },
-  ],
-  Other: [
-    { type: 'Health Check',  label: 'Annual wellness exam',            dueDate: addMonths(12), frequency: 'Yearly',   notes: 'Full health check with a vet' },
-    { type: 'Deworming',     label: 'Deworming',                        dueDate: addMonths(3),  frequency: 'Every 3 months', notes: 'Check with vet for appropriate treatment' },
-  ],
-}
 
 const TYPE_COLORS = {
   'Vaccination':  '#2f7286',
@@ -100,9 +42,16 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
   })
 
   // Reminders step: which suggestions are selected
-  const suggestions = RECOMMENDATIONS[form.species] || RECOMMENDATIONS.Other
+  const suggestions = suggestionsFor(form.species)
   const [intake, setIntake] = useState(false)
-  const [selected, setSelected] = useState(() => new Set(suggestions.map((_, i) => i)))
+  // Nothing is ticked. The previous default selected everything and called the
+  // screen "pre-selected", which a customer reasonably experienced as Pippy
+  // adding reminders by itself -- including a vaccination their dog had
+  // already had.
+  const [selected, setSelected] = useState(() => new Set())
+  // Dates the owner corrected, keyed the same way. "Due in 12 months" is only
+  // right if the jab was today.
+  const [dates, setDates] = useState({})
 
   function handleChange(e) {
     const { name, value } = e.target
@@ -150,10 +99,10 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
     }
   }
 
-  function toggleReminder(idx) {
+  function toggleReminder(key) {
     setSelected(s => {
       const next = new Set(s)
-      next.has(idx) ? next.delete(idx) : next.add(idx)
+      next.has(key) ? next.delete(key) : next.add(key)
       return next
     })
   }
@@ -161,17 +110,8 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
   async function handleAddReminders() {
     setSaving(true)
     try {
-      const toSave = suggestions.filter((_, i) => selected.has(i))
-      await Promise.all(toSave.map(r => saveReminder({
-        petId:     savedPet.id,
-        type:      r.label,
-        dueDate:   r.dueDate,
-        frequency: r.frequency,
-        notes:     r.notes,
-        isDone:    false,
-        email:     '',
-        whatsapp:  '',
-      })))
+      const toSave = remindersToSave(suggestions, selected, savedPet.id, dates)
+      await Promise.all(toSave.map(saveReminder))
     } finally {
       setSaving(false)
       onSaved(savedPet)
@@ -292,56 +232,85 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
 
             <div className="p-6 space-y-3">
               <p className="text-sm" style={{ color: '#7a4900' }}>
-                We've pre-selected common care reminders for a {form.species.toLowerCase()}. Tap to toggle any you don't need.
+                Would you like any reminders for your {form.species.toLowerCase()}?
+                Tap the ones you want. Nothing is added unless you pick it.
               </p>
 
               <div className="space-y-2 mt-1">
-                {suggestions.map((r, i) => {
-                  const isOn = selected.has(i)
+                {suggestions.map(r => {
+                  const isOn  = selected.has(r.key)
                   const color = TYPE_COLORS[r.type] || '#73775b'
+                  const due   = dates[r.key] || r.dueDate
                   return (
-                    <button key={i} type="button" onClick={() => toggleReminder(i)}
-                      className="w-full text-left flex items-start gap-3 p-4 rounded-2xl transition-all"
+                    <div key={r.key} className="rounded-2xl transition-all"
                       style={{
-                        backgroundColor: isOn ? '#FFFEF8' : '#fffef8',
+                        backgroundColor: '#fffef8',
                         border: `1.5px solid ${isOn ? '#f2b83d' : '#ebe3d3'}`,
-                        opacity: isOn ? 1 : 0.55,
+                        opacity: isOn ? 1 : 0.7,
                       }}>
-                      <div className="flex-shrink-0 mt-0.5">
-                        {isOn
-                          ? <CheckCircle className="w-5 h-5" style={{ color: '#c99a2e' }} />
-                          : <Circle className="w-5 h-5" style={{ color: '#e0d3b4' }} />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-black" style={{ color: '#7a4900' }}>{r.label}</span>
-                          <span className="text-xs px-2 py-0.5 rounded-full font-bold"
-                            style={{ backgroundColor: color + '15', color }}>
-                            {r.type}
-                          </span>
+                      <button type="button" onClick={() => toggleReminder(r.key)}
+                        aria-pressed={isOn}
+                        className="w-full text-left flex items-start gap-3 p-4">
+                        <div className="flex-shrink-0 mt-0.5">
+                          {isOn
+                            ? <CheckCircle className="w-5 h-5" style={{ color: '#c99a2e' }} />
+                            : <Circle className="w-5 h-5" style={{ color: '#e0d3b4' }} />}
                         </div>
-                        <p className="text-xs mt-0.5" style={{ color: '#73775b' }}>
-                          {r.frequency} · Due: {new Date(r.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </p>
-                        {r.notes && (
-                          <p className="text-xs mt-0.5 italic" style={{ color: '#73775b' }}>{r.notes}</p>
-                        )}
-                      </div>
-                    </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-black" style={{ color: '#7a4900' }}>{r.label}</span>
+                            <span className="text-xs px-2 py-0.5 rounded-full font-bold"
+                              style={{ backgroundColor: color + '15', color }}>
+                              {r.type}
+                            </span>
+                          </div>
+                          <p className="text-xs mt-0.5" style={{ color: '#73775b' }}>
+                            {r.frequency} · First due {new Date(due).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </p>
+                          {r.notes && (
+                            <p className="text-xs mt-0.5 italic" style={{ color: '#73775b' }}>{r.notes}</p>
+                          )}
+                        </div>
+                      </button>
+
+                      {/* The date only matters once they want the reminder, and
+                          it is the thing that was wrong: a booster "in 12
+                          months" is only right if the jab was today. */}
+                      {isOn && (
+                        <div className="px-4 pb-4 -mt-1 pl-12">
+                          {r.assumesToday && (
+                            <p className="text-xs mb-1.5" style={{ color: '#9a7b2e' }}>
+                              This assumes it was done today. If it was earlier, set the real next-due date.
+                            </p>
+                          )}
+                          <label className="flex items-center gap-2 text-xs font-bold" style={{ color: '#73775b' }}>
+                            First due
+                            <input
+                              type="date"
+                              value={due}
+                              onChange={e => setDates(d => ({ ...d, [r.key]: e.target.value }))}
+                              className="input text-xs py-1 px-2 w-auto"
+                            />
+                          </label>
+                        </div>
+                      )}
+                    </div>
                   )
                 })}
               </div>
 
               <div className="flex gap-3 pt-3">
                 <button onClick={handleSkip} className="btn-secondary flex-1 justify-center text-sm">
-                  Skip for now
+                  {selected.size === 0 ? 'No reminders, thanks' : 'Skip for now'}
                 </button>
                 <button onClick={handleAddReminders} disabled={saving || selected.size === 0}
                   className="btn-primary flex-1 justify-center gap-2 text-sm">
                   {saving
                     ? <Loader2 className="w-4 h-4 animate-spin" />
                     : <Bell className="w-4 h-4" />}
-                  Add {selected.size} Reminder{selected.size !== 1 ? 's' : ''}
+                  {selected.size === 0
+                    ? 'Pick some above'
+                    : `Add ${selected.size} reminder${selected.size === 1 ? '' : 's'}`}
                 </button>
               </div>
             </div>

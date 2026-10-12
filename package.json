@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:recurrence": "node scripts/test-recurrence.mjs",
+    "test:care-suggestions": "node scripts/test-care-suggestions.mjs",
     "check:exclusions": "node --env-file-if-exists=.env scripts/check-exclusions.mjs",
     "test:speech": "node scripts/test-speech.mjs",
     "test:provider-alert": "node scripts/test-provider-alert.mjs",
