@@ -1,6 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { drainSharedFiles, wasShared, clearSharedFlag } from './lib/shareTarget.js'
-import { PawPrint } from 'lucide-react'
 import { getSupabase, isConfigured, hasStoredSession } from './lib/supabase.js'
 import ChunkErrorBoundary from './components/ChunkErrorBoundary.jsx'
 import { isChunkLoadError, reloadOnceForChunkError } from './lib/chunkErrors.js'

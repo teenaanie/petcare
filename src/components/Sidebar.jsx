@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { PawPrint, Plus, Stethoscope, Syringe, AlertTriangle, FileText, Bell, ChevronLeft, GitBranch, Upload, TrendingUp, ChevronRight, Pill, Receipt, LogOut, ShieldCheck, Store, Home, Camera, Heart } from 'lucide-react'
+import { Plus, Stethoscope, Syringe, AlertTriangle, FileText, Bell, ChevronLeft, GitBranch, Upload, TrendingUp, ChevronRight, Pill, Receipt, LogOut, ShieldCheck, Store, Home, Camera, Heart } from 'lucide-react'
 import { getPets } from '../lib/storage.js'
 import { prefetchTab } from '../lib/prefetchTab.js'
 import MigrateData from './MigrateData.jsx'

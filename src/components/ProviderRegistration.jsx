@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { reportHandled } from '../lib/errorReport.js'
 import { getSupabase, isConfigured } from '../lib/supabase.js'
-import { PawPrint, Loader2, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react'
+import { Loader2, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react'
 import PippyLogo from './PippyLogo.jsx'
 
 const PROVIDER_TYPES = ['Vet', 'Groomer', 'Store', 'Boarder', 'Special Services', 'Pet Loss & Memorial Services']

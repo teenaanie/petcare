@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { X, Loader2, ClipboardCheck } from 'lucide-react'
+import { X, ClipboardCheck } from 'lucide-react'
 import { getPets } from '../lib/storage.js'
 import PetAvatar from './PetAvatar.jsx'
 

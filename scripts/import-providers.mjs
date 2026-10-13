@@ -370,7 +370,7 @@ for (const row of toInsert) {
 
 if (claims.length) {
   console.log(`\n${claims.length} existing row(s) matched by name and will be updated rather than duplicated:`)
-  for (const { row, target } of claims) console.log(`  · ${row.name.slice(0, 60)}`)
+  for (const { row } of claims) console.log(`  · ${row.name.slice(0, 60)}`)
 }
 if (ambiguous.length) {
   console.log(`\n${ambiguous.length} incoming row(s) matched MORE THAN ONE existing row by name — inserting rather than guessing:`)

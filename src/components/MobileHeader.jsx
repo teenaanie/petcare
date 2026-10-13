@@ -1,4 +1,4 @@
-import { Menu, ChevronLeft, Plus, PawPrint } from 'lucide-react'
+import { Menu, ChevronLeft, Plus } from 'lucide-react'
 import PetAvatar from './PetAvatar.jsx'
 import PippyLogo from './PippyLogo.jsx'
 import NotificationBell from './NotificationBell.jsx'

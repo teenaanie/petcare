@@ -145,15 +145,8 @@ export default function PetAvatar({ pet, size = 'md', editable = false, onPhotoC
     }
   }
 
-  const inner = pet?.photo ? (
-    <img src={pet.photo} alt={pet.name} className={`w-full h-full object-cover ${s.radius}`} />
-  ) : (
-    <div className={`${s.wrap} ${s.radius} flex items-center justify-center flex-shrink-0 select-none`}
-      style={{ background: 'linear-gradient(135deg, #f2b83d, #878c6b)' }}>
-      <span className={s.text}>{emoji}</span>
-    </div>
-  )
-
+  // A read-only avatar is a plain image, not a button: no "Change photo"
+  // title, no camera overlay, nothing to tap.
   if (!editable) {
     return (
       <div className={`${s.wrap} ${s.radius} overflow-hidden flex-shrink-0 ${className}`}

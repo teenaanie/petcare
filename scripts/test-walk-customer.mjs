@@ -131,7 +131,6 @@ ck('7d and leaves no stray separator', /Nail trim\s*·/.test(t), false)
 // Each filter chip, one at a time, back to All — scoped to the timeline's own
 // chip row. Unscoped, "Reminders" also matches the left-rail nav item and the
 // walk navigates away mid-assertion.
-const chips = page.locator('main, [class*="flex-1"]').locator('button').filter({ hasText:/^(All|Medical|Vaccinations|Allergies|Reminders)$/ })
 const chipRow = page.locator('div').filter({ has: page.getByRole('button', { name:'All', exact:true }) }).last()
 for (const n of ['Medical', 'Vaccinations', 'Allergies', 'All']) {
   const b = chipRow.getByRole('button', { name:n, exact:true }).first()

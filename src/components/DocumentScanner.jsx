@@ -1,5 +1,5 @@
 import { useState, useRef , useEffect } from 'react'
-import { Share2, ChevronRight, Upload, Camera, FileText, Loader2, CheckCircle, AlertCircle, Wand2, Calendar, TriangleAlert, MessageSquare, Copy, Check, Syringe, Pill, Receipt, Weight, X, Plus } from 'lucide-react'
+import { Share2, ChevronRight, Upload, Camera, FileText, Loader2, CheckCircle, AlertCircle, Wand2, Calendar, MessageSquare, Copy, Check, Syringe, Pill, Receipt, Weight, X } from 'lucide-react'
 import { saveMedicalRecord, saveVaccination, saveAllergy, saveReminder, saveMedicine, saveBill, saveWeightLog } from '../lib/storage.js'
 import { withRetry } from '../lib/net.js'
 import { friendlyError } from '../lib/errors.js'
@@ -412,8 +412,6 @@ export default function DocumentScanner({ pet, session, initialFiles = null }) {
   const updateBillLine = (idx, key, val) => setBillItem(b => ({ ...b, lineItems: b.lineItems.map((r, i) => i === idx ? { ...r, [key]: val } : r) }))
 
   // ── Render ────────────────────────────────────────────────────────────────
-
-  const hasResults = parsed && (vaxItems.length > 0 || medItems.length > 0 || billItem || recordItem || allergyItem || weightItems.length > 0)
 
   return (
     <div>

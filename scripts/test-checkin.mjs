@@ -173,6 +173,7 @@ console.log('\nThe subject line is a header, not HTML')
 
   const ctrl = compose({ kind: 'went_quiet', petNames: ['A\u0000B\u001fC'] })
   ok('control characters are stripped from the subject',
+     // eslint-disable-next-line no-control-regex -- asserting they are gone
      !/[\u0000-\u001f]/.test(ctrl.subject), JSON.stringify(ctrl.subject))
 
   const long = compose({ kind: 'went_quiet', petNames: ['x'.repeat(400)] })

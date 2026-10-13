@@ -10,15 +10,6 @@ import { trackEvent } from '../lib/analytics.js'
 const SPECIES = ['Dog', 'Cat', 'Bird', 'Rabbit', 'Hamster', 'Fish', 'Reptile', 'Other']
 const GENDERS = ['Male', 'Female', 'Unknown']
 
-const TYPE_COLORS = {
-  'Vaccination':  '#2f7286',
-  'Deworming':    '#b2566f',
-  'Flea & Tick':  '#c0392b',
-  'Dental':       '#2f7286',
-  'Health Check': '#5f7a3a',
-  'Grooming':     '#c9891f',
-}
-
 // ── Main modal ────────────────────────────────────────────────────────────────
 
 export default function AddPetModal({ onClose, onSaved, pet: existing }) {

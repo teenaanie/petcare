@@ -130,7 +130,7 @@ function Toggle({ options, value, onChange }) {
 }
 
 /** The dashboard's year: this month in figures, then twelve months of shape. */
-export function YourYear({ book, today, providerType, onPickMonth, onOpenCustomer }) {
+export function YourYear({ book, today, providerType, onPickMonth }) {
   const words = bookWords(providerType)
   const y = bookYear(book, today)
   const metrics = metricsFor(words, y.months)

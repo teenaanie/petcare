@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Home, Plus, Trash2, Share2, Bell, Check, AlertTriangle, HelpCircle, Circle,
+  Home, Trash2, Share2, Bell, Check, AlertTriangle, HelpCircle, Circle,
   CalendarClock, Loader2, ChevronDown, ChevronRight, IndianRupee, Info, X,
 } from 'lucide-react'
 import { format } from 'date-fns'
@@ -12,7 +12,7 @@ import {
   GENERIC_POLICY, resolvePolicy, evaluateReadiness, readinessScore, prepTasks,
   estimateCost, validateSlot, slotOptions, hasSlotWindows, coerceSlot, activeAdvisories,
   buildBoardingPack, admissionNotes, speciesSupport, speciesStance, speciesCovered,
-  GENERIC_PROVENANCE, d, iso, today, OTHER_SLOT,
+  GENERIC_PROVENANCE, d, iso, today,
 } from '../lib/boarding.js'
 import BoarderSearch from './BoarderSearch.jsx'
 import { copyText, COPY_FAILED } from '../lib/clipboard.js'
@@ -383,7 +383,6 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
   // Deliberately not persisted — see the note on saveBoardingTrip. It only
   // selects which admission note renders, and that recomputes every time.
   const [inHeat, setInHeat]     = useState(false)
-  const [saving, setSaving]     = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -510,7 +509,6 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
   }
 
   async function handleGenerate(chosen) {
-    setSaving(true)
     try {
       // Reminders have no natural key, so clear what we made last time rather
       // than stacking a second copy into the same 7am email.
@@ -531,8 +529,6 @@ export default function Boarding({ pet, onPetUpdated, prefillProviderId, onPrefi
       alert(`Added ${created.length} reminder${created.length === 1 ? '' : 's'} to ${pet.name}'s list.`)
     } catch (e) {
       alert('Could not create reminders: ' + e.message)
-    } finally {
-      setSaving(false)
     }
   }
 
