@@ -896,6 +896,59 @@ SELECT t_run   ('a stranger states criteria for them',    'authenticated', '3333
                 'error:P0001');
 
 \echo ''
+\echo '──── provider state & district ────'
+
+-- Seed two more providers so a state filter has something to narrow, and one
+-- with NO state at all, which is the case that must not disappear.
+INSERT INTO public.providers (id, name, type, area, city, state, district, is_approved) VALUES
+  ('aaaa1111-0000-4000-8000-000000000001', 'Blr Vet',   'Vet', 'Indiranagar', 'Bengaluru', 'Karnataka',   'Bengaluru Urban', true),
+  ('aaaa1111-0000-4000-8000-000000000002', 'Pune Vet',  'Vet', 'Kothrud',     'Pune',      'Maharashtra', 'Pune',            true),
+  ('aaaa1111-0000-4000-8000-000000000003', 'Nowhere Vet','Vet','Somewhere',   'Somewhere', NULL,          NULL,              true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Asserted through the facets function, not a direct SELECT: providers has
+-- RLS with no policy, so reading the table as `authenticated` returns nothing
+-- by design. Everything about this table is read through SECURITY DEFINER
+-- functions, and a test that forgot it failed for the wrong reason.
+-- Relative, not absolute. An exact count here depends on how many rows the
+-- stub happens to seed, and on the deliberate rule that a stateless row counts
+-- into every filter -- two things that make a number brittle and uninformative.
+SELECT t_scalar('a state filter narrows the total',             'anon', NULL,
+                $q$select ((public.provider_facets(true, null, 'Karnataka', null) ->> 'total')::int
+                         < (public.provider_facets(true, null, null,        null) ->> 'total')::int)::text$q$, 'true');
+SELECT t_scalar('a district narrows it further still',          'anon', NULL,
+                $q$select ((public.provider_facets(true, null, 'Maharashtra', 'Pune')  ->> 'total')::int
+                        <= (public.provider_facets(true, null, 'Maharashtra', null)   ->> 'total')::int)::text$q$, 'true');
+
+-- The point of the feature: a state narrows the list.
+SELECT t_scalar('filtering by Karnataka finds the Bengaluru vet', 'anon', NULL,
+                $q$select count(*)::text from public.search_providers(true, 'Vet', null, 'Blr', 60, 0, 'Karnataka', null)$q$, '1');
+SELECT t_scalar('and does not return the Pune one',               'anon', NULL,
+                $q$select count(*)::text from public.search_providers(true, 'Vet', null, 'Pune Vet', 60, 0, 'Karnataka', null)$q$, '0');
+SELECT t_scalar('a district narrows further',                     'anon', NULL,
+                $q$select count(*)::text from public.search_providers(true, 'Vet', null, 'Kothrud', 60, 0, 'Maharashtra', 'Pune')$q$, '1');
+
+-- A row that has no state yet must stay findable, or every scraped provider
+-- vanishes the moment a state filter is applied.
+SELECT t_scalar('a provider with no state is not hidden by a filter', 'anon', NULL,
+                $q$select count(*)::text from public.search_providers(true, 'Vet', null, 'Nowhere', 60, 0, 'Karnataka', null)$q$, '1');
+
+-- The dropdowns are built from these.
+SELECT t_scalar('facets list the states',                         'anon', NULL,
+                $q$select jsonb_array_length(public.provider_facets(true, null, null, null) -> 'states')::text$q$, '2');
+SELECT t_scalar('districts are scoped to the chosen state',       'anon', NULL,
+                $q$select jsonb_array_length(public.provider_facets(true, null, 'Karnataka', null) -> 'districts')::text$q$, '1');
+
+-- The old signature must be GONE, not merely shadowed: two overloads reachable
+-- by the same name make every PostgREST call ambiguous.
+SELECT t_scalar('only one search_providers signature exists',     'authenticated', NULL,
+                $q$select count(*)::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+                   where n.nspname='public' and p.proname='search_providers'$q$, '1');
+SELECT t_scalar('only one provider_facets signature exists',      'authenticated', NULL,
+                $q$select count(*)::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+                   where n.nspname='public' and p.proname='provider_facets'$q$, '1');
+
+\echo ''
 \echo '════ results ════'
 SELECT ord, label, expected, got, CASE WHEN ok THEN 'PASS' ELSE 'FAIL' END AS result
 FROM t_results ORDER BY ord;
