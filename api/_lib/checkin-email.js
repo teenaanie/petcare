@@ -77,6 +77,8 @@ const esc = s => String(s ?? '').replace(/[<>&"]/g, c =>
  * too, because a 400-character pet name makes a subject nothing but noise.
  */
 const oneLine = s => String(s ?? '')
+  // Stripping control characters is the point; see the note above.
+  // eslint-disable-next-line no-control-regex
   .replace(/[\r\n\t\u0000-\u001f\u007f]+/g, ' ')
   .replace(/\s+/g, ' ')
   .trim()

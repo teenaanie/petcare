@@ -259,7 +259,6 @@ export default function Timeline({ pet }) {
 
   useEffect(load, [pet.id])
 
-  const today   = new Date()
   const past    = events.filter(e => !e.isFuture)
   const future  = events.filter(e => e.isFuture)
 

@@ -29,15 +29,6 @@ import { reportHandled } from '../lib/errorReport.js'
 // Both paths therefore converge on one textarea, one parse call, one review
 // screen and one save path.
 
-// See the note on the same constants in Reminders.jsx. 1200 bytes is roughly
-// four seconds of Opus-compressed SILENCE, not an empty container, so it was
-// rejecting short quiet recordings before Whisper could judge them.
-const MIN_BYTES = 200
-const MIN_MS    = 400
-
-const SPECIES  = ['Dog', 'Cat', 'Bird', 'Rabbit', 'Hamster', 'Fish', 'Reptile', 'Other']
-const GENDERS  = ['Male', 'Female', 'Unknown']
-
 const EXAMPLE = "Bruno is a 6 year old beagle, brown and white, about 19 kilos. He had his rabies shot in March and is due again next March. He's on Simparica monthly for ticks. He's allergic to chicken — comes up in a rash."
 
 // ── Review row ───────────────────────────────────────────────────────────────

@@ -19,8 +19,8 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
-  Loader2, AlertCircle, Plus, X, Users, CalendarDays, Phone, Mail, MessageCircle,
-  Trash2, PawPrint, Link2, ChevronLeft, ChevronRight, Home, Check, Pencil,
+  Loader2, AlertCircle, Plus, Users, Phone, Mail, MessageCircle,
+  Trash2, Link2, ChevronLeft, ChevronRight, Home, Check, Pencil,
   NotebookPen, AlertTriangle, ClipboardCheck,
 } from 'lucide-react'
 import { getSupabaseProvider } from '../../lib/supabase.js'
@@ -369,7 +369,7 @@ function BookingRow({ a, pet, customer, onOpen }) {
 
 // ── One booking ─────────────────────────────────────────────────────────────
 
-function BookingDetail({ booking, customer, pets, onBack, onChanged, run, busy, postedBy, words }) {
+function BookingDetail({ booking, customer, pets, onBack, run, busy, postedBy, words }) {
   const [editing, setEditing] = useState(false)
   const [logs, setLogs] = useState([])
   const [entry, setEntry] = useState('')
@@ -515,7 +515,7 @@ function BookingDetail({ booking, customer, pets, onBack, onChanged, run, busy, 
 
 // ── One customer ────────────────────────────────────────────────────────────
 
-function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBooking, onChanged, run, busy, postedBy, words, providerType, listing }) {
+function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBooking, run, busy, postedBy, words, providerType, listing }) {
   const [addingPet, setAddingPet] = useState(false)
   const [booking, setBooking]     = useState(false)
   const [editing, setEditing]     = useState(false)
@@ -749,7 +749,7 @@ function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBoo
 
 // ── The book ────────────────────────────────────────────────────────────────
 
-export default function ProviderBook({ providerIds = [], primaryProviderId, providerName, providerType, postedBy, otherBusinesses = [] }) {
+export default function ProviderBook({ providerIds = [], primaryProviderId, providerType, postedBy, otherBusinesses = [] }) {
   // The business's own listing, for the criteria a customer can be sent. Read
   // through the function rather than the table: an unpublished listing cannot
   // be read by its own owner through the directory's policy.
@@ -832,7 +832,7 @@ export default function ProviderBook({ providerIds = [], primaryProviderId, prov
     if (!b) return <div>{Err}<button onClick={() => setView({ kind: 'dashboard' })} className="btn-secondary">Back</button></div>
     return <>{Err}<BookingDetail booking={b} customer={custById[b.customerId]} pets={book.pets}
       busy={busy} run={run} postedBy={postedBy} words={words}
-      onBack={() => setView({ kind: 'customer', id: b.customerId })} onChanged={load} /></>
+      onBack={() => setView({ kind: 'customer', id: b.customerId })} /></>
   }
 
   // ── One customer ──────────────────────────────────────────────────────────
@@ -844,7 +844,7 @@ export default function ProviderBook({ providerIds = [], primaryProviderId, prov
       busy={busy} run={run} postedBy={postedBy} words={words} providerType={providerType}
       listing={listing}
       onOpenBooking={id => setView({ kind: 'booking', id })}
-      onBack={() => setView({ kind: 'dashboard' })} onChanged={load} /></>
+      onBack={() => setView({ kind: 'dashboard' })} /></>
   }
 
   // ── One month, behind a bar ───────────────────────────────────────────────
@@ -1098,7 +1098,7 @@ export default function ProviderBook({ providerIds = [], primaryProviderId, prov
       {/* Broadcasting belongs on the dashboard: it is a thing you do to the
           whole book, not to one customer. Messaging ONE customer lives on their
           own screen, where their number is. */}
-      <ProviderBroadcast providerId={primaryProviderId} providerName={providerName} />
+      <ProviderBroadcast providerId={primaryProviderId} />
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Share2, Download, ShieldAlert, MessageCircle } from 'lucide-react'
+import { X, Share2, ShieldAlert, MessageCircle } from 'lucide-react'
 import { getMedicalHistory, getVaccinations, getAllergies } from '../lib/storage.js'
 import { format, parseISO, isValid } from 'date-fns'
 import { getMyProviders, telLink } from '../lib/myProviders.js'
@@ -105,8 +105,6 @@ export default function EmergencyCard({ pet, onClose }) {
     ].filter(Boolean)
     return lines.join('\n')
   }
-
-  function handlePrint() { window.print() }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"

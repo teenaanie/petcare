@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, Bell, BellOff, BellRing, MessageCircle, CheckCircle, AlertCircle, Loader2, Mic, MicOff, Wand2, X, Check, Pencil } from 'lucide-react'
+import { Plus, Trash2, Bell, BellOff, BellRing, MessageCircle, CheckCircle, AlertCircle, Loader2, Mic, MicOff, X, Check, Pencil } from 'lucide-react'
 import { getReminders, saveReminder, deleteReminder, markReminderDone } from '../lib/storage.js'
 import { pushSupported, getPushSubscriptionStatus, subscribeToPush, unsubscribeFromPush } from '../lib/push.js'
 import { format, parseISO, isValid } from 'date-fns'

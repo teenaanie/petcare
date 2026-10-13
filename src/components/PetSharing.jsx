@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Users, UserPlus, Trash2, X, Loader2, AlertCircle, Copy, Check } from 'lucide-react'
+import { Users, UserPlus, Trash2, X, Loader2, AlertCircle, Check } from 'lucide-react'
 import { getSupabase } from '../lib/supabase.js'
 import { trackEvent } from '../lib/analytics.js'
 import { reportHandled } from '../lib/errorReport.js'

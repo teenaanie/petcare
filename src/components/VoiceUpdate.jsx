@@ -12,7 +12,7 @@ import {
   saveWeightLog, saveBill, saveReminder,
 } from '../lib/storage.js'
 import { groupParsed } from '../lib/voiceUpdateRecords.js'
-import { withRetry, isNetworkError } from '../lib/net.js'
+import { withRetry } from '../lib/net.js'
 import { suggestName, rememberName } from '../lib/petMeds.js'
 import { friendlyError } from '../lib/errors.js'
 import { reportHandled } from '../lib/errorReport.js'

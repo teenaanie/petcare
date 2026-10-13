@@ -70,11 +70,6 @@ function LifeStageBar({ pet, ageYears }) {
   const maxLifespan = stages[stages.length - 1].max
   const clampedAge = Math.min(ageYears, maxLifespan)
 
-  // Find current stage
-  let accum = 0
-  const currentStage = stages.find(s => { const inRange = ageYears <= accum + s.max; accum = 0; return inRange })
-    || stages[stages.length - 1]
-
   // Build segments with widths proportional to stage span
   let from = 0
   const segments = stages.map((s, i) => {
@@ -85,29 +80,6 @@ function LifeStageBar({ pet, ageYears }) {
 
   const pctPos = (clampedAge / maxLifespan) * 100
 
-  // Which stage are we in?
-  let cursor = 0
-  const activeIdx = stages.findIndex(s => { const yes = ageYears <= (cursor + s.max); cursor = 0; return yes })
-  const activeStage = stages.find((s, i) => {
-    let lo = i === 0 ? 0 : stages.slice(0, i).reduce((a, b) => a + b.max, 0) - stages.slice(0, i - 1).reduce((a, b) => a + b.max, 0)
-    return true
-  })
-
-  // Simple approach: find stage by accumulating
-  let lo = 0
-  let activeStageLabel = stages[stages.length - 1].label
-  let activeEmoji = stages[stages.length - 1].emoji
-  for (let i = 0; i < stages.length; i++) {
-    const stageMax = (i === 0 ? 0 : stages.slice(0, i).reduce((s, x) => s + x.max, 0))
-    const hi = stageMax + stages[i].max
-    if (ageYears <= hi || i === stages.length - 1) {
-      activeStageLabel = stages[i].label
-      activeEmoji = stages[i].emoji
-      break
-    }
-  }
-
-  // Actually, simplest:
   let cum = 0
   let stageName = stages[stages.length - 1].label
   let stageEmoji = stages[stages.length - 1].emoji
@@ -160,7 +132,6 @@ function LifeStageBar({ pet, ageYears }) {
   )
 }
 import { deletePet, savePet } from '../lib/storage.js'
-import { format } from 'date-fns'
 import AddPetModal from './AddPetModal.jsx'
 import PetAvatar from './PetAvatar.jsx'
 const Timeline = lazy(() => import('./Timeline.jsx'))

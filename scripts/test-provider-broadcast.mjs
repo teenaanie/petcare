@@ -17,7 +17,6 @@
 import http from 'node:http'
 
 const PROV   = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
-const OTHER  = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
 const UID    = '33333333-3333-3333-3333-333333333333'
 
 let state

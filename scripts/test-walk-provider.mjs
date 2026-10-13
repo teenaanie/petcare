@@ -143,7 +143,6 @@ await dash()
 
 step = 'month'
 await page.getByRole('button', { name:'Stays', exact:true }).click(); await page.waitForTimeout(500)
-const bars = page.locator('button[aria-label*="stay"], button[title*="stay"]')
 step = 'customers'
 await page.getByRole('button', { name:/All customers/i }).first().click(); await page.waitForTimeout(800)
 ck('10 the customer list opens',  await has('Mrs Rao'), true)

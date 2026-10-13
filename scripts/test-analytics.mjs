@@ -23,7 +23,7 @@ globalThis.window = {
   },
   gtag: (kind, name, params) => { if (kind === 'event') sent.push({ name, params }) },
 }
-globalThis.localStorage = window.localStorage
+globalThis.localStorage = globalThis.window.localStorage
 globalThis.document = { createElement: () => ({}), head: { appendChild() {} },
                         getElementsByTagName: () => [{ parentNode: { insertBefore() {} } }] }
 

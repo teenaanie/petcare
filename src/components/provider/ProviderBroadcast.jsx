@@ -21,7 +21,7 @@ import { formatDay } from '../../lib/providerBrief.js'
 const MAX_SUBJECT = 120
 const MAX_BODY    = 2000
 
-export default function ProviderBroadcast({ providerId, providerName }) {
+export default function ProviderBroadcast({ providerId }) {
   const [open, setOpen]       = useState(false)
   const [subject, setSubject] = useState('')
   const [body, setBody]       = useState('')

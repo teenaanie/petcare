@@ -16,10 +16,29 @@
 // the share panel threw "Can't find variable: supabase" and the panel never
 // loaded. A customer found it.
 //
-// Nothing could have caught it here. There is no ESLint in this project, so no
-// `no-undef`. The file still imports `getSupabase`, so the import is real and
-// Rollup is satisfied. `supabase` is simply an undefined global, which is a
-// ReferenceError at the moment that line runs and invisible until then.
+// Nothing could have caught it here. The file still imports `getSupabase`, so
+// the import is real and Rollup is satisfied. `supabase` is simply an
+// undefined global, which is a ReferenceError at the moment that line runs and
+// invisible until then.
+//
+// ── Why this still exists now that ESLint does ──────────────────────────────
+//
+// `npm run lint` would now catch that exact line: a bare `supabase` with
+// nothing in scope is `no-undef`, which is why ESLint was added at all. Two
+// things here are still outside its reach, both checked against it:
+//
+//   1. A STALE IMPORT. `import { supabase } from '../lib/supabase.js'` is a
+//      declared binding as far as ESLint is concerned, so no-undef says
+//      nothing -- even though supabase.js stopped exporting that name, making
+//      it `undefined` at runtime. Core ESLint does not resolve modules.
+//      Verified: a probe file with that exact import drew zero errors.
+//   2. THE DERIVED-BINDING RULE. ESLint is satisfied by a binding anywhere in
+//      lexical scope. The rule in this project is narrower -- the client must
+//      be bound in the same function that uses it, because `getSupabase()` is
+//      async and a module-level `const supabase = ...` cannot await.
+//
+// So the two are not duplicates: ESLint covers the general case across the
+// whole codebase, and this covers the one convention ESLint cannot see.
 //
 // So it is checked. The rule: inside any function that uses `supabase` as a
 // value, that same function must bind it -- `const supabase = await
@@ -105,7 +124,7 @@ const USE = /\bsupabase\s*(?:\.|\)|,|;|$)|\bawait\s+supabase\b/g
 // silently dropping a real unbound use in DeleteAccount.jsx. A check that
 // hides the bug it was written for is worse than no check.
 const CONTROL = /\b(if|while|for|switch|catch|return|typeof|await|do|with)$/
-function isParamDecl(line, src, idx) {
+function isParamDecl(line) {
   // Arrow parameters: `(supabase) =>` or `supabase =>`.
   if (/\([^)]*\bsupabase\b[^)]*\)\s*=>/.test(line)) return true
   if (/\bsupabase\s*=>/.test(line)) return true
@@ -159,7 +178,7 @@ for (const file of walk('src')) {
   while ((m = USE.exec(src))) {
     const line = raw.slice(0, m.index).split('\n').length
     // Skip a parameter list: that line is a binding, not a use.
-    if (isParamDecl(src.split('\n')[line - 1] || '', src, m.index)) continue
+    if (isParamDecl(src.split('\n')[line - 1] || '')) continue
     usesChecked++
     const bound = enclosingBlocks(src, m.index).some(b => BINDS.test(b))
     if (bound) continue
