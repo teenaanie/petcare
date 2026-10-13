@@ -170,7 +170,7 @@ function vetQuestionsPrompt({ parsed = {}, petName = 'this pet' }) {
   return `Based on this vet report for ${petName}:\n${parts.join('\n')}\n\nGenerate 5-7 specific questions the owner should ask their vet. Each must reference something in this report. Write in plain language. Return ONLY a valid JSON array of strings: ["Question 1?", ...]`
 }
 
-function voiceIntakePrompt({ transcript = '' }) {
+export function voiceIntakePrompt({ transcript = '' }) {
   // Same IST anchor as voiceReminderPrompt. Between 18:30 and 00:00 UTC it is
   // already tomorrow in India, and every relative date would land a day out.
   const today = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -223,7 +223,22 @@ RULES — the first is the one that matters most:
    attach it there; if it is ambiguous which pet it refers to, put it in
    "unclear" rather than guessing.
 
-3. Controlled vocabularies. Use EXACTLY one of these, or an empty string if you
+   But DO NOT SPLIT ONE ANIMAL INTO TWO. "Tipu, an Indie dog" is ONE dog named
+   Tipu whose breed is Indie — not a dog called Tipu and another called Indie.
+   A second animal needs positive evidence: a count ("two dogs"), a second
+   species, the word "and" joining two names, or something said about one that
+   cannot apply to the other. A describing phrase after the name — "an Indie
+   dog", "a lab", "a desi cat" — is the BREED of the animal already named.
+
+3. Breed words common in India, so they are not mistaken for names. "Indie",
+   "Indi", "Indy", "Indies", "Desi" and "street dog" or "stray" all mean the
+   native Indian dog or cat; record the breed as the owner said it. "Indie" is
+   the most common breed in this app. Others: Indian Pariah, Indian Spitz,
+   Mudhol Hound, Rajapalayam, Kombai, Chippiparai, Himalayan Sheepdog, and for
+   cats Indian Shorthair or Billi. "Lab" means Labrador. None of these is a
+   pet's name.
+
+4. Controlled vocabularies. Use EXACTLY one of these, or an empty string if you
    are not sure:
    species  : Dog, Cat, Bird, Rabbit, Hamster, Fish, Reptile, Other
    gender   : Male, Female, Unknown
@@ -231,17 +246,17 @@ RULES — the first is the one that matters most:
    type (allergy): Food, Environmental, Medication, Contact, Other
    severity : Mild, Moderate, Severe
 
-4. "reactions" is an ARRAY of short strings — ["itching", "swelling"]. One
+5. "reactions" is an ARRAY of short strings — ["itching", "swelling"]. One
    reaction is still an array of one.
 
-5. "weight" is a number in kilograms, or null. Never a string, never a range.
+6. "weight" is a number in kilograms, or null. Never a string, never a range.
    If they said "around 20 kilos" use 20 and note the imprecision in notes.
 
-6. Anything heard or read that you could not confidently place goes in
+7. Anything heard or read that you could not confidently place goes in
    "unclear", verbatim-ish, so the owner can add it by hand. Do not force it
    into a field and do not silently drop it.
 
-7. If no pet can be identified at all, return {"pets": [], "unclear": [...]}.
+8. If no pet can be identified at all, return {"pets": [], "unclear": [...]}.
 
 Return valid JSON only.`
 }
