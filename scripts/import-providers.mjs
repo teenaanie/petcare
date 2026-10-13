@@ -2,6 +2,12 @@
 // Transforms an Apify Google Maps scrape into provider rows and upserts them.
 //
 //   node scripts/import-providers.mjs <path-to-json> [--dry-run] [--limit N]
+//                                      [--state S] [--district D] [--city C]
+//
+// State and district are derived per record from Google's own fields and the
+// address; --state/--district only fill in records that carry neither, and a
+// value that is not a real state or a known district is rejected rather than
+// stored. See src/lib/geography.js.
 //
 // Idempotent: upserts on place_id, so re-running updates rows instead of
 // duplicating them. Reads SUPABASE_URL / SUPABASE_SERVICE_KEY from .env.
@@ -10,6 +16,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { createClient } from '@supabase/supabase-js'
 import { classify } from '../src/lib/taxonomy.js'
+import {
+  stateFromRecord, districtFromRecord, canonicalCity,
+  canonicalState, districtForCity,
+} from '../src/lib/geography.js'
 
 // ── Load .env (no dotenv dependency) ─────────────────────────────────────────
 // .env is optional — the variables may already be in the environment.
@@ -76,7 +86,7 @@ const clean = (value, max) => {
   return trimmed ? trimmed.slice(0, max) : null
 }
 
-function toProvider(record) {
+function toProvider(record, fallback = {}) {
   if (record.permanentlyClosed || record.temporarilyClosed) return null
 
   const name = clean(record.title, 120)
@@ -94,7 +104,15 @@ function toProvider(record) {
     name,
     type,
     area:          normalizeArea(record),
-    city:          clean(record.city, 200) || 'Pune',
+    // No geographic default. This used to read `|| 'Pune'`, which was true
+    // while the directory held one city and silently mislabels every row the
+    // moment a second state is imported -- a Kerala business with no city
+    // would have been filed in Pune. --state / --district supply a fallback
+    // when the operator knows the scrape's scope; otherwise these stay null
+    // and are reported at the end of the run.
+    city:          canonicalCity(record.city) || fallback.city || null,
+    state:         stateFromRecord(record)    || fallback.state || null,
+    district:      districtFromRecord(record) || fallback.district || null,
     address:       clean(record.address, 400),
     postal_code:   clean(record.postalCode, 20),
     phone,
@@ -131,9 +149,48 @@ const dryRun  = args.includes('--dry-run')
 const limitAt = args.indexOf('--limit')
 const limit   = limitAt !== -1 ? parseInt(args[limitAt + 1], 10) : null
 
+// A scrape is run for a known place, so the operator usually knows the state
+// even when Google's records do not carry one. These fill the gaps; they never
+// override geography that was actually derived from a record.
+const flag = name => {
+  const i = args.indexOf(`--${name}`)
+  if (i !== -1 && args[i + 1] && !args[i + 1].startsWith('--')) return args[i + 1]
+  const inline = args.find(a => a.startsWith(`--${name}=`))
+  return inline ? inline.slice(name.length + 3) : null
+}
+
+const USAGE = 'Usage: node scripts/import-providers.mjs <path-to-json> ' +
+  '[--dry-run] [--limit N] [--state "Kerala"] [--district "Ernakulam"] [--city "Kochi"]'
+
 if (!file) {
-  console.error('Usage: node scripts/import-providers.mjs <path-to-json> [--dry-run] [--limit N]')
+  console.error(USAGE)
   process.exit(1)
+}
+
+const rawState    = flag('state')
+const rawDistrict = flag('district')
+const fallback = {
+  state:    rawState    ? canonicalState(rawState)       : null,
+  // A city name is accepted here and mapped, so `--district Kochi` works and
+  // stores Ernakulam, exactly as a record carrying city=Kochi would.
+  district: rawDistrict ? districtForCity(rawDistrict) : null,
+  city:     flag('city') ? canonicalCity(flag('city'))   : null,
+}
+
+// A misspelled --state would silently do nothing, so refuse it instead.
+if (rawState && !fallback.state) {
+  console.error(`--state "${rawState}" is not an Indian state or union territory.`)
+  process.exit(1)
+}
+if (rawDistrict && !fallback.district) {
+  console.error(
+    `--district "${rawDistrict}" is not a known district.\n` +
+    'Known districts live in DISTRICTS_BY_STATE in src/lib/geography.js — ' +
+    'add the state there if you are importing a new one.')
+  process.exit(1)
+}
+if (fallback.state || fallback.district || fallback.city) {
+  console.log('Fallback geography for records that carry none:', fallback)
 }
 
 const raw = JSON.parse(fs.readFileSync(path.resolve(file), 'utf8'))
@@ -142,7 +199,7 @@ console.log(`Read ${raw.length} scraped records from ${file}`)
 const rows = []
 const skipped = {}
 for (const record of raw) {
-  const provider = toProvider(record)
+  const provider = toProvider(record, fallback)
   if (provider) { rows.push(provider); continue }
 
   let reason
@@ -163,8 +220,38 @@ const noPlaceId = rows.filter(r => !r.place_id)
 const byType = {}
 for (const r of deduped) byType[r.type] = (byType[r.type] || 0) + 1
 
+const byGeography = {}
+for (const r of deduped) {
+  const k = `${r.state || '?'} / ${r.district || '?'}`
+  byGeography[k] = (byGeography[k] || 0) + 1
+}
+
 console.log(`\nMapped ${rows.length} providers (${deduped.length} unique place_ids, ${noPlaceId.length} without)`)
 console.log('By type:', byType)
+console.log('By state / district:', byGeography)
+
+// Loudly, because a row with no state is shown under EVERY state by
+// search_providers -- that is deliberate, so a provider who just registered
+// is never invisible, but it means an unplaced import leaks across states.
+const unplaced = deduped.filter(r => !r.state || !r.district)
+if (unplaced.length) {
+  console.log(`\n⚠  ${unplaced.length} of ${deduped.length} row(s) have no state or no district.`)
+  console.log('   These appear under every state in the directory until fixed.')
+  console.log('   Re-run with --state / --district, or set them by hand afterwards:')
+  for (const r of unplaced.slice(0, 15)) {
+    console.log(`     · ${r.name.slice(0, 48).padEnd(48)} state=${r.state || 'NULL'} district=${r.district || 'NULL'} city=${r.city || 'NULL'}`)
+  }
+  if (unplaced.length > 15) console.log(`     … and ${unplaced.length - 15} more`)
+}
+
+// A scrape run for one state should not contain another. If it does, either
+// the search phrasing was too broad or a record is wrong -- worth knowing
+// before 1,000 rows go in.
+const states = [...new Set(deduped.map(r => r.state).filter(Boolean))]
+if (states.length > 1) {
+  console.log(`\n⚠  This scrape spans ${states.length} states: ${states.join(', ')}`)
+  console.log('   Check that is intended before importing.')
+}
 console.log(`Skipped ${Object.values(skipped).reduce((a, b) => a + b, 0)} records`)
 console.log('Top skip reasons:', Object.entries(skipped).sort((a, b) => b[1] - a[1]).slice(0, 8))
 
@@ -224,7 +311,7 @@ let existingRows = []
 for (let from = 0; ; from += 1000) {
   const { data, error } = await supabase
     .from('providers')
-    .select('id, place_id, name, city, lat, lng, type, type_verified_at')
+    .select('id, place_id, name, city, state, district, lat, lng, type, type_verified_at')
     .range(from, from + 999)
   if (error) { console.error('Failed to read existing providers:', error.message); process.exit(1) }
   existingRows = existingRows.concat(data)
@@ -257,7 +344,16 @@ for (const row of toInsert) {
 
   const candidates = (unclaimed.get(norm(row.name)) || [])
     .filter(c => !claimedIds.has(c.id))
-    .filter(c => norm(c.city) === norm(row.city))
+    // Same city AND same state, and neither may be blank.
+    //
+    // This used to compare city alone. With one state in the directory that
+    // was sufficient; with two it is not, because norm(null) === '' and two
+    // city-less rows of the same name would have matched each other across
+    // states -- an "Animal Clinic" in Ernakulam quietly overwriting one in
+    // Pune. Requiring a non-blank value on both sides means an unplaced row
+    // now inserts instead of claiming, which is the safe direction.
+    .filter(c => norm(c.city) && norm(row.city) && norm(c.city) === norm(row.city))
+    .filter(c => norm(c.state) && norm(row.state) && norm(c.state) === norm(row.state))
     .filter(c => {
       const d = metresApart({ lat: c.lat, lng: c.lng }, { lat: row.lat, lng: row.lng })
       return d === null || d <= SAME_PLACE_METRES   // no coords to compare on = allow
