@@ -280,10 +280,14 @@ function ProviderCard({ p, onPrepForStay }) {
   )
 }
 
+// Remembered per browser, so somebody outside Maharashtra sets it once.
+const STATE_KEY    = 'pippy_provider_state'
+const DISTRICT_KEY = 'pippy_provider_district'
+
 export default function ProviderDirectory({ onPrepForStay }) {
   const [providers, setProviders] = useState([])
   const [total, setTotal]         = useState(0)
-  const [facets, setFacets]       = useState({ total: 0, types: {}, areas: [] })
+  const [facets, setFacets]       = useState({ total: 0, types: {}, areas: [], states: [], districts: [] })
   const [loading, setLoading]     = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError]         = useState(null)
@@ -292,6 +296,35 @@ export default function ProviderDirectory({ onPrepForStay }) {
   const [activeTab, setActiveTab] = useState('All')
   const [activeArea, setActiveArea] = useState('All')
 
+  // State and district are remembered per browser. There is no location
+  // lookup: the honest options were a paid reverse-geocode behind a permission
+  // prompt, or this. Somebody outside Maharashtra changes it once and it
+  // sticks, which is the same number of taps as getting it wrong automatically.
+  const [activeState, setActiveState] = useState(() => {
+    try { return localStorage.getItem(STATE_KEY) || 'All' } catch { return 'All' }
+  })
+  const [activeDistrict, setActiveDistrict] = useState(() => {
+    try { return localStorage.getItem(DISTRICT_KEY) || 'All' } catch { return 'All' }
+  })
+
+  function chooseState(v) {
+    setActiveState(v)
+    // A district only means something inside its state, and an area only
+    // inside its district. Changing the wider one clears the narrower.
+    setActiveDistrict('All')
+    setActiveArea('All')
+    try {
+      localStorage.setItem(STATE_KEY, v)
+      localStorage.removeItem(DISTRICT_KEY)
+    } catch { /* a remembered filter is a convenience, not state we rely on */ }
+  }
+
+  function chooseDistrict(v) {
+    setActiveDistrict(v)
+    setActiveArea('All')
+    try { localStorage.setItem(DISTRICT_KEY, v) } catch { /* as above */ }
+  }
+
   // Don't fire a query on every keystroke
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300)
@@ -299,18 +332,20 @@ export default function ProviderDirectory({ onPrepForStay }) {
   }, [search])
 
   const query = useMemo(() => ({
-    type:   activeTab === 'All' ? null : activeTab,
-    area:   activeArea === 'All' ? null : activeArea,
-    search: debouncedSearch,
-  }), [activeTab, activeArea, debouncedSearch])
+    type:     activeTab === 'All' ? null : activeTab,
+    area:     activeArea === 'All' ? null : activeArea,
+    state:    activeState === 'All' ? null : activeState,
+    district: activeDistrict === 'All' ? null : activeDistrict,
+    search:   debouncedSearch,
+  }), [activeTab, activeArea, activeState, activeDistrict, debouncedSearch])
 
   // Tab counts and the area dropdown need totals across the whole table, so
   // they come from a dedicated facets query rather than the current page.
   useEffect(() => {
-    getProviderFacets({ area: query.area })
+    getProviderFacets({ area: query.area, state: query.state, district: query.district })
       .then(setFacets)
       .catch(e => { reportHandled(e, { view: 'providers' }); setError(e.message) })
-  }, [query.area])
+  }, [query.area, query.state, query.district])
 
   // First page — refetched whenever a filter changes
   useEffect(() => {
@@ -350,7 +385,11 @@ export default function ProviderDirectory({ onPrepForStay }) {
   const q = debouncedSearch.trim()
   const areaOf = p => (p.area || p.city || '').trim()
 
-  const areaOptions = facets.areas || []
+  const areaOptions     = facets.areas     || []
+  // Empty until supabase/provider_state_district.sql has been run, which is
+  // what keeps the dropdowns hidden until there is something to choose.
+  const stateOptions    = facets.states    || []
+  const districtOptions = facets.districts || []
 
   const tabCounts = useMemo(() => {
     const counts = { All: facets.total || 0 }
@@ -401,22 +440,49 @@ export default function ProviderDirectory({ onPrepForStay }) {
           ))}
         </div>
 
-        {/* Search + area filter */}
-        <div className="flex gap-2 mb-6">
-          <div className="relative flex-1">
+        {/* Search, then place: state → district → area, widest first.
+            Each dropdown appears only once there is a choice to make, so a
+            directory covering one state looks exactly as it did before. */}
+        <div className="space-y-2 mb-6">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#73775b' }} />
             <input type="text" className="input w-full pl-9"
-              placeholder="Search by name, area or service…"
+              placeholder="Search by name, place or service…"
               value={search} onChange={e => setSearch(e.target.value)} />
           </div>
-          {areaOptions.length > 1 && (
-            <select className="input w-36 flex-shrink-0 text-sm"
-              value={activeArea} onChange={e => setActiveArea(e.target.value)}>
-              <option value="All">All areas</option>
-              {areaOptions.map(({ area, count }) => (
-                <option key={area} value={area}>{area} ({count})</option>
-              ))}
-            </select>
+          {(stateOptions.length > 1 || districtOptions.length > 1 || areaOptions.length > 1) && (
+            <div className="flex gap-2 flex-wrap">
+              {stateOptions.length > 1 && (
+                <select className="input flex-1 min-w-32 text-sm"
+                  aria-label="State"
+                  value={activeState} onChange={e => chooseState(e.target.value)}>
+                  <option value="All">All states</option>
+                  {stateOptions.map(({ state, count }) => (
+                    <option key={state} value={state}>{state} ({count})</option>
+                  ))}
+                </select>
+              )}
+              {districtOptions.length > 1 && (
+                <select className="input flex-1 min-w-32 text-sm"
+                  aria-label="District"
+                  value={activeDistrict} onChange={e => chooseDistrict(e.target.value)}>
+                  <option value="All">All districts</option>
+                  {districtOptions.map(({ district, count }) => (
+                    <option key={district} value={district}>{district} ({count})</option>
+                  ))}
+                </select>
+              )}
+              {areaOptions.length > 1 && (
+                <select className="input flex-1 min-w-32 text-sm"
+                  aria-label="Area"
+                  value={activeArea} onChange={e => setActiveArea(e.target.value)}>
+                  <option value="All">All areas</option>
+                  {areaOptions.map(({ area, count }) => (
+                    <option key={area} value={area}>{area} ({count})</option>
+                  ))}
+                </select>
+              )}
+            </div>
           )}
         </div>
 

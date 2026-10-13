@@ -663,7 +663,7 @@ function ErrorsPanel() {
 
 // ── Providers Panel ──────────────────────────────────────────────────────────
 
-const EMPTY_PROVIDER = { name: '', type: 'Vet', services: [], specializations: [], description: '', address: '', area: '', city: '', phone: '', whatsapp: '', email: '', website: '', hours: '', photo_url: '', maps_url: '', is_approved: false }
+const EMPTY_PROVIDER = { name: '', type: 'Vet', services: [], specializations: [], description: '', address: '', area: '', city: '', district: '', state: '', phone: '', whatsapp: '', email: '', website: '', hours: '', photo_url: '', maps_url: '', is_approved: false }
 
 const TYPE_ICONS = { Vet: Stethoscope, Groomer: Scissors, Store: ShoppingBag, Boarder: Home, 'Special Services': Camera, 'Pet Loss & Memorial Services': Flower2 }
 const TYPE_COLORS = { Vet: '#2f7286', Groomer: '#b2566f', Store: '#5f7a3a', Boarder: '#c9891f', 'Special Services': '#c0563d', 'Pet Loss & Memorial Services': '#5f624b' }
@@ -732,6 +732,16 @@ function ProviderForm({ initial, onSave, onCancel, saving, claim }) {
         <div>
           <label className="label text-xs">City</label>
           <input name="city" value={form.city} onChange={set} className="input w-full" placeholder="Pune" />
+        </div>
+        {/* District, then state: the directory filters widest-first, and an
+            area means nothing without them once a second state exists. */}
+        <div>
+          <label className="label text-xs">District</label>
+          <input name="district" value={form.district || ''} onChange={set} className="input w-full" placeholder="Pune" />
+        </div>
+        <div>
+          <label className="label text-xs">State</label>
+          <input name="state" value={form.state || ''} onChange={set} className="input w-full" placeholder="Maharashtra" />
         </div>
         <div className="col-span-2">
           <label className="label text-xs">Address</label>

@@ -7,7 +7,7 @@ import PippyLogo from './PippyLogo.jsx'
 const PROVIDER_TYPES = ['Vet', 'Groomer', 'Store', 'Boarder', 'Special Services', 'Pet Loss & Memorial Services']
 
 const EMPTY_FORM = {
-  name: '', type: 'Vet', area: '', city: '', address: '', phone: '', whatsapp: '',
+  name: '', type: 'Vet', area: '', city: '', district: '', state: '', address: '', phone: '', whatsapp: '',
   email: '',
   hours: '', maps_url: '', photo_url: '', description: '',
   url: '', // honeypot — real users never fill this in
@@ -168,6 +168,17 @@ export default function ProviderRegistration() {
               <div>
                 <label className="label">City</label>
                 <input name="city" value={form.city} onChange={set} className="input w-full" placeholder="Pune" disabled={status === 'submitting'} />
+              </div>
+              {/* District, then state: the directory filters widest-first,
+                  and an area means nothing without them once a second
+                  state exists. */}
+              <div>
+                <label className="label">District</label>
+                <input name="district" value={form.district} onChange={set} className="input w-full" placeholder="Pune" disabled={status === 'submitting'} />
+              </div>
+              <div>
+                <label className="label">State</label>
+                <input name="state" value={form.state} onChange={set} className="input w-full" placeholder="Maharashtra" disabled={status === 'submitting'} />
               </div>
               <div className="sm:col-span-2">
                 <label className="label">Address</label>

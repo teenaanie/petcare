@@ -834,6 +834,8 @@ export async function getProviders({
   approvedOnly = true,
   type = null,
   area = null,
+  state = null,
+  district = null,
   search = '',
   limit = 60,
   offset = 0,
@@ -848,6 +850,12 @@ export async function getProviders({
     search_term:   search.trim() || null,
     page_limit:    limit,
     page_offset:   offset,
+    // Sent by name, so the RPC keeps working before
+    // supabase/provider_state_district.sql has been run: PostgREST ignores
+    // nothing, but the older function simply does not declare these and errors
+    // -- which is why the caller omits them until a state is actually chosen.
+    ...(state    != null ? { filter_state:    state }    : {}),
+    ...(district != null ? { filter_district: district } : {}),
   })
   if (error) throw error
 
@@ -857,15 +865,19 @@ export async function getProviders({
   return { rows, count: data?.[0]?.total_count ?? 0 }
 }
 
-export async function getProviderFacets({ approvedOnly = true, area = null } = {}) {
-  if (!isConfigured) return { total: 0, types: {}, areas: [] }
+export async function getProviderFacets({
+  approvedOnly = true, area = null, state = null, district = null,
+} = {}) {
+  if (!isConfigured) return { total: 0, types: {}, areas: [], states: [], districts: [] }
   const supabase = await getSupabase()
   const { data, error } = await supabase.rpc('provider_facets', {
     approved_only: approvedOnly,
     filter_area: area,
+    ...(state    != null ? { filter_state:    state }    : {}),
+    ...(district != null ? { filter_district: district } : {}),
   })
   if (error) throw error
-  return data || { total: 0, types: {}, areas: [] }
+  return data || { total: 0, types: {}, areas: [], states: [], districts: [] }
 }
 
 export const saveProvider = (provider) => bust('boarders', () => _saveProvider(provider))
@@ -873,6 +885,15 @@ async function _saveProvider(provider) {
   if (!isConfigured) return provider
   const supabase = await getSupabase()
   const { id, ...rest } = provider
+  // Drop state and district when they are blank. PostgREST rejects a column
+  // it does not know with PGRST204, so sending empty strings would break every
+  // provider edit on a project where supabase/provider_state_district.sql has
+  // not been run yet -- including edits that have nothing to do with location.
+  // Filled in, they are sent and the save correctly fails until the migration
+  // is applied, which is the right way round.
+  for (const k of ['state', 'district']) {
+    if (rest[k] === '' || rest[k] == null) delete rest[k]
+  }
   if (id) {
     const { data, error } = await supabase.from('providers').update(rest).eq('id', id).select().single()
     if (error) throw error
