@@ -20,6 +20,14 @@ GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 CREATE SCHEMA IF NOT EXISTS auth;
 GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
 
+-- Supabase keeps extensions in their own schema and the search functions carry
+-- `SET search_path TO 'public', 'extensions'` to reach them. Without this,
+-- search_providers() fails here on similarity() -- a pg_trgm function -- which
+-- looks like a bug in the file under test rather than a gap in the stub.
+CREATE SCHEMA IF NOT EXISTS extensions;
+GRANT USAGE ON SCHEMA extensions TO anon, authenticated, service_role;
+CREATE EXTENSION IF NOT EXISTS pg_trgm SCHEMA extensions;
+
 CREATE TABLE auth.users (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   email      text,
@@ -65,6 +73,12 @@ CREATE TABLE public.providers (
   website         text,
   services        text[],
   boarding_policy jsonb,
+  -- Added for provider_state_district.sql, which rewrites search_providers().
+  -- That function reads the whole row to build its search haystack, so the
+  -- stub has to carry those columns or the file fails here for a reason that
+  -- does not exist on the live project.
+  categories      text[],
+  specializations text[],
   is_approved boolean DEFAULT false
 );
 ALTER TABLE public.providers ENABLE ROW LEVEL SECURITY;

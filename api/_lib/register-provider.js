@@ -45,6 +45,8 @@ function notificationHtml(p) {
           ${row('Type', p.type)}
           ${row('Area', p.area)}
           ${row('City', p.city)}
+          ${row('District', p.district)}
+          ${row('State', p.state)}
           ${row('Address', p.address)}
           ${row('Phone', p.phone)}
           ${row('Email', p.email)}
@@ -99,6 +101,11 @@ export default async function handler(req) {
 
   const area        = cleanString(body.area, 120)
   const city        = cleanString(body.city, 200)
+  // Whitelisted like everything else here: a field the form collects but this
+  // does not name is silently dropped, which is exactly what would have
+  // happened to these two.
+  const district    = cleanString(body.district, 120)
+  const state       = cleanString(body.state, 120)
   const address     = cleanString(body.address, 200)
   const whatsapp    = cleanString(body.whatsapp, 30)
   const hours       = cleanString(body.hours, 200)
@@ -117,7 +124,7 @@ export default async function handler(req) {
   }
 
   const provider = {
-    name, type: body.type, area, city, address, phone, whatsapp, hours,
+    name, type: body.type, area, city, district, state, address, phone, whatsapp, hours,
     maps_url, photo_url, description, is_approved: false, source: 'self_registered',
   }
 
