@@ -38,6 +38,7 @@
     "check:drift": "node --env-file-if-exists=.env scripts/check-drift.mjs",
     "test:dates": "node scripts/test-dates.mjs",
     "test:geography": "node scripts/test-geography.mjs",
+    "test:name-guard": "node scripts/test-taxonomy-name-guard.mjs",
     "test:voice-update": "node scripts/test-voice-update.mjs",
     "test:intake-prompt": "node scripts/test-intake-prompt.mjs",
     "test:reminder-feed": "node scripts/test-reminder-feed.mjs",

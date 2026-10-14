@@ -297,6 +297,64 @@ const TYPE_BY_NAME = [
   [/clinic|hospital/i,                                    'Vet'],
 ]
 
+// Every token above is a word an ordinary human business uses about itself.
+// A salon, a resort, a clinic, a shop -- none of them says "pet" by saying
+// that. So the name fallback may only fire when the name ALSO says the
+// business is for animals.
+//
+// Without this guard a human beauty parlour becomes a Groomer. That is not
+// hypothetical: "Groom Salon & Spa" in Kochi, categories Beauty salon and
+// Make-up artist, 105 reviews about haircuts at Rs 1-200, was classified as a
+// Groomer and would have been published as one. And it is not a one-off --
+//
+//   classify(['Beauty salon'], 'Lakme Salon') -> 'Groomer'
+//
+// is the same bug with no pet word anywhere in it.
+//
+// It is the rule the death-care categories already follow for exactly this
+// reason: "Cremation service" is what Google gives a municipal crematorium
+// and a pet one alike, so a generic one must say pet, animal, dog, cat or paw
+// in its name. Generic trade words need the same test, and this is it.
+//
+// Whole words, not substrings -- but the name is split at camelCase first.
+//
+// Measured against all 1,729 distinct business names scraped so far, plain
+// word matching missed 127 real pet businesses, because compound names are
+// the norm in this trade: PETSGALLERY, Doggieland, SnugPaws, Petszy,
+// PetOstel, Vetina, FurrCrew, Rawr4Dogs, Doggotel.
+//
+// Matching bare substrings instead catches those and the false friends too:
+// "vet" inside Velvet, "tail" inside Retail, "pet" inside carpet, "cat"
+// inside delicate.
+//
+// Splitting at a lowercase-to-uppercase transition gets both. "SnugPaws"
+// becomes "Snug Paws" and matches; "carpet" has no such transition and does
+// not. ALL-CAPS names like PETSGALLERY are untouched by the split and match
+// on their own word boundary.
+const splitCamel = s => (s || '')
+  .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+  .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+
+// Prefixes, not whole words, because a pet word is as often glued to the
+// front of a made-up name as standing alone: Petszy, PETSGALLERY, Doggotel,
+// Vetina, Petstay. Whole-word matching missed 127 of those across the corpus.
+//
+// Each lookahead below is a false friend that actually appeared, or is one
+// word away from a name a real business would use: Peter and petrol for pet,
+// catering and category for cat, veteran for vet, furniture for fur, pawn
+// for paw, puppet for pupp, tailor for tail, zoom for zoo, Barkat for bark.
+const PET_WORDS = new RegExp('\\b(?:' + [
+  'pet(?!er|rol|ro\\b|ite|al\\b|ition|roleum)',
+  'paw(?!n)', 'pawz', 'dog', 'woof', 'bark(?!at)', 'meow', 'purr',
+  'cat(?!er|eg|h|ch|al|ast|holic)', 'kitt', 'pupp(?!et)', 'pup\\b',
+  'animal', 'vet(?!eran)', 'veterinar', 'canine', 'feline', 'kennel',
+  'cattery', 'aqua', 'fish', 'bird', 'avian', 'parrot', 'zoo(?!m)',
+  'fur(?!nit|nac|nish|lough)', 'tail(?!or)', 'k-?9\\b', 'pooch', 'snout',
+  'equine', 'grooming', 'rawr',
+].join('|') + ')', 'i')
+
+const PET_IN_NAME = name => PET_WORDS.test(splitCamel(name))
+
 export function deriveType(categories = [], name = '') {
   const cats = categories.filter(Boolean)
 
@@ -322,8 +380,13 @@ export function deriveType(categories = [], name = '') {
     if (best !== 'Vet' || clinicalSignal(cats.map(c => c.toLowerCase()))) return best
   }
 
-  // 3. Nothing in the categories. Fall back to the name.
-  for (const [re, type] of TYPE_BY_NAME) if (re.test(name || '')) return type
+  // 3. Nothing in the categories. Fall back to the name -- but only if the
+  //    name says this is for animals. See PET_IN_NAME: with no pet word and
+  //    no pet category, there is no evidence at all that this is a pet
+  //    business, and a generic trade word is not evidence.
+  if (PET_IN_NAME(name || '')) {
+    for (const [re, type] of TYPE_BY_NAME) if (re.test(name || '')) return type
+  }
   return null   // not a pet business — a scrape false positive
 }
 
