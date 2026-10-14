@@ -42,7 +42,21 @@ export const INDIAN_STATES = [
 ]
 
 // Spellings Google returns that are not the canonical name above.
+//
+// `keralam` is not a typo and not optional. Google Maps returns the Malayalam
+// endonym for Kerala in both the `state` field and the address: 309 of the
+// first 314 Ernakulam records came back "Keralam", and the other 5 had no
+// address at all. Validating against the English name alone put the state at
+// NULL on every single row, which in turn took the district down with it,
+// because the district segment is only trusted when the state beside it
+// parses. One missing alias cost 100% of a district's geography.
+//
+// Assume the same holds elsewhere and has simply not been measured: Tamil
+// Nadu, Odisha and Puducherry all have spellings Google varies on.
 const STATE_ALIASES = {
+  'keralam': 'Kerala',
+  'kerela': 'Kerala',
+  'tamilnadu': 'Tamil Nadu',
   'orissa': 'Odisha',
   'pondicherry': 'Puducherry',
   'uttaranchal': 'Uttarakhand',

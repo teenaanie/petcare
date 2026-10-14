@@ -20,6 +20,26 @@ const eq = (label, got, want) => {
 eq('state exact', canonicalState('Kerala'), 'Kerala')
 eq('state lowercase', canonicalState('kerala'), 'Kerala')
 eq('state spaced', canonicalState('  Tamil   Nadu '), 'Tamil Nadu')
+// Google Maps returns the Malayalam endonym for Kerala, in both the `state`
+// field and the address. The first Ernakulam scrape came back "Keralam" on
+// 309 of 314 records; without this alias every row's state was NULL, and the
+// district went with it because it is only trusted beside a parsed state.
+eq('state endonym keralam', canonicalState('Keralam'), 'Kerala')
+eq('state endonym lowercase', canonicalState('keralam'), 'Kerala')
+eq('state misspelling kerela', canonicalState('Kerela'), 'Kerala')
+eq('state tamilnadu no space', canonicalState('Tamilnadu'), 'Tamil Nadu')
+eq('real Kerala address',
+  stateFromRecord({ address: 'Sahodaran Ayyappan Rd, Kadavanthra, Ernakulam, Keralam 682020, India' }),
+  'Kerala')
+eq('real Kerala district',
+  districtFromRecord({ address: 'NNRA-104, Perandoor Rd, Kaloor, Kochi, Ernakulam, Keralam 682017, India' }),
+  'Ernakulam')
+eq('Kochi in the district slot maps',
+  districtFromRecord({ address: 'Seaport - Airport Rd, Kakkanad, Kochi, Keralam 682030, India' }),
+  'Ernakulam')
+// A panchayat where the district should be is still refused, not guessed.
+eq('Ernakulam village is not a district',
+  districtFromRecord({ address: 'Main Rd, Mulanthuruthy, Keralam 682314, India' }), null)
 eq('state alias orissa', canonicalState('Orissa'), 'Odisha')
 eq('state alias pondicherry', canonicalState('Pondicherry'), 'Puducherry')
 eq('state alias delhi', canonicalState('NCT of Delhi'), 'Delhi')
