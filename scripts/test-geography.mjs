@@ -17,21 +17,22 @@ const eq = (label, got, want) => {
 }
 
 // ── canonicalState ──────────────────────────────────────────────────────────
-eq('state exact', canonicalState('Kerala'), 'Kerala')
-eq('state lowercase', canonicalState('kerala'), 'Kerala')
+eq('state exact', canonicalState('Keralam'), 'Keralam')
+eq('state lowercase', canonicalState('keralam'), 'Keralam')
 eq('state spaced', canonicalState('  Tamil   Nadu '), 'Tamil Nadu')
 // Google Maps returns the Malayalam endonym for Kerala, in both the `state`
 // field and the address. The first Ernakulam scrape came back "Keralam" on
 // 309 of 314 records; without this alias every row's state was NULL, and the
 // district went with it because it is only trusted beside a parsed state.
-eq('state endonym keralam', canonicalState('Keralam'), 'Kerala')
-eq('state endonym lowercase', canonicalState('keralam'), 'Kerala')
-eq('state misspelling kerela', canonicalState('Kerela'), 'Kerala')
+eq('Keralam is canonical', canonicalState('Keralam'), 'Keralam')
+eq('Keralam lowercase', canonicalState('keralam'), 'Keralam')
+eq('legacy Kerala maps forward', canonicalState('Kerala'), 'Keralam')
+eq('misspelling kerela', canonicalState('Kerela'), 'Keralam')
 eq('state tamilnadu no space', canonicalState('Tamilnadu'), 'Tamil Nadu')
-eq('real Kerala address',
+eq('real Keralam address',
   stateFromRecord({ address: 'Sahodaran Ayyappan Rd, Kadavanthra, Ernakulam, Keralam 682020, India' }),
-  'Kerala')
-eq('real Kerala district',
+  'Keralam')
+eq('real Keralam district',
   districtFromRecord({ address: 'NNRA-104, Perandoor Rd, Kaloor, Kochi, Ernakulam, Keralam 682017, India' }),
   'Ernakulam')
 eq('Kochi in the district slot maps',
@@ -94,15 +95,15 @@ const addrPune = 'Narayan Annaji Shinde Rd, Kondhwa, Pune, Maharashtra 411048, I
 eq('state from explicit field',
   stateFromRecord({ state: 'Maharashtra', address: addrPune }), 'Maharashtra')
 eq('state from address', stateFromRecord({ address: addrPune }), 'Maharashtra')
-eq('state from kerala address',
-  stateFromRecord({ address: 'MG Rd, Ravipuram, Kochi, Kerala 682016, India' }),
-  'Kerala')
+eq('state from keralam address',
+  stateFromRecord({ address: 'MG Rd, Ravipuram, Kochi, Keralam 682016, India' }),
+  'Keralam')
 eq('state no pin',
-  stateFromRecord({ address: 'Some Rd, Kozhikode, Kerala, India' }), 'Kerala')
+  stateFromRecord({ address: 'Some Rd, Kozhikode, Keralam, India' }), 'Keralam')
 eq('state no india suffix',
-  stateFromRecord({ address: 'Some Rd, Thrissur, Kerala 680001' }), 'Kerala')
+  stateFromRecord({ address: 'Some Rd, Thrissur, Keralam 680001' }), 'Keralam')
 eq('state explicit beats junk address',
-  stateFromRecord({ state: 'Kerala', address: 'nonsense' }), 'Kerala')
+  stateFromRecord({ state: 'Keralam', address: 'nonsense' }), 'Keralam')
 eq('state junk address', stateFromRecord({ address: 'Road No. E' }), null)
 eq('state no address', stateFromRecord({ city: 'Pune' }), null)
 eq('state empty record', stateFromRecord({}), null)
@@ -111,11 +112,11 @@ eq('state undefined record', stateFromRecord(undefined), null)
 // ── districtFromRecord ──────────────────────────────────────────────────────
 eq('district from well-formed address',
   districtFromRecord({ address: addrPune }), 'Pune')
-eq('district from kerala address',
-  districtFromRecord({ address: 'MG Rd, Ravipuram, Ernakulam, Kerala 682016, India' }),
+eq('district from keralam address',
+  districtFromRecord({ address: 'MG Rd, Ravipuram, Ernakulam, Keralam 682016, India' }),
   'Ernakulam')
 eq('district kochi in address maps',
-  districtFromRecord({ address: 'MG Rd, Ravipuram, Kochi, Kerala 682016, India' }),
+  districtFromRecord({ address: 'MG Rd, Ravipuram, Kochi, Keralam 682016, India' }),
   'Ernakulam')
 eq('district falls back to city',
   districtFromRecord({ city: 'Kochi', address: 'nonsense' }), 'Ernakulam')
