@@ -37,6 +37,7 @@
     "test:sql": "bash scripts/sql-harness/run.sh",
     "check:drift": "node --env-file-if-exists=.env scripts/check-drift.mjs",
     "test:dates": "node scripts/test-dates.mjs",
+    "test:geography": "node scripts/test-geography.mjs",
     "test:voice-update": "node scripts/test-voice-update.mjs",
     "test:intake-prompt": "node scripts/test-intake-prompt.mjs",
     "test:reminder-feed": "node scripts/test-reminder-feed.mjs",
@@ -81,6 +82,7 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.13.0",
+    "playwright": "^1.64.0",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
     "vite": "^5.1.4"
