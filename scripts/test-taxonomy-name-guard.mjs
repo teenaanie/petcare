@@ -68,5 +68,32 @@ eq('retail is not tail',    type(['Shopping mall'], 'Retail Mart'), null)
 eq('furniture is not fur',  type(['Furniture store'], 'Furniture Mart'), null)
 eq('Peter is not pet',      type(['Beauty salon'], "Peter's Salon"), null)
 
+// ── A veterinary facility is a Vet, not a shop ──────────────────────────────
+// Kerala's government veterinary network is filed by Google under
+// "Veterinary pharmacy", which maps to Store. These treat animals.
+eq('veterinary sub centre',   type(['Veterinary pharmacy'], 'Veterinary Sub Centre Uzhavoor East'), 'Vet')
+eq('veterinary dispensary',   type(['Veterinary pharmacy'], 'Veterinary Dispensary'), 'Vet')
+eq('dispensary, no home primary', type(['Hospital', 'Veterinary pharmacy'], 'VETERINARY DISPENSARY, MARAD'), 'Vet')
+eq('govt veterinary hospital', type(['Veterinary pharmacy'], 'Government Veterinary hospital Thottappally'), 'Vet')
+eq('govt veterinary clinic',   type(['Veterinary pharmacy'], 'Govt Veterinary Clinic Mukkoottuthara'), 'Vet')
+eq('filed as a government office', type(['Government office'], 'Veterinary Dispensary Kallara'), 'Vet')
+
+// ...but a shop that sells veterinary medicine is still a shop.
+eq('veterinary medical store', type(['Veterinary pharmacy'], 'PAT 4 PETS VETERINARY MEDICAL STORE'), 'Store')
+eq('veterinary medicals',      type(['Veterinary pharmacy'], 'Pet Land Veterinary Medicals'), 'Store')
+eq('central veterinary store', type(['Government office'], 'Central Veterinary Store, Thiruvananthapuram'), 'Store')
+eq('pet foods and products',   type(['Pet store'], 'Viswas Pet Foods & Veterinary Products'), 'Store')
+eq('surgicals supplier',       type(['Veterinary pharmacy'], 'Janasevana surgicals & Veterinary'), 'Store')
+eq('medicals and pet shop',    type(['Veterinary pharmacy'], 'Pet Me veterinary medicals & pet shop'), 'Store')
+
+// A human hospital must not be swept up by the facility rule.
+eq('human hospital, no animal word', type(['Hospital'], 'Yogesh Hospital'), null)
+// A human dispensary still becomes a Store, via the settled "Pharmacy maps
+// to Store" decision at authority 1 -- that predates this guard and is not
+// its business. What matters here is that it must not become a Vet: the
+// facility rule needs an animal word and this has none.
+eq('human dispensary is not a Vet', type(['Pharmacy'], 'City Dispensary'), 'Store')
+eq('human sub centre is not a Vet', type(['Hospital'], 'Primary Health Sub Centre'), null)
+
 console.log(`\ntaxonomy name guard: ${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)

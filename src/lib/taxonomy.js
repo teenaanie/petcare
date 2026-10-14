@@ -166,6 +166,32 @@ function clinicalSignal(cats) {
   return cats.some(c => /veterinarian|animal hospital|animal clinic|pet clinic|veterinary care/.test(c))
 }
 
+// A veterinary hospital, clinic, dispensary or sub-centre is a place animals
+// are treated, whatever Google files it under.
+//
+// Kerala's government veterinary network is the reason this exists. Google
+// gives almost all of it the primary category "Veterinary pharmacy", which
+// maps to Store under the settled rule that a pet parent looking for medicine
+// looks under shops. That rule is right for shops and wrong for these: a
+// scrape of five districts turned up 22 Veterinary Sub Centres, Veterinary
+// Dispensaries and Government Veterinary Hospitals all typed Store, which in
+// rural Kerala is the difference between finding a vet and not finding one.
+//
+// The distinction is the facility word, not the pharmacy category. These are
+// all in the same scrape and Store is correct for every one of them:
+//
+//   Pet Land Veterinary Medicals · PAT 4 PETS VETERINARY MEDICAL STORE
+//   Petsworld veterinary medicals · Central Veterinary Store · A J Animal Feeds
+//
+// They sell. A sub-centre treats. So the name must carry both an animal word
+// and a clinical-facility word, and a shop word anywhere disqualifies it.
+const VET_FACILITY_IN_NAME = name => {
+  const n = name || ''
+  if (/\b(store|medicals?|shop|mart|supplies|feeds|products|surgicals?)\b/i.test(n)) return false
+  return /veterinar|animal/i.test(n) &&
+         /\b(hospital|clinic|polyclinic|poly clinic|dispensar\w*|sub\s?cent\w*|subcent\w*)\b/i.test(n)
+}
+
 // Businesses we don't list at all.
 // A human funeral business that lists pet funerals as a side-line is still a
 // human funeral business, and does not belong in a pet directory. Google's
@@ -364,8 +390,19 @@ export function deriveType(categories = [], name = '') {
     // One exception: a pharmacy that also carries a real clinical category is
     // a clinic with a dispensary, not a shop.
     if (primary === 'Store' && /pharmacy/i.test(cats[0]) && clinicalSignal(cats.map(c => c.toLowerCase()))) return 'Vet'
+    // The same exception, reached through the name instead of the categories:
+    // a Veterinary Sub Centre is a clinic even when Google calls it a pharmacy
+    // or, in three cases in this scrape, a government office.
+    if (primary !== 'Vet' && VET_FACILITY_IN_NAME(name)) return 'Vet'
     return primary
   }
+
+  // The primary said nothing we understand. Before falling through to the
+  // other categories, the same facility test -- "VETERINARY DISPENSARY,
+  // MARAD" is filed by Google under "Hospital", which has no home here, and
+  // its secondary "Veterinary pharmacy" would otherwise make a dispensary a
+  // shop.
+  if (VET_FACILITY_IN_NAME(name)) return 'Vet'
 
   // 2. Primary said nothing we understand — the most common answer among the
   //    remaining categories, first-listed breaking ties (Google orders them by
