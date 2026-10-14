@@ -33,7 +33,7 @@
 export const INDIAN_STATES = [
   'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
   'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
-  'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
+  'Keralam', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
   'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
   'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
   'Andaman and Nicobar Islands', 'Chandigarh',
@@ -41,8 +41,31 @@ export const INDIAN_STATES = [
   'Ladakh', 'Lakshadweep', 'Puducherry',
 ]
 
-// Spellings Google returns that are not the canonical name above.
+// Spellings that are not the canonical name above.
+//
+// "Keralam" is the canonical one, not the variant. The state was legally
+// renamed by the Kerala (Alteration of Name) Act, 2026, in force from
+// 25 August 2026, aligning the official name with the Malayalam. Google Maps
+// already uses it: 309 of the first 314 Ernakulam records came back
+// "Keralam" in both the `state` field and the address.
+//
+// "Kerala" stays here as a legacy alias because it will keep arriving for
+// years -- in older scrapes, in anything a person types, and from any source
+// that has not caught up.
+//
+// Storing the new name is also the better way round for search. The provider
+// search matches substrings against one text haystack, and "kerala" is a
+// substring of "keralam" -- so a row stored as Keralam is found by someone
+// typing either, while a row stored as Kerala would not be found by someone
+// typing Keralam.
+//
+// Assume this class of problem exists elsewhere and has simply not been
+// measured; no state should be treated as proven until a scrape from it has
+// actually run.
 const STATE_ALIASES = {
+  'kerala': 'Keralam',
+  'kerela': 'Keralam',
+  'tamilnadu': 'Tamil Nadu',
   'orissa': 'Odisha',
   'pondicherry': 'Puducherry',
   'uttaranchal': 'Uttarakhand',
@@ -145,7 +168,7 @@ export const DISTRICTS_BY_STATE = {
     'Parbhani', 'Pune', 'Raigad', 'Ratnagiri', 'Sangli', 'Satara',
     'Sindhudurg', 'Solapur', 'Thane', 'Wardha', 'Washim', 'Yavatmal',
   ],
-  Kerala: [
+  Keralam: [
     'Alappuzha', 'Ernakulam', 'Idukki', 'Kannur', 'Kasaragod', 'Kollam',
     'Kottayam', 'Kozhikode', 'Malappuram', 'Palakkad', 'Pathanamthitta',
     'Thiruvananthapuram', 'Thrissur', 'Wayanad',
