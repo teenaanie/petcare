@@ -20,6 +20,7 @@ import {
   stateFromRecord, districtFromRecord, canonicalCity,
   canonicalState, districtForCity,
 } from '../src/lib/geography.js'
+import { pickEmail } from '../src/lib/scrapedEmail.js'
 
 // ── Load .env (no dotenv dependency) ─────────────────────────────────────────
 // .env is optional — the variables may already be in the environment.
@@ -116,6 +117,10 @@ function toProvider(record, fallback = {}) {
     address:       clean(record.address, 400),
     postal_code:   clean(record.postalCode, 20),
     phone,
+    // Only present when the scrape was run with contact enrichment. The array
+    // holds every address found on the page the scraper reached, which is not
+    // the same as the business's -- see src/lib/scrapedEmail.js.
+    email:         clean(pickEmail(record), 200),
     whatsapp:      clean(record.phoneUnformatted, 30),
     website:       clean(record.website, 500),
     hours:         formatHours(record),
