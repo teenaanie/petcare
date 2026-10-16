@@ -94,7 +94,16 @@ export function latestVaccinations(vaccinations = []) {
       best.set(key, { name: v.name.trim(), dateGiven: String(v.dateGiven).slice(0, 10) })
     }
   }
-  return [...best.values()].sort((a, b) => a.name.localeCompare(b.name))
+  // Most recent first. This used to sort by name, which read as a jumble:
+  // for one real pet it ran Antirab 2023, Antirabies 2023, Canigen 2021,
+  // Coronavirus 2026, DPPvL 2021, CCV 2025 -- eighteen rows in alphabetical
+  // order with the dates scattered through them. A boarder reads this list to
+  // answer one question, "is this dog covered right now", and the answer is at
+  // the top when the newest shot is at the top. Name breaks ties so two shots
+  // on the same day still have a stable order.
+  return [...best.values()].sort((a, b) =>
+    (a.dateGiven < b.dateGiven ? 1 : a.dateGiven > b.dateGiven ? -1 : 0) ||
+    a.name.localeCompare(b.name))
 }
 
 /**
@@ -106,7 +115,7 @@ export function latestVaccinations(vaccinations = []) {
  * plenty of rows have one typed and the other not.
  */
 export function currentMedicines(medicines = [], today = todayIST()) {
-  return (medicines || [])
+  const rows = (medicines || [])
     .filter(m => nonEmpty(m?.name))
     .filter(m => !m.isDone)
     .filter(m => !isDay(m.endDate) || String(m.endDate).slice(0, 10) >= today)
@@ -115,6 +124,66 @@ export function currentMedicines(medicines = [], today = todayIST()) {
       dosage:    nonEmpty(m.dosage)    ? m.dosage.trim()    : null,
       frequency: nonEmpty(m.frequency) ? m.frequency.trim() : null,
     }))
+  return dedupeMedicines(rows)
+}
+
+// Indian prescriptions prefix the dosage form onto the drug: Tab. Bravecto,
+// Syp. Ondem, Inj. Melonex. It is the same medicine either way, so the prefix
+// comes off the grouping key but stays out of nobody's way on screen.
+const FORM_PREFIX = /^(tab|tabs|tablet|cap|caps|capsule|syp|syr|syrup|susp|suspension|inj|injection|oint|ointment|drops?|sol|soln|solution|lot|lotion|cream|gel|powder|sachet)\b[.\s-]*/i
+
+const medKey = name => String(name).toLowerCase()
+  .replace(FORM_PREFIX, '')
+  .replace(/[^a-z0-9]+/g, ' ')
+  .trim()
+
+/**
+ * One line per medicine, not one line per time it was written down.
+ *
+ * A real pet's brief listed "Bravecto" three times and then "Tab. Bravecto".
+ * The three were byte-identical rows -- same null dosage, same null frequency
+ * -- logged on three different days, because each dose was recorded as a new
+ * medicine rather than as a dose of the existing one. To a boarder reading
+ * the note, four lines naming the same flea treatment reads as four things to
+ * give.
+ *
+ * Two rules, in order:
+ *
+ *   1. Rows identical in name, dosage and frequency are one row. This is the
+ *      repeated-entry case and it is never anything else.
+ *   2. Within one medicine, a row carrying a dose absorbs the rows carrying
+ *      nothing. "Bravecto" with no dose beside "Tab. Bravecto — > 10-20 kg"
+ *      is the second row's dose, written down twice.
+ *
+ * What it will NOT do is merge two rows that each state a dose. Two live
+ * doses of the same drug is either a real split regimen or a data problem,
+ * and both of those are the owner's to resolve -- quietly dropping one could
+ * mean a boarder gives half of what was intended. Those stay as separate
+ * lines, which is also the signal that something needs a look.
+ */
+export function dedupeMedicines(rows = []) {
+  const groups = new Map()
+  for (const m of rows) {
+    const key = medKey(m.name) || String(m.name).toLowerCase()
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key).push(m)
+  }
+
+  const out = []
+  for (const group of groups.values()) {
+    // Rule 1: collapse byte-identical rows.
+    const seen = new Map()
+    for (const m of group) {
+      const exact = `${m.name.toLowerCase()}|${m.dosage ?? ''}|${m.frequency ?? ''}`
+      if (!seen.has(exact)) seen.set(exact, m)
+    }
+    const distinct = [...seen.values()]
+
+    // Rule 2: detailed rows absorb the bare ones.
+    const detailed = distinct.filter(m => m.dosage || m.frequency)
+    out.push(...(detailed.length ? detailed : distinct))
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name))
 }
 
 /** The most recent medical record, as a headline. Title and date, nothing else. */
