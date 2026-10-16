@@ -10,7 +10,7 @@
 // access to either. That is why the note carries pet_label and the contact
 // fields as its own columns.
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Loader2, AlertCircle, Inbox, Phone, Mail, Clock, CalendarDays } from 'lucide-react'
 import { getSupabaseProvider } from '../../lib/supabase.js'
 import { reportHandled } from '../../lib/errorReport.js'
@@ -28,8 +28,18 @@ function stayLabel(n) {
   return null
 }
 
-function NoteCard({ note, postedBy }) {
-  const [open, setOpen] = useState(false)
+function NoteCard({ note, postedBy, focused = false }) {
+  // A note reached from a pet in the book opens already expanded and scrolls
+  // itself into view. Arriving at a collapsed card in a list of twenty, with
+  // nothing saying which one was meant, is the same dead end as the chip that
+  // did not click.
+  const [open, setOpen] = useState(focused)
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!focused) return
+    setOpen(true)
+    ref.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [focused])
   const age  = ageInDays(note.sentAt)
   const stay = stayLabel(note)
   // Details drift. A month-old note about a dog's medication is not wrong, but
@@ -38,7 +48,10 @@ function NoteCard({ note, postedBy }) {
   const stale = age !== null && age > 30
 
   return (
-    <div className="rounded-2xl p-4" style={{ backgroundColor: 'white', border: '1px solid #f0e6c8' }}>
+    <div ref={ref} data-note-id={note.id} data-focused={focused ? 'true' : 'false'}
+      className="rounded-2xl p-4 transition-all"
+      style={{ backgroundColor: 'white',
+               border: focused ? '2px solid #f2b83d' : '1px solid #f0e6c8' }}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-black text-sm" style={{ color: '#4A2C0A' }}>{note.petLabel}</p>
@@ -100,7 +113,7 @@ function NoteCard({ note, postedBy }) {
   )
 }
 
-export default function ProviderInbox({ providerIds = [], postedBy = null }) {
+export default function ProviderInbox({ providerIds = [], postedBy = null, focusNoteId = null }) {
   const [notes, setNotes]     = useState(null)
   const [error, setError]     = useState(null)
 
@@ -179,7 +192,10 @@ export default function ProviderInbox({ providerIds = [], postedBy = null }) {
             {s.title} ({grouped[s.key].length})
           </p>
           <div className="space-y-3">
-            {grouped[s.key].map(n => <NoteCard key={n.id} note={n} postedBy={postedBy} />)}
+            {grouped[s.key].map(n => (
+              <NoteCard key={n.id} note={n} postedBy={postedBy}
+                focused={!!focusNoteId && n.id === focusNoteId} />
+            ))}
           </div>
         </div>
       ))}

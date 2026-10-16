@@ -186,6 +186,9 @@ export function dedupeMedicines(rows = []) {
   return out.sort((a, b) => a.name.localeCompare(b.name))
 }
 
+// How many vaccination lines the note carries before it summarises the rest.
+export const VACCINATION_LINES = 6
+
 /** The most recent medical record, as a headline. Title and date, nothing else. */
 export function lastMedicalHeadline(records = []) {
   const dated = (records || []).filter(r => nonEmpty(r?.title) && isDay(r?.date))
@@ -262,7 +265,23 @@ export function factsToText(facts) {
   if (vaccinations?.length) {
     line('')
     line('Vaccinations')
-    for (const v of vaccinations) line(`  ${v.name} — ${formatDay(v.dateGiven) || v.dateGiven}`)
+    // Six, then a count.
+    //
+    // One real pet carried eighteen rows, and they were not eighteen
+    // vaccines: Antirab, Antirabies, Rabisin, Nobivac Rabies and R/L MSD are
+    // all the rabies shot under different brand names, and five more rows are
+    // all the core DHPP one. Collapsing those properly needs a brand-to-
+    // vaccine mapping, which is veterinary knowledge this file is not the
+    // place to invent -- so instead of pretending to know, show the newest
+    // six and say honestly how many are behind them.
+    //
+    // Six because the list is sorted newest first and a dog's current cover
+    // is its last few shots; the rest is history a boarder does not act on.
+    // The count stays visible so nothing looks hidden.
+    const shown = vaccinations.slice(0, VACCINATION_LINES)
+    for (const v of shown) line(`  ${v.name} — ${formatDay(v.dateGiven) || v.dateGiven}`)
+    const rest = vaccinations.length - shown.length
+    if (rest > 0) line(`  …and ${rest} earlier ${rest === 1 ? 'shot' : 'shots'}`)
   }
 
   if (allergies?.length) {

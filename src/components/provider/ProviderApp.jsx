@@ -71,6 +71,10 @@ export default function ProviderApp() {
   const [loading, setLoading]   = useState(true)
   const [accounts, setAccounts] = useState(null)
   const [half, setHalf] = useState('book')
+  // The note a pet in the book was linked to, when the provider followed that
+  // link. Lives here because the two halves are siblings: the book cannot
+  // reach into the inbox, and the inbox does not know the book exists.
+  const [focusNoteId, setFocusNoteId] = useState(null)
   // Which business they are looking at, when they run more than one. Kept by
   // provider_id rather than by index so it survives a claim being approved and
   // changing the order.
@@ -313,7 +317,7 @@ export default function ProviderApp() {
           send a note. */}
       <div className="flex gap-1.5 mt-6">
         {[['book', 'My book'], ['shared', 'Shared with you']].map(([k, l]) => (
-          <button key={k} onClick={() => setHalf(k)}
+          <button key={k} onClick={() => { setHalf(k); setFocusNoteId(null) }}
             className="px-3.5 py-2 rounded-xl text-sm font-bold transition-all"
             style={half === k ? { backgroundColor: '#f2b83d', color: '#7a4900' }
                               : { backgroundColor: '#f5f0e0', color: '#73775b' }}>
@@ -325,6 +329,7 @@ export default function ProviderApp() {
       <div className="mt-4">
         {half === 'book' ? (
           <ProviderBook
+            onOpenNote={id => { setFocusNoteId(id); setHalf('shared') }}
             providerIds={activeIds}
             primaryProviderId={active.provider_id}
             providerType={active.claimed_type || active.provider_type}
@@ -333,7 +338,8 @@ export default function ProviderApp() {
               .filter(a => a.provider_id !== active.provider_id)
               .map(a => ({ id: a.provider_id, name: a.provider_name }))} />
         ) : (
-          <ProviderInbox providerIds={activeIds} postedBy={session.user.id} />
+          <ProviderInbox providerIds={activeIds} postedBy={session.user.id}
+            focusNoteId={focusNoteId} />
         )}
       </div>
 
