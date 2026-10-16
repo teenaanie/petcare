@@ -127,9 +127,30 @@ export default function App() {
   const [showAddPet, setShowAddPet]     = useState(false)
   const [refresh, setRefresh]           = useState(0)
   const [sidebarOpen, setSidebarOpen]   = useState(false)
-  const [adminView, setAdminView]       = useState(false)
-  const [servicesView, setServicesView] = useState(false)
-  const [myProvidersView, setMyProvidersView] = useState(false)
+  // One view at a time, held as one value.
+  //
+  // This was three independent booleans -- adminView, servicesView,
+  // myProvidersView -- and every navigation had to remember to clear the other
+  // two. Three of them did not. selectPet cleared admin and services but not
+  // myProviders, so tapping a pet while in My Providers left My Providers on
+  // screen with the pet behind it, and only a page reload got out; that is the
+  // hang an owner reported. onToggleAdmin and onFindServices had the same hole.
+  //
+  // Exclusivity is now a property of the state rather than a rule each caller
+  // has to follow, so a fourth view cannot reintroduce this.
+  const [view, setView] = useState('pets')   // 'pets' | 'services' | 'providers' | 'admin'
+  const adminView       = view === 'admin'
+  const servicesView    = view === 'services'
+  const myProvidersView = view === 'providers'
+
+  // The only way to change view. Takes the pet to open, which is meaningful
+  // for 'pets' and always null elsewhere -- a stale selectedPet behind another
+  // view is what made the old bug invisible until you navigated back.
+  const goTo = (next, pet = null) => {
+    setView(next)
+    setSelectedPet(next === 'pets' ? pet : null)
+    setSidebarOpen(false)
+  }
   // Files shared in from another app. Drained on boot regardless of auth state:
   // the login screen renders instead of the main UI but App stays mounted, so
   // holding them here carries them across the sign-in round trip. Losing files
@@ -163,9 +184,7 @@ export default function App() {
   function openBoardingFor(pet, providerId) {
     setPrepProvider(null)
     setBoardingPrefill(providerId)
-    setSelectedPet(pet)
-    setServicesView(false)
-    setAdminView(false)
+    goTo('pets', pet)
     setActiveTab('boarding')
   }
 
@@ -174,15 +193,13 @@ export default function App() {
   // shallow copy the feed built, so the real pet is looked up by id — editing
   // a stale object would write back a stale pet.
   async function openReminder(reminder) {
-    setAdminView(false); setServicesView(false); setMyProvidersView(false)
-    setSidebarOpen(false)
     try {
       const pets = await getPets()
       const pet  = pets.find(p => p.id === reminder.petId)
       // A reminder whose pet has been deleted has nowhere to go. Leave the user
       // where they are rather than throwing them at a blank screen.
-      if (!pet) return
-      setSelectedPet(pet)
+      if (!pet) { setSidebarOpen(false); return }
+      goTo('pets', pet)
       setActiveTab('reminders')
     } catch (e) {
       console.error('Could not open that reminder:', e)
@@ -190,13 +207,8 @@ export default function App() {
   }
 
   function selectPet(pet) {
-    setSelectedPet(pet)
-    if (pet) {
-      setActiveTab('timeline')
-      setAdminView(false)
-      setServicesView(false)
-    }
-    setSidebarOpen(false)
+    goTo('pets', pet)
+    if (pet) setActiveTab('timeline')
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -255,12 +267,12 @@ export default function App() {
         isAdmin={isAdmin}
         onSignOut={handleSignOut}
         adminView={adminView}
-        onToggleAdmin={() => { setAdminView(v => !v); setServicesView(false); setSelectedPet(null); setSidebarOpen(false) }}
+        onToggleAdmin={() => goTo(adminView ? 'pets' : 'admin')}
         servicesView={servicesView}
         myProvidersView={myProvidersView}
-        onToggleMyProviders={() => { setMyProvidersView(v => !v); setServicesView(false); setAdminView(false); setSelectedPet(null); setSidebarOpen(false) }}
+        onToggleMyProviders={() => goTo(myProvidersView ? 'pets' : 'providers')}
         onShowPrivacy={() => { setShowPrivacy(true); setSidebarOpen(false) }}
-        onToggleServices={() => { setMyProvidersView(false); setServicesView(v => !v); setAdminView(false); setSelectedPet(null); setSidebarOpen(false) }}
+        onToggleServices={() => goTo(servicesView ? 'pets' : 'services')}
         onOpenReminder={openReminder}
         onRemindersChanged={() => setRefresh(r => r + 1)}
       />
@@ -300,7 +312,7 @@ export default function App() {
           ) : selectedPet ? (
             <PetDetail
             // The breed panel offers a way to act on what it says.
-            onFindVet={() => { setMyProvidersView(false); setServicesView(true); setAdminView(false); setSelectedPet(null) }}
+            onFindVet={() => goTo('services')}
               pet={selectedPet}
               activeTab={activeTab}
               prefillProviderId={boardingPrefill}
@@ -315,21 +327,15 @@ export default function App() {
               refresh={refresh}
               onSelectPet={selectPet}
               onAddPet={() => setShowAddPet(true)}
-              onFindServices={() => { setAdminView(false); setServicesView(true); setSelectedPet(null) }}
+              onFindServices={() => goTo('services')}
             />
           )}
         </main>
 
         <MobileAppNav
-          view={adminView ? 'admin' : myProvidersView ? 'providers' : servicesView ? 'services' : 'pets'}
+          view={view}
           isAdmin={isAdmin}
-          onNavigate={(id) => {
-            setSidebarOpen(false)
-            if (id === 'pets')      { setAdminView(false); setServicesView(false); setMyProvidersView(false); setSelectedPet(null) }
-            if (id === 'providers') { setAdminView(false); setServicesView(false); setMyProvidersView(true);  setSelectedPet(null) }
-            if (id === 'services')  { setAdminView(false); setMyProvidersView(false); setServicesView(true);  setSelectedPet(null) }
-            if (id === 'admin')     { setServicesView(false); setMyProvidersView(false); setAdminView(true);  setSelectedPet(null) }
-          }}
+          onNavigate={(id) => goTo(id)}
         />
       </div>
 

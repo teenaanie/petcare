@@ -34,7 +34,7 @@ check('one row per vaccine, latest wins',
     { name: 'Rabies', dateGiven: '2026-06-15' },
     { name: 'DHPP',   dateGiven: '2026-02-02' },
   ]),
-  [{ name: 'DHPP', dateGiven: '2026-02-02' }, { name: 'Rabies', dateGiven: '2026-06-15' }])
+  [{ name: 'Rabies', dateGiven: '2026-06-15' }, { name: 'DHPP', dateGiven: '2026-02-02' }])
 
 check('case is not a different vaccine',
   latestVaccinations([
@@ -46,6 +46,65 @@ check('an undated shot is dropped, not shown dateless',
   latestVaccinations([{ name: 'Rabies', dateGiven: null }]), [])
 check('and so is a junk date',
   latestVaccinations([{ name: 'Rabies', dateGiven: 'soon' }]), [])
+
+// ── Newest shot first ───────────────────────────────────────────────────────
+// This used to sort by name. One real pet's note ran Antirab 2023, Antirabies
+// 2023, Canigen 2021, Coronavirus 2026, DPPvL 2021, CCV 2025 -- eighteen rows
+// alphabetical with the dates scattered through them. A boarder reads this to
+// answer "is this dog covered now", so the newest sits at the top.
+check('newest first, not alphabetical',
+  latestVaccinations([
+    { name: 'Antirab Vaccine', dateGiven: '2023-07-08' },
+    { name: 'Canigen DHPPI',   dateGiven: '2021-10-19' },
+    { name: 'Nobivac Rabies',  dateGiven: '2026-10-05' },
+    { name: 'CCV',             dateGiven: '2025-10-04' },
+  ]).map(v => v.dateGiven),
+  ['2026-10-05', '2025-10-04', '2023-07-08', '2021-10-19'])
+
+check('same day falls back to the name, so the order is stable',
+  latestVaccinations([
+    { name: 'Zeta', dateGiven: '2026-10-05' },
+    { name: 'Alpha', dateGiven: '2026-10-05' },
+  ]).map(v => v.name), ['Alpha', 'Zeta'])
+
+// ── One line per medicine, not per time it was written down ─────────────────
+// A real pet's brief listed Bravecto three times and then "Tab. Bravecto".
+// Four lines naming one flea treatment reads to a boarder as four things to
+// give.
+const BRAVECTO = [
+  { name: 'Bravecto',      dosage: null,         frequency: null, isDone: false },
+  { name: 'Bravecto',      dosage: null,         frequency: null, isDone: false },
+  { name: 'Bravecto',      dosage: null,         frequency: null, isDone: false },
+  { name: 'Tab. Bravecto', dosage: '> 10-20 kg', frequency: null, isDone: false },
+]
+check('the real case: four rows, one medicine',
+  currentMedicines(BRAVECTO, TODAY),
+  [{ name: 'Tab. Bravecto', dosage: '> 10-20 kg', frequency: null }])
+
+check('identical rows collapse even with no dose anywhere',
+  currentMedicines([
+    { name: 'Bravecto', dosage: null, frequency: null, isDone: false },
+    { name: 'Bravecto', dosage: null, frequency: null, isDone: false },
+  ], TODAY).length, 1)
+
+check('a dosage form prefix is not a different medicine',
+  currentMedicines([
+    { name: 'Syp. Ondem', dosage: '2ml', frequency: 'twice daily', isDone: false },
+    { name: 'Ondem',      dosage: null,  frequency: null,          isDone: false },
+  ], TODAY).map(m => m.name), ['Syp. Ondem'])
+
+// The one thing it must not do: silently drop a dose somebody wrote down.
+check('two stated doses of one drug both survive',
+  currentMedicines([
+    { name: 'Prednisolone', dosage: '5mg',  frequency: 'morning', isDone: false },
+    { name: 'Prednisolone', dosage: '10mg', frequency: 'night',   isDone: false },
+  ], TODAY).length, 2)
+
+check('different medicines are never merged',
+  currentMedicines([
+    { name: 'Bravecto', dosage: null, frequency: null, isDone: false },
+    { name: 'Apoquel',  dosage: null, frequency: null, isDone: false },
+  ], TODAY).map(m => m.name), ['Apoquel', 'Bravecto'])
 
 // ── Only what the pet is actually on ────────────────────────────────────────
 
