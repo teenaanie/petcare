@@ -515,7 +515,7 @@ function BookingDetail({ booking, customer, pets, onBack, run, busy, postedBy, w
 
 // ── One customer ────────────────────────────────────────────────────────────
 
-function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBooking, run, busy, postedBy, words, providerType, listing }) {
+function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBooking, onOpenNote, run, busy, postedBy, words, providerType, listing }) {
   const [addingPet, setAddingPet] = useState(false)
   const [booking, setBooking]     = useState(false)
   const [editing, setEditing]     = useState(false)
@@ -666,10 +666,23 @@ function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBoo
               <span style={{ color: '#b08d57' }}>
                 {[p.breed, p.species].filter(Boolean).length ? ` · ${[p.breed, p.species].filter(Boolean).join(' · ')}` : ''}
               </span>
+              {/* The link has to be followable. This said "linked to their
+                  Pippy note" as plain text, which tells a boarder the note
+                  exists and then leaves them to find it by hand in the other
+                  tab -- the owner reported exactly that dead end. */}
               {p.noteId && (
-                <span className="ml-2 text-xs inline-flex items-center gap-1" style={{ color: '#5f7a3a' }}>
-                  <Link2 className="w-3 h-3" /> linked to their Pippy note
-                </span>
+                onOpenNote ? (
+                  <button type="button" onClick={() => onOpenNote(p.noteId)}
+                    title={`Open the Pippy note for ${p.name}`}
+                    className="ml-2 text-xs inline-flex items-center gap-1 underline rounded"
+                    style={{ color: '#5f7a3a' }}>
+                    <Link2 className="w-3 h-3" /> their Pippy note
+                  </button>
+                ) : (
+                  <span className="ml-2 text-xs inline-flex items-center gap-1" style={{ color: '#5f7a3a' }}>
+                    <Link2 className="w-3 h-3" /> linked to their Pippy note
+                  </span>
+                )
               )}
               {/* What this animal needs is the thing a boarder most often
                   learns AFTER the first stay — "scared of the dryer", "only
@@ -749,7 +762,7 @@ function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBoo
 
 // ── The book ────────────────────────────────────────────────────────────────
 
-export default function ProviderBook({ providerIds = [], primaryProviderId, providerType, postedBy, otherBusinesses = [] }) {
+export default function ProviderBook({ providerIds = [], primaryProviderId, providerType, postedBy, otherBusinesses = [], onOpenNote = null }) {
   // The business's own listing, for the criteria a customer can be sent. Read
   // through the function rather than the table: an unpublished listing cannot
   // be read by its own owner through the directory's policy.
@@ -844,6 +857,7 @@ export default function ProviderBook({ providerIds = [], primaryProviderId, prov
       busy={busy} run={run} postedBy={postedBy} words={words} providerType={providerType}
       listing={listing}
       onOpenBooking={id => setView({ kind: 'booking', id })}
+      onOpenNote={onOpenNote}
       onBack={() => setView({ kind: 'dashboard' })} /></>
   }
 

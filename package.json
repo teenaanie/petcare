@@ -41,6 +41,7 @@
     "test:name-guard": "node scripts/test-taxonomy-name-guard.mjs",
     "test:place": "node scripts/test-directory-place.mjs",
     "test:views": "node scripts/test-view-switching.mjs",
+    "test:note-link": "node scripts/test-provider-note-link.mjs",
     "test:voice-update": "node scripts/test-voice-update.mjs",
     "test:intake-prompt": "node scripts/test-intake-prompt.mjs",
     "test:reminder-feed": "node scripts/test-reminder-feed.mjs",

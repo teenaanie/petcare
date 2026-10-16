@@ -106,6 +106,41 @@ check('different medicines are never merged',
     { name: 'Apoquel',  dosage: null, frequency: null, isDone: false },
   ], TODAY).map(m => m.name), ['Apoquel', 'Bravecto'])
 
+// ── Six lines, then an honest count ─────────────────────────────────────────
+// One real pet carried eighteen rows that are really about five vaccines
+// under different brand names. Collapsing those needs veterinary knowledge
+// this code does not have, so it shows the newest six and says how many are
+// behind them rather than pretending.
+{
+  const many = Array.from({ length: 18 }, (_, i) => ({
+    name: `Vax ${String(i).padStart(2, '0')}`,
+    dateGiven: `20${String(26 - i).padStart(2, '0')}-01-01`,
+  }))
+  const text = factsToText(composeFacts({ pet: { name: 'P' }, vaccinations: many }, TODAY))
+  const vaxLines = text.split('\n')
+    .slice(text.split('\n').indexOf('Vaccinations') + 1)
+    .filter(l => l.startsWith('  '))
+  check('six shots listed', vaxLines.filter(l => !l.includes('earlier')).length, 6)
+  check('and the rest counted', vaxLines[vaxLines.length - 1], '  …and 12 earlier shots')
+  check('newest of the eighteen is first', vaxLines[0].includes('Vax 00'), true)
+}
+
+{
+  const six = Array.from({ length: 6 }, (_, i) => ({
+    name: `V${i}`, dateGiven: `2026-0${i + 1}-01`,
+  }))
+  const text = factsToText(composeFacts({ pet: { name: 'P' }, vaccinations: six }, TODAY))
+  check('exactly six adds no count line', /earlier/.test(text), false)
+}
+
+{
+  const seven = Array.from({ length: 7 }, (_, i) => ({
+    name: `V${i}`, dateGiven: `2026-0${i + 1}-01`,
+  }))
+  const text = factsToText(composeFacts({ pet: { name: 'P' }, vaccinations: seven }, TODAY))
+  check('one over reads as a single shot', /…and 1 earlier shot$/m.test(text), true)
+}
+
 // ── Only what the pet is actually on ────────────────────────────────────────
 
 const MEDS = [
