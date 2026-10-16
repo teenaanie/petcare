@@ -379,7 +379,12 @@ const PET_WORDS = new RegExp('\\b(?:' + [
   'equine', 'grooming', 'rawr',
 ].join('|') + ')', 'i')
 
-const PET_IN_NAME = name => PET_WORDS.test(splitCamel(name))
+// Exported because anything deciding "does this name say animals" must use
+// THIS one. A second regex written somewhere else drifts: a triage pass over
+// the Keralam import wrote its own and flagged every Government Veterinary
+// Hospital as having no pet signal, because its \bvet\b did not match
+// "Veterinary".
+export const PET_IN_NAME = name => PET_WORDS.test(splitCamel(name))
 
 export function deriveType(categories = [], name = '') {
   const cats = categories.filter(Boolean)
