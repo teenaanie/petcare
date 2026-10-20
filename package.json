@@ -68,7 +68,8 @@
     "test:register-dupe": "node scripts/test-register-duplicate.mjs",
     "test:walk-provider": "node scripts/test-walk-provider.mjs",
     "test:walk-customer": "node scripts/test-walk-customer.mjs",
-    "test:money": "node scripts/test-money.mjs"
+    "test:money": "node scripts/test-money.mjs",
+    "test:scan-failures": "node scripts/test-scan-failures.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

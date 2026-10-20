@@ -103,6 +103,48 @@ function missingEnv() {
   return missing
 }
 
+// What a pet parent is told when the scan fails for a reason that is ours, not
+// theirs. They cannot act on "Incorrect API key provided: sk-proj-..." and it
+// is not theirs to read, so the real reason goes to the owner instead (below)
+// and the customer gets one sentence and a way forward.
+const SCAN_UNAVAILABLE = "Scanning isn't available right now. Please add the details by hand, or try again later."
+
+// Record a server-side fault where the owner already looks: the Errors tab of
+// the admin dashboard, which reads client_errors. Until now a dead OpenAI key
+// left no trace anywhere -- the only signal was a customer saying scanning was
+// broken, which is how this one was found.
+//
+// `kind` is a closed set of two ('uncaught' | 'handled'), so these land as
+// 'handled': the user was shown something. `view` names the origin so a server
+// fault is never mistaken for a browser crash.
+async function recordFault(supabase, { fingerprint, name, message, userId = null }) {
+  try {
+    // The key check runs before authentication, so an unauthenticated caller
+    // can reach this. Collapse repeats of the same fault to one row an hour so
+    // a dead key -- or someone poking the endpoint -- cannot flood the table.
+    const { count } = await supabase
+      .from('client_errors')
+      .select('id', { count: 'exact', head: true })
+      .eq('fingerprint', fingerprint)
+      .gte('created_at', new Date(Date.now() - 3_600_000).toISOString())
+    if ((count ?? 0) > 0) return
+
+    await supabase.from('client_errors').insert({
+      user_id:     userId,
+      fingerprint,
+      name,
+      message:     String(message || '').slice(0, 2000),
+      view:        'server:analyze-document',
+      path:        '/api/analyze-document',
+      kind:        'handled',
+      occurred_at: new Date().toISOString(),
+    })
+  } catch (e) {
+    // Reporting a fault must never become a second fault.
+    console.error('Could not record scan fault:', e.message)
+  }
+}
+
 export default async function handler(req) {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') return cors('', 204)
@@ -117,12 +159,27 @@ export default async function handler(req) {
     return json({ error: `Server is misconfigured (missing ${missing.join(', ')}). Set it in the host's environment variables and redeploy.` }, 503)
   }
 
-  if (!token) return json({ error: 'Missing auth token' }, 401)
-
   // Use service-role client to validate the JWT
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   })
+
+  // Without this the handler sent `Bearer undefined` to OpenAI and relayed
+  // whatever OpenAI said about it to the customer. Checked before the auth
+  // check, as ai-complete.js does, so a 503 here means the key is absent and a
+  // 401 means it is present -- which is the only way to tell the two apart
+  // from outside.
+  if (!OPENAI_KEY) {
+    console.error('Not configured — missing env: OPENAI_API_KEY')
+    await recordFault(supabase, {
+      fingerprint: 'server:analyze-document|openai-key-missing',
+      name:        'ScanKeyMissing',
+      message:     'OPENAI_API_KEY is not set on this deployment. Document scanning is off until it is set and the project redeployed.',
+    })
+    return json({ error: SCAN_UNAVAILABLE }, 503)
+  }
+
+  if (!token) return json({ error: 'Missing auth token' }, 401)
   const { data: { user }, error: authErr } = await supabase.auth.getUser(token)
   if (authErr || !user) return json({ error: 'Unauthorized' }, 401)
 
@@ -182,12 +239,36 @@ export default async function handler(req) {
 
     if (!openaiRes.ok) {
       const err = await openaiRes.json().catch(() => ({}))
-      return json({ error: err.error?.message || `OpenAI error ${openaiRes.status}` }, 502)
+      const detail = err.error?.message || `OpenAI returned ${openaiRes.status}`
+      // 401/403 is the key itself being refused -- revoked, rotated, or the
+      // account's billing lapsed. It needs the owner, not the customer, and it
+      // will keep failing for everyone until they act, so it gets its own
+      // fingerprint rather than being buried among transient faults.
+      const keyRefused = openaiRes.status === 401 || openaiRes.status === 403
+      console.error(`OpenAI error ${openaiRes.status}: ${detail}`)
+      await recordFault(supabase, {
+        fingerprint: keyRefused
+          ? 'server:analyze-document|openai-key-refused'
+          : `server:analyze-document|openai-${openaiRes.status}`,
+        name:    keyRefused ? 'ScanKeyRefused' : 'ScanUpstreamError',
+        message: keyRefused
+          ? `OpenAI refused the key (${openaiRes.status}): ${detail} — generate a new OPENAI_API_KEY, set it in the host's environment variables, and redeploy. Check billing too; a lapsed card looks the same.`
+          : detail,
+        userId: user.id,
+      })
+      return json({ error: SCAN_UNAVAILABLE }, 502)
     }
 
     openaiData = await openaiRes.json()
   } catch (e) {
-    return json({ error: `OpenAI request failed: ${e.message}` }, 502)
+    console.error('OpenAI request failed:', e.message)
+    await recordFault(supabase, {
+      fingerprint: 'server:analyze-document|openai-unreachable',
+      name:        'ScanUpstreamUnreachable',
+      message:     `OpenAI request failed: ${e.message}`,
+      userId:      user.id,
+    })
+    return json({ error: SCAN_UNAVAILABLE }, 502)
   }
 
   // ── 5. Log usage + cost ───────────────────────────────────────────────────
