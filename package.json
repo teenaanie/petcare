@@ -43,6 +43,8 @@
     "test:views": "node scripts/test-view-switching.mjs",
     "test:note-link": "node scripts/test-provider-note-link.mjs",
     "test:scraped-email": "node scripts/test-scraped-email.mjs",
+    "test:strip-metadata": "node scripts/test-strip-metadata.mjs",
+    "check:image-metadata": "node scripts/strip-image-metadata.mjs --check public/landing/*.jpg public/email/*.png",
     "test:voice-update": "node scripts/test-voice-update.mjs",
     "test:intake-prompt": "node scripts/test-intake-prompt.mjs",
     "test:reminder-feed": "node scripts/test-reminder-feed.mjs",
