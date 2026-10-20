@@ -190,6 +190,77 @@ export function nextDueDate(dueDate, frequency, today) {
 // not mail out months of backlog at once.
 const CATCH_UP_DAYS = 7
 
+// Due dates that live on the record itself rather than in `reminders`.
+//
+// A vaccination's next_due and a medicine's next_due are shown to the owner as
+// due dates, but nothing ever notified on them: this job read `reminders` and
+// only `reminders`, so a due date reached the owner only if they had separately
+// pressed "+ Reminder". Daisy's Felocell was recorded on 28 Sep as due 20 Oct,
+// and on 20 Oct the app said nothing.
+//
+// These are read, not copied. No reminder rows are created, so nothing appears
+// in the owner's Reminders list that they did not put there -- the due date
+// they already saved is simply told to them on the day.
+const DUE_ON_RECORD = [
+  { table: 'vaccinations', type: 'Vaccination', note: r => `${r.name || 'Vaccination'} due` },
+  { table: 'medicines',    type: 'Medication',  note: r => `${r.name || 'Medication'} due` },
+]
+
+/**
+ * Due dates from the record tables, shaped like reminders so they flow through
+ * the same grouping, sending and bookkeeping.
+ *
+ * `frequency: 'Once'` is deliberate: these do not recur. A vaccination's next
+ * date comes from the next document, not from arithmetic on this one, and
+ * guessing a booster interval is a clinical claim this job has no business
+ * making. nextDueDate() returns null for 'Once', so nothing rolls forward.
+ */
+export async function dueOnRecord(supabase, from, today, existing = []) {
+  // A due date the owner has ALSO made a reminder for must not be said twice.
+  const covered = new Set(
+    existing.filter(r => r.pet).map(r => `${r.pet.id}|${r.due_date}|${r.type}`)
+  )
+
+  const out = []
+  for (const src of DUE_ON_RECORD) {
+    const { data, error } = await supabase
+      .from(src.table)
+      .select('id, name, next_due, notified_for_date, pet:pets ( id, name, user_id )')
+      .gte('next_due', from)
+      .lte('next_due', today)
+      .not('is_done', 'is', true)
+
+    if (error) {
+      // One table failing must not cost the others their morning. Reminders
+      // proper have already been fetched by this point and are unaffected.
+      console.error(`Failed to fetch due dates from ${src.table}:`, error.message)
+      continue
+    }
+
+    for (const r of data || []) {
+      if (!r.pet || !r.next_due) continue
+      if (r.notified_for_date === r.next_due) continue
+      const key = `${r.pet.id}|${r.next_due}|${src.type}`
+      if (covered.has(key)) continue
+      covered.add(key)   // two records, same pet, same day, same kind: say it once
+
+      out.push({
+        id:                r.id,
+        type:              src.type,
+        notes:             src.note(r),
+        due_date:          r.next_due,
+        email:             '',
+        whatsapp:          '',
+        frequency:         'Once',
+        notified_for_date: r.notified_for_date,
+        pet:               r.pet,
+        _table:            src.table,
+      })
+    }
+  }
+  return out
+}
+
 // ── SMS text ──────────────────────────────────────────────────────────────────
 
 function reminderSMSText(petName, reminders) {
@@ -272,7 +343,13 @@ export default async function handler(req) {
   }
 
   // Drop the ones already delivered for the occurrence they are sitting on.
-  const reminders = (pending || []).filter(r => r.notified_for_date !== r.due_date)
+  const fromReminders = (pending || []).filter(r => r.notified_for_date !== r.due_date)
+  const fromRecords   = await dueOnRecord(supabase, from, today, fromReminders)
+  const reminders     = [...fromReminders, ...fromRecords]
+
+  if (fromRecords.length) {
+    console.log(`Found ${fromRecords.length} due date(s) on vaccination/medicine records`)
+  }
 
   if (reminders.length === 0) {
     console.log(`No reminders to send (${(pending || []).length} in window, all already notified).`)
@@ -377,10 +454,15 @@ export default async function handler(req) {
       // A recurring reminder moves to its next occurrence. Because due_date
       // changes, it no longer matches notified_for_date, so the next one will
       // notify on its own with no further bookkeeping.
-      const next = nextDueDate(r.due_date, r.frequency, today)
+      // Only reminders roll forward, and only they have a `due_date` column to
+      // roll. A record's next date comes from the next document.
+      const next = r._table ? null : nextDueDate(r.due_date, r.frequency, today)
       if (next) patch.due_date = next
 
-      const { error: updErr } = await supabase.from('reminders').update(patch).eq('id', r.id)
+      // A due date read off a vaccination or medicine is marked on that record,
+      // not in `reminders`, where it has no row.
+      const { error: updErr } = await supabase.from(r._table || 'reminders')
+        .update(patch).eq('id', r.id)
       if (updErr) {
         // Worth shouting about: the notification went out and we failed to
         // record it, so tomorrow's run would send the very same thing again.
