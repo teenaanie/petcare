@@ -69,7 +69,9 @@
     "test:walk-provider": "node scripts/test-walk-provider.mjs",
     "test:walk-customer": "node scripts/test-walk-customer.mjs",
     "test:money": "node scripts/test-money.mjs",
-    "test:scan-failures": "node scripts/test-scan-failures.mjs"
+    "test:scan-failures": "node scripts/test-scan-failures.mjs",
+    "test:due-on-record": "node scripts/test-due-on-record.mjs",
+    "test:record-edit-ui": "node scripts/test-record-edit-ui.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

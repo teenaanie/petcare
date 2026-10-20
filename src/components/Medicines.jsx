@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { reportHandled } from '../lib/errorReport.js'
-import { Pill, Plus, Trash2, Check, Clock, AlertCircle, CheckCircle, X } from 'lucide-react'
+import { Pill, Plus, Trash2, Check, Clock, AlertCircle, CheckCircle, X, Pencil } from 'lucide-react'
 import { getMedicines, saveMedicine, deleteMedicine, markMedicineDone } from '../lib/storage.js'
 import { format, parseISO, isValid, isBefore, addDays } from 'date-fns'
 
@@ -49,23 +49,41 @@ const EMPTY_FORM = {
   endDate: '', nextDue: '', prescribedBy: '', reason: '', notes: '',
 }
 
-function AddForm({ onSave, onCancel }) {
-  const [form, setForm] = useState(EMPTY_FORM)
+function AddForm({ onSave, onCancel, initial = null }) {
+  // `initial` turns this into an edit. Keyed on the record's id by the caller,
+  // so opening a different medicine remounts with its own values rather than
+  // keeping the last one's.
+  // The record's id is deliberately NOT kept in form state. It rode along in
+  // the spread before, which made the explicit `id` the parent passes on save
+  // look redundant -- and would have turned every edit into a silent insert
+  // the day anyone changed how this seed is built.
+  const [form, setForm] = useState(
+    initial ? { ...EMPTY_FORM, ...initial, id: undefined } : EMPTY_FORM)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   async function handleSubmit(e) {
     e.preventDefault()
     if (!form.name.trim()) return
     setSaving(true)
-    try { await onSave(form) } finally { setSaving(false) }
+    setError(null)
+    try {
+      await onSave(form)
+    } catch (err) {
+      // Without this a failed save just stopped, leaving the spinner off and
+      // the form open with no word of what went wrong.
+      setError(err.message || 'Could not save. Please try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
     <div className="card" style={{ backgroundColor: '#fff9e0', borderColor: '#f2b83d' }}>
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="flex items-center justify-between">
-          <span className="font-black text-sm" style={{ color: '#7a4900' }}>Add Medicine</span>
+          <span className="font-black text-sm" style={{ color: '#7a4900' }}>{initial ? 'Edit Medicine' : 'Add Medicine'}</span>
           <button type="button" onClick={onCancel} className="p-1 rounded-lg hover:bg-yellow-100">
             <X className="w-4 h-4" style={{ color: '#73775b' }} />
           </button>
@@ -116,16 +134,20 @@ function AddForm({ onSave, onCancel }) {
           </div>
         </div>
 
+        {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
+
         <div className="flex justify-end gap-2 pt-1">
           <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
-          <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Add Medicine'}</button>
+          <button type="submit" className="btn-primary" disabled={saving}>
+            {saving ? 'Saving…' : initial ? 'Save changes' : 'Add Medicine'}
+          </button>
         </div>
       </form>
     </div>
   )
 }
 
-function MedicineCard({ med, onDone, onDelete }) {
+function MedicineCard({ med, onDone, onDelete, onEdit }) {
   const [toggling, setToggling] = useState(false)
   const cat = CAT_STYLE[med.category] || CAT_STYLE.Other
 
@@ -199,6 +221,12 @@ function MedicineCard({ med, onDone, onDelete }) {
             title={med.isDone ? 'Mark active' : 'Mark done'}>
             <Check className="w-3.5 h-3.5" />
           </button>
+          <button onClick={() => onEdit(med)}
+            title="Edit this medicine"
+            aria-label={`Edit ${med.name}`}
+            className="p-1.5 rounded-lg transition-colors text-gray-400 hover:text-gray-700 hover:bg-gray-100">
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
           <button onClick={() => onDelete(med.id)}
             className="p-1.5 rounded-lg transition-colors text-red-400 hover:text-red-600 hover:bg-red-50">
             <Trash2 className="w-3.5 h-3.5" />
@@ -212,15 +240,34 @@ function MedicineCard({ med, onDone, onDelete }) {
 export default function Medicines({ pet }) {
   const [meds, setMeds] = useState([])
   const [showForm, setShowForm] = useState(false)
+  const [editing, setEditing] = useState(null)
 
   function load() { getMedicines(pet.id).then(setMeds)
       .catch(e => { console.error(e); reportHandled(e, { view: 'medicines' }) }) }
   useEffect(load, [pet.id])
 
   async function handleSave(form) {
-    await saveMedicine({ ...form, petId: pet.id })
-    setShowForm(false)
+    // `id` is what makes the save an update rather than a second row. isDone
+    // is carried through explicitly, or editing a completed course would put
+    // it back under Active.
+    await saveMedicine({
+      ...form,
+      petId:  pet.id,
+      id:     editing?.id,
+      isDone: editing?.isDone || false,
+    })
+    closeForm()
     load()
+  }
+
+  function closeForm() {
+    setEditing(null)
+    setShowForm(false)
+  }
+
+  function startEdit(med) {
+    setEditing(med)
+    setShowForm(true)
   }
 
   async function handleDone(id, isDone) {
@@ -249,7 +296,8 @@ export default function Medicines({ pet }) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-black" style={{ color: '#7a4900' }}>Medicines</h2>
-        <button onClick={() => setShowForm(v => !v)} className="btn-primary gap-1.5 text-sm">
+        <button onClick={() => { if (showForm) closeForm(); else { setEditing(null); setShowForm(true) } }}
+          className="btn-primary gap-1.5 text-sm">
           <Plus className="w-4 h-4" /> Add Medicine
         </button>
       </div>
@@ -268,7 +316,7 @@ export default function Medicines({ pet }) {
 
       {/* Add form */}
       {showForm && (
-        <AddForm onSave={handleSave} onCancel={() => setShowForm(false)} />
+        <AddForm key={editing?.id || 'new'} initial={editing} onSave={handleSave} onCancel={closeForm} />
       )}
 
       {/* Empty state */}
@@ -292,7 +340,7 @@ export default function Medicines({ pet }) {
             Active ({active.length})
           </p>
           {active.map(m => (
-            <MedicineCard key={m.id} med={m} onDone={handleDone} onDelete={handleDelete} />
+            <MedicineCard key={m.id} med={m} onDone={handleDone} onDelete={handleDelete} onEdit={startEdit} />
           ))}
         </div>
       )}
@@ -304,7 +352,7 @@ export default function Medicines({ pet }) {
             Completed ({completed.length})
           </p>
           {completed.map(m => (
-            <MedicineCard key={m.id} med={m} onDone={handleDone} onDelete={handleDelete} />
+            <MedicineCard key={m.id} med={m} onDone={handleDone} onDelete={handleDelete} onEdit={startEdit} />
           ))}
         </div>
       )}
