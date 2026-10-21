@@ -3,14 +3,21 @@
 // What the notification bell shows, kept apart from the bell itself so it can
 // be tested in plain node — see scripts/test-reminder-feed.mjs.
 //
-// SOURCE OF TRUTH: the `reminders` table, and only that. The nightly email job
-// (api/_lib/morning-reminders.js) reads the same table and nothing
-// else, so the bell and the email always agree about what is due. A vaccination
-// with a `nextDue` date is NOT counted here even though the timeline draws one,
-// because a bell that says 5 when the email sends 3 teaches people to distrust
-// both.
+// SOURCE OF TRUTH: whatever the nightly email job sends, and nothing else.
+// A bell that says 5 when the email sends 3 teaches people to distrust both.
+//
+// That used to mean the `reminders` table alone. It no longer does: the email
+// job now also reads vaccinations.next_due and medicines.next_due, because a
+// due date the app displays and never mentions again is worse than no due
+// date. The bell was not updated at the same time, and the owner got the email
+// for Daisy's booster with no badge on the bell -- the exact disagreement this
+// comment was written to prevent.
+//
+// So the rule for which records count is shared, in src/lib/dueOnRecord.js,
+// and both sides import it. Do not reimplement it here.
 
 import { todayIST, addDaysISO } from './dates.js'
+import { recordDueItems } from './dueOnRecord.js'
 
 // How far ahead "coming up" looks. Long enough to be useful for a vet
 // appointment, short enough that the list is still readable.
@@ -64,6 +71,35 @@ export function groupReminders(reminders = [], pets = [], today = todayIST()) {
   }
 
   return groups
+}
+
+/**
+ * Everything the bell should show: the owner's reminders, plus due dates that
+ * live on a vaccination or medicine record.
+ *
+ * The horizon for RECORDS stops at the same `soon` boundary the panel treats
+ * as actionable. A reminder is something the owner asked to be reminded
+ * about, so a distant one still belongs under "later"; a booster due in eight
+ * months is a fact the timeline already draws, and listing it here would bury
+ * what actually needs doing. What matters is that the badge -- overdue and
+ * today -- counts exactly what the email sends.
+ */
+export function feedItems({ reminders = [], vaccinations = [], medicines = [], today = todayIST() } = {}) {
+  const horizon = addDaysISO(today, SOON_DAYS)
+  return [
+    ...reminders,
+    ...recordDueItems({
+      vaccinations,
+      medicines,
+      reminders,
+      // No lower bound: a booster missed three months ago is still overdue and
+      // still worth chasing, exactly as an old reminder is.
+      within: due => due <= horizon,
+      // The bell keeps showing a thing until it is actually done. Having been
+      // emailed about it this morning does not make it done.
+      skipNotified: false,
+    }),
+  ]
 }
 
 /** How a single row describes its own timing, in words rather than a date. */

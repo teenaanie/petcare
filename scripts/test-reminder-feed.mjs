@@ -1,6 +1,7 @@
 // What the notification bell shows. Run: npm run test:reminder-feed
 
-import { groupReminders, badgeCount, dueLabel, SOON_DAYS } from '../src/lib/reminderFeed.js'
+import { groupReminders, badgeCount, dueLabel, SOON_DAYS, feedItems } from '../src/lib/reminderFeed.js'
+import { recordDueItems } from '../src/lib/dueOnRecord.js'
 import { todayIST, addDaysISO } from '../src/lib/dates.js'
 
 let pass = 0, fail = 0
@@ -110,6 +111,81 @@ console.log('\nDefaults to the real today without throwing')
 {
   const g = groupReminders([rem({ dueDate: todayIST() })], PETS)
   ok('today is today', g.today.length === 1, g)
+}
+
+console.log('\nThe bell and the email must agree')
+{
+  // The regression this exists for: the morning job was taught to read
+  // vaccinations.next_due and the bell was not, so Daisy's booster arrived by
+  // email with no badge on the bell. The badge counts overdue + today, which
+  // is exactly the set the email sends.
+  const TODAY = '2026-10-20'
+  const pets = [{ id: 'p1', name: 'Daisy' }]
+
+  const vax = [{ id: 'v1', petId: 'p1', name: 'Felocell', nextDue: TODAY, isDone: false }]
+  const items = feedItems({ reminders: [], vaccinations: vax, medicines: [], today: TODAY })
+  const g = groupReminders(items, pets, TODAY)
+
+  ok('a vaccination due today reaches the bell', g.today.length === 1, g.today)
+  ok('and it names the vaccine', /Felocell/.test(g.today[0]?.notes || ''), g.today[0]?.notes)
+  ok('so the badge is not zero', badgeCount(g) === 1, badgeCount(g))
+  ok('it is attributed to the right pet', g.today[0]?.pet?.name === 'Daisy', g.today[0]?.pet)
+
+  // Overdue has no lower bound: a booster missed months ago still needs doing.
+  const old = [{ id: 'v2', petId: 'p1', name: 'Rabies', nextDue: '2026-06-01', isDone: false }]
+  const gOld = groupReminders(feedItems({ vaccinations: old, today: TODAY }), pets, TODAY)
+  ok('a long-overdue booster is still shown', gOld.overdue.length === 1, gOld.overdue)
+
+  // A medicine behaves identically -- same column, same gap.
+  const meds = [{ id: 'm1', petId: 'p1', name: 'Bravecto', nextDue: TODAY, isDone: false }]
+  const gMed = groupReminders(feedItems({ medicines: meds, today: TODAY }), pets, TODAY)
+  ok('a medicine due today reaches the bell', gMed.today.length === 1, gMed.today)
+
+  // Done, and dateless, are not due.
+  const noise = [
+    { id: 'v3', petId: 'p1', name: 'Done',    nextDue: TODAY, isDone: true },
+    { id: 'v4', petId: 'p1', name: 'No date', nextDue: null,  isDone: false },
+  ]
+  ok('finished and dateless records are not counted',
+     badgeCount(groupReminders(feedItems({ vaccinations: noise, today: TODAY }), pets, TODAY)) === 0)
+
+  // Said once, not twice, when the owner also made a reminder for it.
+  const own = [{ id: 'r1', petId: 'p1', type: 'Vaccination', dueDate: TODAY, notes: 'Felocell booster' }]
+  const gBoth = groupReminders(
+    feedItems({ reminders: own, vaccinations: vax, today: TODAY }), pets, TODAY)
+  ok('a record the owner already has a reminder for is not doubled',
+     badgeCount(gBoth) === 1, gBoth.today.map(i => i.notes))
+
+  // Far-future records do not pad the panel; the timeline already draws them.
+  const future = [{ id: 'v5', petId: 'p1', name: 'Next year', nextDue: '2027-06-01', isDone: false }]
+  const gFuture = groupReminders(feedItems({ vaccinations: future, today: TODAY }), pets, TODAY)
+  ok('a booster far ahead is left to the timeline',
+     gFuture.later.length === 0 && gFuture.soon.length === 0, gFuture)
+
+  // ...but a distant REMINDER still shows, because the owner asked for it.
+  const farReminder = [{ id: 'r2', petId: 'p1', type: 'Vet Visit', dueDate: '2027-06-01' }]
+  ok('a distant reminder the owner made still shows',
+     groupReminders(feedItems({ reminders: farReminder, today: TODAY }), pets, TODAY).later.length === 1)
+
+  // The guard inside recordDueItems, asserted directly. Downstream filters
+  // happen to drop a dateless record too, so without this the guard could be
+  // removed and every test would still pass.
+  {
+    const direct = recordDueItems({
+      vaccinations: [{ id: 'x', petId: 'p1', name: 'No date', nextDue: null, isDone: false }],
+      within: () => true,
+    })
+    ok('a record with no due date never becomes an item', direct.length === 0, direct)
+    const orphan = recordDueItems({
+      vaccinations: [{ id: 'y', petId: null, name: 'Orphan', nextDue: TODAY, isDone: false }],
+      within: () => true,
+    })
+    ok('a record with no pet never becomes an item', orphan.length === 0, orphan)
+  }
+
+  // Nothing due means nothing shown -- the quiet case is the common one.
+  ok('an empty day stays empty',
+     badgeCount(groupReminders(feedItems({ today: TODAY }), pets, TODAY)) === 0)
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`)

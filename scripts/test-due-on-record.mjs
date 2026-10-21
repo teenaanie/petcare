@@ -10,6 +10,7 @@ process.env.SUPABASE_URL         = 'https://stub.supabase.co'
 process.env.SUPABASE_SERVICE_KEY = 'service-stub'
 
 const { dueOnRecord, nextDueDate } = await import('../api/_lib/morning-reminders.js')
+const { feedItems, groupReminders, badgeCount } = await import('../src/lib/reminderFeed.js')
 
 let pass = 0, fail = 0
 const ok = (name, cond, got) => {
@@ -188,6 +189,43 @@ console.log('\nThe query actually filters')
      v?.filters.gte?.[1] === FROM && v?.filters.lte?.[1] === TODAY, v?.filters)
   ok('done records are excluded in the query, not merely in JS',
      JSON.stringify(v?.filters.not) === JSON.stringify(['is_done', 'is', true]), v?.filters.not)
+}
+
+console.log('\nThe mailer and the bell pick the same things')
+{
+  // The regression in one assertion. These two are separate code paths -- one
+  // a Supabase query in a cron, one a pure function in the browser -- and the
+  // owner notices the moment they disagree: Daisy's booster arrived by email
+  // with no badge on the bell.
+  //
+  // Comparing the SETS, not the counts, so a coincidence of size cannot pass.
+  const TODAY = '2026-10-20', FROM = '2026-10-13'
+  const pets = [{ id: 'pet-daisy', name: 'Daisy' }, { id: 'pet-pino', name: 'Pino' }]
+
+  const vaccinations = [
+    { id: 'v1', name: 'Felocell',  next_due: TODAY,        notified_for_date: null, pet: DAISY, petId: DAISY.id, nextDue: TODAY },
+    { id: 'v2', name: 'Rabies',    next_due: '2026-10-17', notified_for_date: null, pet: DAISY, petId: DAISY.id, nextDue: '2026-10-17' },
+    { id: 'v3', name: 'Done',      next_due: TODAY, is_done: true, isDone: true, notified_for_date: null, pet: PINO, petId: PINO.id, nextDue: TODAY },
+    { id: 'v4', name: 'Far ahead', next_due: '2027-01-01', notified_for_date: null, pet: PINO, petId: PINO.id, nextDue: '2027-01-01' },
+  ]
+  const medicines = [
+    { id: 'm1', name: 'Bravecto', next_due: '2026-10-19', notified_for_date: null, pet: PINO, petId: PINO.id, nextDue: '2026-10-19' },
+  ]
+
+  const supabase = db({ vaccinations, medicines })
+  const mailed = await dueOnRecord(supabase, FROM, TODAY, [])
+  const mailedKeys = mailed.map(i => `${i.pet.id}|${i.due_date}|${i.type}`).sort()
+
+  const g = groupReminders(feedItems({ reminders: [], vaccinations, medicines, today: TODAY }), pets, TODAY)
+  const belled = [...g.overdue, ...g.today]
+  const belledKeys = belled.map(i => `${i.petId}|${i.dueDate}|${i.type}`).sort()
+
+  ok('both sides pick the same records',
+     JSON.stringify(mailedKeys) === JSON.stringify(belledKeys),
+     { mailedKeys, belledKeys })
+  ok('and it is not vacuously empty', mailedKeys.length === 3, mailedKeys)
+  ok('the badge equals what the email would send',
+     badgeCount(g) === mailed.length, { badge: badgeCount(g), mailed: mailed.length })
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`)

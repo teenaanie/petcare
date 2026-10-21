@@ -3,6 +3,7 @@
 // Checks all reminders due today, sends email + SMS to each user
 
 import { createClient } from '@supabase/supabase-js'
+import { RECORD_SOURCES, recordDueItems } from '../../src/lib/dueOnRecord.js'
 import webPush from 'web-push'
 import { maskEmail, maskPhone, bodyShape } from './_redact.js'
 import { sendEmail } from './_email.js'
@@ -192,37 +193,25 @@ const CATCH_UP_DAYS = 7
 
 // Due dates that live on the record itself rather than in `reminders`.
 //
-// A vaccination's next_due and a medicine's next_due are shown to the owner as
-// due dates, but nothing ever notified on them: this job read `reminders` and
-// only `reminders`, so a due date reached the owner only if they had separately
-// pressed "+ Reminder". Daisy's Felocell was recorded on 28 Sep as due 20 Oct,
-// and on 20 Oct the app said nothing.
+// The RULE -- which tables carry a due date, what each is called, and how a
+// record is deduped against a reminder the owner made themselves -- is shared
+// with the notification bell in src/lib/dueOnRecord.js.
 //
-// These are read, not copied. No reminder rows are created, so nothing appears
-// in the owner's Reminders list that they did not put there -- the due date
-// they already saved is simply told to them on the day.
-const DUE_ON_RECORD = [
-  { table: 'vaccinations', type: 'Vaccination', note: r => `${r.name || 'Vaccination'} due` },
-  { table: 'medicines',    type: 'Medication',  note: r => `${r.name || 'Medication'} due` },
-]
+// It is shared because it has already drifted once. This job was taught to
+// read vaccinations.next_due while the bell was not, so the owner got an email
+// for Daisy's booster and no badge, which is the precise disagreement the
+// bell's own comment had warned about. Two copies of this rule is the bug.
+//
+// Only the window differs, legitimately: this job looks at a catch-up window
+// ending today, the bell also looks ahead.
 
 /**
  * Due dates from the record tables, shaped like reminders so they flow through
  * the same grouping, sending and bookkeeping.
- *
- * `frequency: 'Once'` is deliberate: these do not recur. A vaccination's next
- * date comes from the next document, not from arithmetic on this one, and
- * guessing a booster interval is a clinical claim this job has no business
- * making. nextDueDate() returns null for 'Once', so nothing rolls forward.
  */
 export async function dueOnRecord(supabase, from, today, existing = []) {
-  // A due date the owner has ALSO made a reminder for must not be said twice.
-  const covered = new Set(
-    existing.filter(r => r.pet).map(r => `${r.pet.id}|${r.due_date}|${r.type}`)
-  )
-
-  const out = []
-  for (const src of DUE_ON_RECORD) {
+  const fetched = {}
+  for (const src of RECORD_SOURCES) {
     const { data, error } = await supabase
       .from(src.table)
       .select('id, name, next_due, notified_for_date, pet:pets ( id, name, user_id )')
@@ -234,31 +223,30 @@ export async function dueOnRecord(supabase, from, today, existing = []) {
       // One table failing must not cost the others their morning. Reminders
       // proper have already been fetched by this point and are unaffected.
       console.error(`Failed to fetch due dates from ${src.table}:`, error.message)
+      fetched[src.table] = []
       continue
     }
-
-    for (const r of data || []) {
-      if (!r.pet || !r.next_due) continue
-      if (r.notified_for_date === r.next_due) continue
-      const key = `${r.pet.id}|${r.next_due}|${src.type}`
-      if (covered.has(key)) continue
-      covered.add(key)   // two records, same pet, same day, same kind: say it once
-
-      out.push({
-        id:                r.id,
-        type:              src.type,
-        notes:             src.note(r),
-        due_date:          r.next_due,
-        email:             '',
-        whatsapp:          '',
-        frequency:         'Once',
-        notified_for_date: r.notified_for_date,
-        pet:               r.pet,
-        _table:            src.table,
-      })
-    }
+    fetched[src.table] = data || []
   }
-  return out
+
+  return recordDueItems({
+    vaccinations: fetched.vaccinations,
+    medicines:    fetched.medicines,
+    reminders:    existing,
+    // Already bounded by the query above; kept explicit so the shared rule is
+    // the thing deciding, not the query alone.
+    within:       d => d >= from && d <= today,
+    // This job sends mail. A record already notified for this exact date must
+    // not be sent again as the catch-up window slides over it.
+    skipNotified: true,
+  // The mailer needs a `pet` object to group and address by; the shared rule
+  // carries it through, and a record whose pet is missing is dropped there.
+  })
+    .filter(item => item.pet)
+    // Per-reminder overrides, which only the mailer has a use for. Empty means
+    // "fall back to the account's own address and number", exactly as a
+    // reminder row with blank fields does.
+    .map(item => ({ ...item, email: '', whatsapp: '' }))
 }
 
 // ── SMS text ──────────────────────────────────────────────────────────────────

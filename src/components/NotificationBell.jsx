@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Bell, Check, Loader2, AlertCircle, CalendarClock, X } from 'lucide-react'
-import { getReminders, getPets, markReminderDone } from '../lib/storage.js'
-import { groupReminders, badgeCount, dueLabel, SOON_DAYS } from '../lib/reminderFeed.js'
+import { getReminders, getPets, markReminderDone, getVaccinations, getMedicines } from '../lib/storage.js'
+import { groupReminders, badgeCount, dueLabel, SOON_DAYS, feedItems } from '../lib/reminderFeed.js'
 import { todayIST } from '../lib/dates.js'
 import { friendlyError } from '../lib/errors.js'
 import { withRetry } from '../lib/net.js'
@@ -81,9 +81,15 @@ export default function NotificationBell({ refresh, onOpenReminder, onChanged, c
   async function load() {
     setError(null)
     try {
-      const [reminders, pets] = await withRetry(
-        () => Promise.all([getReminders(), getPets()]))
-      setGroups(groupReminders(reminders, pets, todayIST()))
+      // Vaccinations and medicines carry their own due dates, which the
+      // morning email sends. The bell has to read them too or the two
+      // disagree -- which is how Daisy's booster arrived by email with no
+      // badge on the bell.
+      const [reminders, pets, vaccinations, medicines] = await withRetry(
+        () => Promise.all([getReminders(), getPets(), getVaccinations(), getMedicines()]))
+      const today = todayIST()
+      setGroups(groupReminders(
+        feedItems({ reminders, vaccinations, medicines, today }), pets, today))
     } catch (e) {
       // A bell that cannot load is not worth an alarming message — it is not
       // the thing the user came here to do. Say it quietly, inside the panel.
