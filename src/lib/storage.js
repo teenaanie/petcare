@@ -430,8 +430,15 @@ export const markVaccinationDone = (id, isDone) => bust('vaccinations', () => _m
 async function _markVaccinationDone(id, isDone) {
   if (isConfigured) {
     const supabase = await getSupabase()
-    const { data, error } = await supabase.from('vaccinations').update({ is_done: isDone }).eq('id', id).select().single()
+    // maybeSingle, not single, for the same reason markReminderDone uses it:
+    // an UPDATE that matches no visible row is not a malformed request, and
+    // .single() reports it as "Cannot coerce the result to a single JSON
+    // object", which tells a pet parent nothing. Reachable from the bell,
+    // which lists every pet's rows including ones shared read-only.
+    const { data, error } = await supabase
+      .from('vaccinations').update({ is_done: isDone }).eq('id', id).select().maybeSingle()
     if (error) throw error
+    if (!data) throw new Error("That vaccination belongs to a pet you can view but not edit — ask whoever shared it to mark it done.")
     return fromSnakeVax(data)
   }
   const all = lsGet(KEYS.vaccinations)
@@ -748,8 +755,15 @@ export const markMedicineDone = (id, isDone) => bust('medicines', () => _markMed
 async function _markMedicineDone(id, isDone) {
   if (isConfigured) {
     const supabase = await getSupabase()
-    const { data, error } = await supabase.from('medicines').update({ is_done: isDone }).eq('id', id).select().single()
+    // maybeSingle, not single, for the same reason markReminderDone uses it:
+    // an UPDATE that matches no visible row is not a malformed request, and
+    // .single() reports it as "Cannot coerce the result to a single JSON
+    // object", which tells a pet parent nothing. Reachable from the bell,
+    // which lists every pet's rows including ones shared read-only.
+    const { data, error } = await supabase
+      .from('medicines').update({ is_done: isDone }).eq('id', id).select().maybeSingle()
     if (error) throw error
+    if (!data) throw new Error("That medicine belongs to a pet you can view but not edit — ask whoever shared it to mark it done.")
     return fromSnakeMedicine(data)
   }
   const all = lsGet(KEYS.medicines)
