@@ -4,6 +4,7 @@ import { getSupabase, isConfigured } from '../lib/supabase.js'
 import { prefetchTab } from '../lib/prefetchTab.js'
 import { formatWeight } from '../lib/currentWeight.js'
 import ChunkErrorBoundary from './ChunkErrorBoundary.jsx'
+import { retryImport } from '../lib/lazyRetry.js'
 function ModalLoading() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center"
@@ -26,7 +27,7 @@ function TabLoading() {
   )
 }
 
-const HealthSummary = lazy(() => import('./HealthSummary.jsx'))
+const HealthSummary = lazy(retryImport(() => import('./HealthSummary.jsx')))
 
 // ── Life stage data ───────────────────────────────────────────────────────────
 const STAGES = {
@@ -134,23 +135,23 @@ function LifeStageBar({ pet, ageYears }) {
 import { deletePet, savePet } from '../lib/storage.js'
 import AddPetModal from './AddPetModal.jsx'
 import PetAvatar from './PetAvatar.jsx'
-const Timeline = lazy(() => import('./Timeline.jsx'))
-const MedicalHistory = lazy(() => import('./MedicalHistory.jsx'))
-const Vaccinations = lazy(() => import('./Vaccinations.jsx'))
-const Allergies = lazy(() => import('./Allergies.jsx'))
-const DocumentScanner = lazy(() => import('./DocumentScanner.jsx'))
-const Reminders = lazy(() => import('./Reminders.jsx'))
-const WeightLog = lazy(() => import('./WeightLog.jsx'))
-const Medicines = lazy(() => import('./Medicines.jsx'))
-const Bills = lazy(() => import('./Bills.jsx'))
-const EmergencyCard = lazy(() => import('./EmergencyCard.jsx'))
-const PetSharing = lazy(() => import('./PetSharing.jsx'))
+const Timeline = lazy(retryImport(() => import('./Timeline.jsx')))
+const MedicalHistory = lazy(retryImport(() => import('./MedicalHistory.jsx')))
+const Vaccinations = lazy(retryImport(() => import('./Vaccinations.jsx')))
+const Allergies = lazy(retryImport(() => import('./Allergies.jsx')))
+const DocumentScanner = lazy(retryImport(() => import('./DocumentScanner.jsx')))
+const Reminders = lazy(retryImport(() => import('./Reminders.jsx')))
+const WeightLog = lazy(retryImport(() => import('./WeightLog.jsx')))
+const Medicines = lazy(retryImport(() => import('./Medicines.jsx')))
+const Bills = lazy(retryImport(() => import('./Bills.jsx')))
+const EmergencyCard = lazy(retryImport(() => import('./EmergencyCard.jsx')))
+const PetSharing = lazy(retryImport(() => import('./PetSharing.jsx')))
 import BreedAlert from './BreedAlert.jsx'
-const Boarding = lazy(() => import('./Boarding.jsx'))
-const ConditionJournal = lazy(() => import('./ConditionJournal.jsx'))
-const VoiceUpdate = lazy(() => import('./VoiceUpdate.jsx'))
-const InformProvider = lazy(() => import('./InformProvider.jsx'))
-const StayUpdates = lazy(() => import('./StayUpdates.jsx'))
+const Boarding = lazy(retryImport(() => import('./Boarding.jsx')))
+const ConditionJournal = lazy(retryImport(() => import('./ConditionJournal.jsx')))
+const VoiceUpdate = lazy(retryImport(() => import('./VoiceUpdate.jsx')))
+const InformProvider = lazy(retryImport(() => import('./InformProvider.jsx')))
+const StayUpdates = lazy(retryImport(() => import('./StayUpdates.jsx')))
 import { trackEvent } from '../lib/analytics.js'
 import { withRetry } from '../lib/net.js'
 

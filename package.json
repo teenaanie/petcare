@@ -71,7 +71,8 @@
     "test:money": "node scripts/test-money.mjs",
     "test:scan-failures": "node scripts/test-scan-failures.mjs",
     "test:due-on-record": "node scripts/test-due-on-record.mjs",
-    "test:record-edit-ui": "node scripts/test-record-edit-ui.mjs"
+    "test:record-edit-ui": "node scripts/test-record-edit-ui.mjs",
+    "test:chunk-recovery-ui": "node scripts/test-chunk-recovery-ui.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

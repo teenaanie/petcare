@@ -1,8 +1,8 @@
-import { useState, useEffect, lazy, Suspense } from 'react'
+import { useState, useEffect, lazy, Suspense, useRef } from 'react'
 import { drainSharedFiles, wasShared, clearSharedFlag } from './lib/shareTarget.js'
 import { getSupabase, isConfigured, hasStoredSession } from './lib/supabase.js'
 import ChunkErrorBoundary from './components/ChunkErrorBoundary.jsx'
-import { isChunkLoadError, reloadOnceForChunkError } from './lib/chunkErrors.js'
+import { isChunkLoadError, reloadOnceForChunkError, rememberPlace, takeRememberedPlace } from './lib/chunkErrors.js'
 import { getPets } from './lib/storage.js'
 import { announceSignupOnce } from './lib/notify.js'
 import PhoneAuth from './components/PhoneAuth.jsx'
@@ -124,6 +124,11 @@ export default function App() {
   // ── App state ──────────────────────────────────────────────────────────────
   const [selectedPet, setSelectedPet]   = useState(null)
   const [activeTab, setActiveTab]       = useState('timeline')
+
+  // A chunk reload interrupted something. Read once, synchronously, before any
+  // effect can run -- reading also clears it, so a second read would find
+  // nothing and the restore would silently stop working.
+  const resumeRef = useRef(takeRememberedPlace())
   const [showAddPet, setShowAddPet]     = useState(false)
   const [refresh, setRefresh]           = useState(0)
   const [sidebarOpen, setSidebarOpen]   = useState(false)
@@ -151,6 +156,14 @@ export default function App() {
     setSelectedPet(next === 'pets' ? pet : null)
     setSidebarOpen(false)
   }
+
+  // Keep the chunk-error module told where we are, so a forced reload can come
+  // back here. Only a pet matters: every other view is one tap from the top.
+  useEffect(() => {
+    rememberPlace(view === 'pets' && selectedPet
+      ? { petId: selectedPet.id, tab: activeTab }
+      : null)
+  }, [view, selectedPet, activeTab])
   // Files shared in from another app. Drained on boot regardless of auth state:
   // the login screen renders instead of the main UI but App stays mounted, so
   // holding them here carries them across the sign-in round trip. Losing files
@@ -210,6 +223,28 @@ export default function App() {
     goTo('pets', pet)
     if (pet) setActiveTab('timeline')
   }
+
+  // Put the user back where the reload interrupted them.
+  //
+  // Runs once, after sign-in has settled: before that there is nothing to read
+  // the pet from. A pet that has since been deleted simply leaves them on the
+  // pet list, which is where they already are.
+  useEffect(() => {
+    const resume = resumeRef.current
+    if (!resume || authLoading || !session) return
+    resumeRef.current = null
+    let cancelled = false
+    getPets()
+      .then(pets => {
+        if (cancelled) return
+        const pet = pets.find(p => p.id === resume.petId)
+        if (!pet) return
+        goTo('pets', pet)
+        if (resume.tab) setActiveTab(resume.tab)
+      })
+      .catch(() => { /* best effort: the pet list is a fine place to land */ })
+    return () => { cancelled = true }
+  }, [authLoading, session])
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
