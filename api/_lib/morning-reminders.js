@@ -3,7 +3,7 @@
 // Checks all reminders due today, sends email + SMS to each user
 
 import { createClient } from '@supabase/supabase-js'
-import { RECORD_SOURCES, recordDueItems } from '../../src/lib/dueOnRecord.js'
+import { RECORD_SOURCES, recordDueItems, CATCH_UP_DAYS } from '../../src/lib/dueOnRecord.js'
 import webPush from 'web-push'
 import { maskEmail, maskPhone, bodyShape } from './_redact.js'
 import { sendEmail } from './_email.js'
@@ -186,10 +186,10 @@ export function nextDueDate(dueDate, frequency, today) {
 //
 // The job used to match `due_date = today` exactly, so a morning it did not
 // run -- or a send that failed, as every send did while the Resend domain was
-// unverified -- lost that occurrence permanently. Seven days is long enough to
-// ride out a missed run or an outage, and short enough that deploying this does
-// not mail out months of backlog at once.
-const CATCH_UP_DAYS = 7
+// unverified -- lost that occurrence permanently.
+//
+// The number now lives in src/lib/dueOnRecord.js and is shared with the
+// notification bell, so the badge and the mail draw the same line.
 
 // Due dates that live on the record itself rather than in `reminders`.
 //

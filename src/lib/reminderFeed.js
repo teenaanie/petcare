@@ -17,7 +17,7 @@
 // and both sides import it. Do not reimplement it here.
 
 import { todayIST, addDaysISO } from './dates.js'
-import { recordDueItems } from './dueOnRecord.js'
+import { recordDueItems, CATCH_UP_DAYS } from './dueOnRecord.js'
 
 // How far ahead "coming up" looks. Long enough to be useful for a vet
 // appointment, short enough that the list is still readable.
@@ -86,15 +86,27 @@ export function groupReminders(reminders = [], pets = [], today = todayIST()) {
  */
 export function feedItems({ reminders = [], vaccinations = [], medicines = [], today = todayIST() } = {}) {
   const horizon = addDaysISO(today, SOON_DAYS)
+  // The same window the morning job catches up over, so the badge and the
+  // mail draw one line rather than two.
+  const floor = addDaysISO(today, -CATCH_UP_DAYS)
   return [
     ...reminders,
     ...recordDueItems({
       vaccinations,
       medicines,
       reminders,
-      // No lower bound: a booster missed three months ago is still overdue and
-      // still worth chasing, exactly as an old reminder is.
-      within: due => due <= horizon,
+      // Records are bounded at BOTH ends; reminders are not.
+      //
+      // A reminder is something the owner typed, so an old one still means
+      // what it said. A record's due date is a by-product of filing a past
+      // visit, and the pile of them is history: 19 of the owner's 22 badged
+      // items were boosters from 2023-24 whose follow-up shots had already
+      // been recorded as new rows.
+      //
+      // The honest cost is that a genuinely missed booster older than a week
+      // stops being badged. It is still in the pet's record and on the
+      // timeline; what it no longer does is sit in a count nobody reads.
+      within: due => due >= floor && due <= horizon,
       // The bell keeps showing a thing until it is actually done. Having been
       // emailed about it this morning does not make it done.
       skipNotified: false,

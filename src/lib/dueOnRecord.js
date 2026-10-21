@@ -16,6 +16,30 @@
 // the window they ask for, which is a real difference: the morning job looks
 // at a catch-up window ending today, the bell also looks ahead.
 
+// How far back a due date still counts as something to act on.
+//
+// Shared, and that is the point. The morning job uses it as its catch-up
+// window -- long enough to ride out a missed run, short enough that deploying
+// it did not mail months of backlog. The bell uses the same number so the two
+// surfaces draw the same line.
+//
+// It is also what keeps the badge readable. Without a lower bound the bell
+// counted 22, of which 19 were historical rows -- boosters from 2023 and 2024,
+// up to 1298 days past due, whose follow-up shots were recorded later as new
+// rows. They were never missed, they were superseded, and a badge that is
+// never zero is one nobody reads.
+//
+// What this deliberately does NOT do is decide that one vaccine supersedes
+// another. That is a veterinary judgement, and the data contains a row that
+// would defeat any such rule: a "vaccination" reading
+// "caftago + lautac + catasm" with no due date, which looks like a
+// prescription filed in the wrong table. A date cut is blunt, but it cannot
+// silently decide a rabies booster has been covered.
+//
+// The cost, stated plainly: a genuinely missed booster older than a week stops
+// being badged. It stays in the pet's record and on the timeline.
+export const CATCH_UP_DAYS = 7
+
 /** The record tables that carry their own due date, and what to call them. */
 export const RECORD_SOURCES = [
   { table: 'vaccinations', type: 'Vaccination', fallback: 'Vaccination' },
