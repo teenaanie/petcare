@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Sparkles, X, ChevronRight, Loader2 } from 'lucide-react'
+import { Mic, X, ChevronRight, Loader2, Pencil } from 'lucide-react'
 import VoiceIntake from './VoiceIntake.jsx'
 import { savePet } from '../lib/storage.js'
 import ReminderPicker from './ReminderPicker.jsx'
@@ -34,6 +34,18 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
 
   const [intake, setIntake] = useState(false)
 
+  // Closing once the pet exists is not a cancel.
+  //
+  // The reported bug: the form was filled in, Save pressed, the reminders step
+  // appeared, and the owner closed it without picking one -- "the pet was not
+  // saved". It had been saved; savePet ran before this step. But onClose only
+  // shut the modal, while onSaved also refreshes the list, so the pet sat in
+  // the database and never appeared on screen.
+  function handleClose() {
+    if (savedPet) onSaved(savedPet)
+    else onClose()
+  }
+
   function handleChange(e) {
     const { name, value } = e.target
     setForm(f => ({ ...f, [name]: value }))
@@ -51,13 +63,24 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
   // afterwards is unchanged either way.
   const intakeOffer = !existing && (
     <>
+      {/* A sparkle said "something clever happens here" and nothing said
+          "this listens". Shown a demo, the offer read as a note rather than a
+          microphone, so nobody tried speaking. The icon is the affordance. */}
       <button type="button" onClick={() => setIntake(true)}
-        className="w-full flex items-center justify-center gap-2 text-sm font-bold px-4 py-2.5 rounded-xl mb-4"
-        style={{ backgroundColor: '#fff3c0', color: '#7a4900' }}>
-        <Sparkles className="w-4 h-4" /> Rather just tell us about them?
+        className="w-full flex items-center justify-center gap-2.5 text-sm font-bold px-4 py-3 rounded-xl mb-4"
+        style={{ backgroundColor: '#fff3c0', color: '#7a4900', border: '1px solid #f2b83d' }}>
+        <span className="flex items-center justify-center w-7 h-7 rounded-full flex-shrink-0"
+          style={{ backgroundColor: '#7a4900' }}>
+          <Mic className="w-4 h-4" style={{ color: '#fff9e0' }} />
+        </span>
+        Speak instead — tell us about them
       </button>
       {intake && (
-        <VoiceIntake onClose={() => setIntake(false)}
+        <VoiceIntake
+          // Closing the voice screen after it has saved pets must refresh the
+          // list, exactly as finishing does. Otherwise the pets are in the
+          // database and nowhere on screen, which reads as "it did not save".
+          onClose={saved => { setIntake(false); if (saved) onSaved?.(null) }}
           onSaved={() => { setIntake(false); onSaved?.(null) }} />
       )}
     </>
@@ -68,15 +91,24 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
     if (!form.name.trim()) return
     setSaving(true)
     try {
+      // First time through this modal for a NEW pet. Pressing Save again after
+      // going back to correct something is an update of the same pet, not a
+      // second one, and must not be announced or counted twice.
+      const firstSave = !existing && !savedPet
       const saved = await savePet(form)
       setSavedPet(saved)
+      // Carrying the id into the form is what makes a second Save an UPDATE.
+      // Without it, "Edit details" would quietly create a duplicate pet.
+      setForm(f => ({ ...f, id: saved.id, createdAt: saved.createdAt ?? f.createdAt }))
       // Skip reminders step for edits
       if (existing) { onSaved(saved); return }
-      // A NEW pet, not an edit. Not awaited: the alert is not the user's
-      // business and must not delay or fail their save.
-      announcePetAdded(saved?.id)
-      // Species only — an enum from a fixed list. Never the pet's name.
-      trackEvent('pet_added', { species: saved?.species || '', method: 'form' })
+      if (firstSave) {
+        // Not awaited: the alert is not the user's business and must not delay
+        // or fail their save.
+        announcePetAdded(saved?.id)
+        // Species only — an enum from a fixed list. Never the pet's name.
+        trackEvent('pet_added', { species: saved?.species || '', method: 'form' })
+      }
       setStep('reminders')
     } finally {
       setSaving(false)
@@ -95,7 +127,7 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
               <h2 className="text-lg font-black" style={{ color: '#7a4900' }}>
                 {existing ? 'Edit Pet' : 'Add New Pet 🐾'}
               </h2>
-              <button onClick={onClose} className="p-1 rounded-lg hover:bg-amber-50 transition-colors"
+              <button onClick={handleClose} className="p-1 rounded-lg hover:bg-amber-50 transition-colors"
                 style={{ color: '#73775b' }}>
                 <X className="w-5 h-5" />
               </button>
@@ -168,7 +200,11 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
                 <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
                 <button type="submit" disabled={saving} className="btn-primary flex items-center gap-2">
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
-                  {existing ? 'Save Changes' : 'Next: Set Reminders'}
+                  {/* "Next: Set Reminders" implied nothing had been saved
+                      yet and that reminders were part of the deal. The pet is
+                      saved the moment this is pressed; reminders are an offer
+                      afterwards. */}
+                  {existing || savedPet ? 'Save Changes' : 'Save Pet'}
                 </button>
               </div>
             </form>
@@ -188,12 +224,19 @@ export default function AddPetModal({ onClose, onSaved, pet: existing }) {
                   {form.breed ? ` · ${form.breed}` : ''}
                 </p>
               </div>
-              <button onClick={onClose} className="p-1 rounded-lg hover:bg-amber-50" style={{ color: '#73775b' }}>
+              <button onClick={handleClose} className="p-1 rounded-lg hover:bg-amber-50" style={{ color: '#73775b' }}>
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6">
+            <div className="p-6 space-y-4">
+              {/* Pressing Save used to be the end of editing: the details were
+                  gone and the only way back was to save, reopen and edit. */}
+              <button type="button" onClick={() => setStep('form')}
+                className="flex items-center gap-2 text-sm font-bold px-3 py-2 rounded-xl"
+                style={{ backgroundColor: '#f4f1ea', color: '#7a4900' }}>
+                <Pencil className="w-3.5 h-3.5" /> Edit {form.name || 'details'}
+              </button>
               <ReminderPicker
                 pets={savedPet ? [savedPet] : []}
                 onDone={() => onSaved(savedPet)}

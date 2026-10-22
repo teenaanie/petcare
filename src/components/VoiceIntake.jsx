@@ -1,8 +1,5 @@
 import { useState } from 'react'
-import {
-  Loader2, X, Check, AlertCircle, Sparkles,
-  ChevronLeft, PawPrint, Syringe, Pill, AlertTriangle, Camera,
-} from 'lucide-react'
+import { Loader2, X, Check, AlertCircle, Sparkles, ChevronLeft, PawPrint, Syringe, Pill, AlertTriangle, Camera, Mic } from 'lucide-react'
 import { aiComplete } from '../lib/ai.js'
 import { useVoiceRecorder } from '../lib/useVoiceRecorder.js'
 import { voiceLikelyAvailable } from '../lib/speech.js'
@@ -61,7 +58,7 @@ function Row({ checked, onToggle, icon: Icon, title, detail, color, suggestion, 
 
 // ── Review screen: the AI proposes, the human confirms ───────────────────────
 
-function Review({ parsed, onBack, onSaved }) {
+function Review({ parsed, onBack, onSaved, onSavedPets }) {
   // Everything starts ticked; dropping a wrong row is one tap, and nothing is
   // saved until the button is pressed.
   // Spelling corrections the owner accepted, keyed the same way as `picked`.
@@ -160,6 +157,9 @@ function Review({ parsed, onBack, onSaved }) {
       // Not finished yet: offer reminders, the same question the form path
       // asks. This path never asked at all.
       setSavedPets(created)
+      // Tell the shell the pets now exist, so closing from the reminder step
+      // refreshes the list instead of leaving them saved but invisible.
+      onSavedPets?.(created)
     } catch (e) {
       // The raw text is still held by the parent, so nothing is lost.
       reportHandled(e, { view: 'voice-intake' })
@@ -288,6 +288,10 @@ function Review({ parsed, onBack, onSaved }) {
 // ── The screen ───────────────────────────────────────────────────────────────
 
 export default function VoiceIntake({ onClose, onSaved }) {
+  // Whether anything has been written yet. Closing after that is not a cancel:
+  // the pets are in the database, and the list behind this screen has to be
+  // told or they do not appear -- which reads as "it did not save".
+  const [savedAnything, setSavedAnything] = useState(false)
   // Opens on Speak. This screen exists because talking is faster than typing,
   // so making the user pick "Speak" first was a tap spent asking whether they
   // meant what they had just opened. Typing is one tap away and still a
@@ -333,15 +337,16 @@ export default function VoiceIntake({ onClose, onSaved }) {
         <div className="flex items-center justify-between px-5 py-4 flex-shrink-0"
           style={{ borderBottom: '1px solid #ebe3d3' }}>
           <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5" style={{ color: '#c9891f' }} />
+            <Mic className="w-5 h-5" style={{ color: '#c9891f' }} />
             <span className="font-black" style={{ color: '#7a4900' }}>Tell us about your pets</span>
           </div>
-          <button type="button" onClick={onClose} disabled={busy}><X className="w-5 h-5" style={{ color: '#73775b' }} /></button>
+          <button type="button" onClick={() => onClose?.(savedAnything)} disabled={busy}><X className="w-5 h-5" style={{ color: '#73775b' }} /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {parsed ? (
-            <Review parsed={parsed} onBack={() => setParsed(null)} onSaved={onSaved} />
+            <Review parsed={parsed} onBack={() => setParsed(null)} onSaved={onSaved}
+                    onSavedPets={pets => setSavedAnything((pets || []).length > 0)} />
           ) : (
             <>
               <p className="text-sm" style={{ color: '#73775b' }}>
