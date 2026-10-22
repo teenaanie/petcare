@@ -74,7 +74,8 @@
     "test:record-edit-ui": "node scripts/test-record-edit-ui.mjs",
     "test:chunk-recovery-ui": "node scripts/test-chunk-recovery-ui.mjs",
     "test:bell-tick-ui": "node scripts/test-bell-tick-ui.mjs",
-    "test:add-pet-ui": "node scripts/test-add-pet-ui.mjs"
+    "test:add-pet-ui": "node scripts/test-add-pet-ui.mjs",
+    "test:captured-edit-ui": "node scripts/test-captured-edit-ui.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
