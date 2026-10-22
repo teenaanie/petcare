@@ -131,10 +131,29 @@ console.log('\nThe bell and the email must agree')
   ok('so the badge is not zero', badgeCount(g) === 1, badgeCount(g))
   ok('it is attributed to the right pet', g.today[0]?.pet?.name === 'Daisy', g.today[0]?.pet)
 
-  // Overdue has no lower bound: a booster missed months ago still needs doing.
-  const old = [{ id: 'v2', petId: 'p1', name: 'Rabies', nextDue: '2026-06-01', isDone: false }]
-  const gOld = groupReminders(feedItems({ vaccinations: old, today: TODAY }), pets, TODAY)
-  ok('a long-overdue booster is still shown', gOld.overdue.length === 1, gOld.overdue)
+  // Records are bounded at both ends. 19 of the owner's 22 badged items were
+  // boosters from 2023-24 whose follow-up shots had already been filed as new
+  // rows -- never missed, superseded -- and a badge that is never zero is one
+  // nobody reads.
+  const stale = [{ id: 'v2', petId: 'p1', name: 'Rabies', nextDue: '2026-06-01', isDone: false }]
+  const gStale = groupReminders(feedItems({ vaccinations: stale, today: TODAY }), pets, TODAY)
+  ok('a booster long past due is left to the record and the timeline',
+     gStale.overdue.length === 0, gStale.overdue)
+
+  // The boundary, both sides of it, so the window cannot quietly widen or
+  // close. CATCH_UP_DAYS is 7 and TODAY is 2026-10-20.
+  const at   = [{ id: 'v6', petId: 'p1', name: 'Edge in',  nextDue: '2026-10-13', isDone: false }]
+  const past = [{ id: 'v7', petId: 'p1', name: 'Edge out', nextDue: '2026-10-12', isDone: false }]
+  ok('a record exactly at the catch-up edge still shows',
+     groupReminders(feedItems({ vaccinations: at, today: TODAY }), pets, TODAY).overdue.length === 1)
+  ok('a record one day beyond it does not',
+     groupReminders(feedItems({ vaccinations: past, today: TODAY }), pets, TODAY).overdue.length === 0)
+
+  // A REMINDER the owner typed keeps no lower bound -- it still means what it
+  // said, however old.
+  const oldReminder = [{ id: 'r9', petId: 'p1', type: 'Vet Visit', dueDate: '2025-01-01' }]
+  ok('an old reminder the owner made is still shown',
+     groupReminders(feedItems({ reminders: oldReminder, today: TODAY }), pets, TODAY).overdue.length === 1)
 
   // A medicine behaves identically -- same column, same gap.
   const meds = [{ id: 'm1', petId: 'p1', name: 'Bravecto', nextDue: TODAY, isDone: false }]

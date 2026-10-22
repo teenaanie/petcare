@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Bell, Check, Loader2, AlertCircle, CalendarClock, X } from 'lucide-react'
-import { getReminders, getPets, markReminderDone, getVaccinations, getMedicines } from '../lib/storage.js'
+import { getReminders, getPets, markReminderDone, getVaccinations, getMedicines, markVaccinationDone, markMedicineDone } from '../lib/storage.js'
 import { groupReminders, badgeCount, dueLabel, SOON_DAYS, feedItems } from '../lib/reminderFeed.js'
 import { todayIST } from '../lib/dates.js'
 import { friendlyError } from '../lib/errors.js'
@@ -69,6 +69,13 @@ function Group({ which, rows, today, onOpen, onDone, busyId }) {
 // must hang RIGHT-wards ('left'): the panel is wider than the 256px sidebar, so
 // anchoring it to the bell's right edge put most of it off the side of the
 // screen. In a top bar there is room to the left, so it hangs the usual way.
+// Which table a bell row lives in, and how to tick it off there. Anything
+// without a `_table` is a reminder, which is what the bell used to hold only.
+const MARK_DONE = {
+  vaccinations: markVaccinationDone,
+  medicines:    markMedicineDone,
+}
+
 export default function NotificationBell({ refresh, onOpenReminder, onChanged, className = '', align = 'right' }) {
   const [open, setOpen]         = useState(false)
   const [groups, setGroups]     = useState({ overdue: [], today: [], soon: [], later: [] })
@@ -124,9 +131,18 @@ export default function NotificationBell({ refresh, onOpenReminder, onChanged, c
   async function handleDone(r) {
     setBusyId(r.id)
     try {
+      // Tick the row in the table it actually came from.
+      //
+      // The bell lists three kinds of thing now, and only one of them is a
+      // row in `reminders`. Sending a vaccination's id to markReminderDone
+      // updated nothing, and the zero-rows case is reported as "that reminder
+      // belongs to a pet you can view but not edit" -- so ticking off your own
+      // pet's booster accused you of not owning it.
+      //
       // Safe to retry: setting is_done to true twice is the same as once, so
       // a request WebKit dropped costs a moment rather than the action.
-      await withRetry(() => markReminderDone(r.id, true))
+      const markDone = MARK_DONE[r._table] || markReminderDone
+      await withRetry(() => markDone(r.id, true))
       trackEvent('reminder_done', { from: 'bell', type: (r.type || '').replace(/\s+/g, '_') })
       await load()
       // The pet's own Reminders tab may be open behind this panel, still
