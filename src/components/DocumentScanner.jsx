@@ -4,6 +4,7 @@ import { saveMedicalRecord, saveVaccination, saveAllergy, saveReminder, saveMedi
 import { withRetry } from '../lib/net.js'
 import { friendlyError } from '../lib/errors.js'
 import { reportHandled } from '../lib/errorReport.js'
+import CapturedFields, { CapturedField } from './CapturedFields.jsx'
 import { format, isPast, parseISO } from 'date-fns'
 import { aiComplete } from '../lib/ai.js'
 import { shareTargetLikelySupported } from '../lib/shareTarget.js'
@@ -138,28 +139,21 @@ function SaveBtn({ onClick, label = 'Save', saving }) {
   )
 }
 
+// Thin wrapper over the shared editor, kept so the call sites below read the
+// same as they always did.
+//
+// The select it used to render had no idea what to do with a value outside its
+// options: the browser showed the FIRST one while the state still held what
+// the scan returned, so a medicine the model called "Painkiller" displayed as
+// "Deworming" and would have saved as "Painkiller". The shared component adds
+// the captured value to its own option list; see CapturedFields.jsx.
 function Field({ label, value, onChange, type = 'text', options, rows }) {
-  const cls = "input text-sm py-1.5"
-  if (options) return (
-    <div>
-      <label className="label text-xs">{label}</label>
-      <select className={cls} value={value} onChange={e => onChange(e.target.value)}>
-        {options.map(o => <option key={o}>{o}</option>)}
-      </select>
-    </div>
-  )
-  if (rows) return (
-    <div>
-      <label className="label text-xs">{label}</label>
-      <textarea className={cls} rows={rows} value={value || ''} onChange={e => onChange(e.target.value)} />
-    </div>
-  )
-  return (
-    <div>
-      <label className="label text-xs">{label}</label>
-      <input className={cls} type={type} value={value || ''} onChange={e => onChange(e.target.value)} />
-    </div>
-  )
+  const spec = {
+    field: label, label,
+    type: options ? 'select' : rows ? 'textarea' : type,
+    options, rows,
+  }
+  return <CapturedField spec={spec} value={value} onChange={onChange} />
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -407,6 +401,7 @@ export default function DocumentScanner({ pet, session, initialFiles = null }) {
   // ── Update helpers ────────────────────────────────────────────────────────
 
   const updateVax = (idx, key, val) => setVaxItems(prev => prev.map((v, i) => i === idx ? { ...v, [key]: val } : v))
+  const updateTimeline = (idx, key, val) => setTimelineItems(prev => prev.map((t, i) => i === idx ? { ...t, [key]: val } : t))
   const updateMed = (idx, key, val) => setMedItems(prev => prev.map((m, i) => i === idx ? { ...m, [key]: val } : m))
   const updateWeight = (idx, key, val) => setWeightItems(prev => prev.map((w, i) => i === idx ? { ...w, [key]: val } : w))
   const updateBillLine = (idx, key, val) => setBillItem(b => ({ ...b, lineItems: b.lineItems.map((r, i) => i === idx ? { ...r, [key]: val } : r) }))
@@ -814,13 +809,32 @@ export default function DocumentScanner({ pet, session, initialFiles = null }) {
               </div>
               <div className="space-y-2">
                 {timelineItems.map((t, i) => (
-                  <div key={i} className="flex items-center justify-between gap-2 flex-wrap">
-                    <div>
-                      <p className="text-sm font-semibold" style={{ color: '#7a4900' }}>{t.label}</p>
-                      <p className="text-xs" style={{ color: '#73775b' }}>
-                        {format(parseISO(t.date), 'MMM d, yyyy')} · {t.type}
-                      </p>
-                    </div>
+                  <div key={i} className="flex items-start justify-between gap-3 flex-wrap">
+                    {/* The only part of a scan that stayed read-only. A date
+                        read off a vet's handwriting is exactly the thing most
+                        worth being able to correct before it becomes the
+                        reminder that wakes somebody up. */}
+                    {savedTimelines.has(i) ? (
+                      <div>
+                        <p className="text-sm font-semibold" style={{ color: '#7a4900' }}>{t.label}</p>
+                        <p className="text-xs" style={{ color: '#73775b' }}>
+                          {format(parseISO(t.date), 'MMM d, yyyy')} · {t.type}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex-1 min-w-[16rem]">
+                        <CapturedFields
+                          dense
+                          values={t}
+                          onChange={(k, v) => updateTimeline(i, k, v)}
+                          fields={[
+                            { field: 'label', label: 'What for', wide: true },
+                            { field: 'date',  label: 'Date', type: 'date' },
+                            { field: 'type',  label: 'Kind', type: 'select',
+                              options: ['Vaccination', 'Vet Checkup', 'Medication', 'Other'] },
+                          ]} />
+                      </div>
+                    )}
                     <div className="flex flex-col items-end gap-1">
                       {savedTimelines.has(i)
                         ? <SavedBadge />
