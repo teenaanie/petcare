@@ -13,6 +13,7 @@
 // liked at our expense. The client sends structured data; we compose the words.
 
 import { createClient } from '@supabase/supabase-js'
+import { dropEchoedEnums } from '../../src/lib/aiEnums.js'
 import { chatCost } from './_pricing.js'
 
 const OPENAI_KEY   = process.env.OPENAI_API_KEY        // never VITE_ — server only
@@ -142,13 +143,15 @@ Saturday. Write the notes field in the language the speaker used.
 
 Extract reminder details and return ONLY valid JSON:
 {
-  "type": "Vaccination|Grooming|Vet Checkup|Medication|Other",
+  "type": "<one of: Vaccination, Grooming, Vet Checkup, Medication, Other>",
   "dueDate": "YYYY-MM-DD",
-  "frequency": "Once|Weekly|Monthly|Yearly",
+  "frequency": "<one of: Once, Weekly, Monthly, Yearly>",
   "notes": "any extra context from what they said"
 }
 
 Rules:
+- Where a field says "one of: A, B, C", return exactly ONE of those words and
+  nothing else — never the list itself, in any form.
 - Convert relative dates: "next week" = 7 days from today, "tomorrow" = 1 day, "in 3 months" = 90 days, etc.
 - If no date mentioned, leave dueDate empty string.
 - Reminders are date-only; there is no time-of-day field. If a time was spoken
@@ -553,6 +556,9 @@ export default async function handler(req) {
   } catch {
     return json({ error: 'Could not parse the AI response. Please try again.' }, 502)
   }
+
+  // Same guard as the scanner: a chosen option, or nothing. See src/lib/aiEnums.js.
+  result = dropEchoedEnums(result)
 
   // 5. Record usage, INCLUDING what it cost. A failure here must not fail the
   //    call the user already got.
