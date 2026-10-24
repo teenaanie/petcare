@@ -3,6 +3,7 @@
 // Also enforces per-user rate limiting and logs usage for cost tracking.
 
 import { createClient } from '@supabase/supabase-js'
+import { dropEchoedEnums } from '../../src/lib/aiEnums.js'
 
 const OPENAI_KEY    = process.env.OPENAI_API_KEY          // never VITE_ — server only
 const SUPABASE_URL  = process.env.SUPABASE_URL
@@ -26,10 +27,10 @@ TODAY'S DATE IS ${today}. Use this as your reference for what is past vs future.
 
 Return a JSON object:
 {
-  "type": "medical" | "vaccination" | "allergy" | "prescription" | "bill",
+  "type": "<one of: medical, vaccination, allergy, prescription, bill>",
   "summary": "one-sentence summary",
   "medicalRecord": {
-    "date": "YYYY-MM-DD or empty", "type": "Checkup|Illness|Surgery|Lab Result|Prescription|Other",
+    "date": "YYYY-MM-DD or empty", "type": "<one of: Checkup, Illness, Surgery, Lab Result, Prescription, Other>",
     "title": "diagnosis or procedure", "description": "details/symptoms/treatment/medications",
     "vet": "vet name or clinic", "cost": "number or empty"
   },
@@ -40,13 +41,13 @@ Return a JSON object:
   ],
   "medicines": [
     { "name": "drug name e.g. Simparica, Amoxicillin", "dosage": "e.g. 40mg, 5ml",
-      "frequency": "e.g. Once daily, Monthly", "category": "Deworming|Flea/Tick|Antibiotic|Anti-inflammatory|Supplement|Other",
+      "frequency": "e.g. Once daily, Monthly", "category": "<one of: Deworming, Flea/Tick, Antibiotic, Anti-inflammatory, Supplement, Vaccination, Other>",
       "startDate": "YYYY-MM-DD or empty", "endDate": "YYYY-MM-DD or empty",
       "nextDue": "YYYY-MM-DD or empty", "prescribedBy": "vet name", "reason": "what it treats", "notes": "" }
   ],
   "allergy": {
-    "allergen": "substance", "type": "Food|Environmental|Medication|Contact|Other",
-    "severity": "Mild|Moderate|Severe", "reactions": ["list"], "notes": "", "diagnosedDate": "YYYY-MM-DD or empty"
+    "allergen": "substance", "type": "<one of: Food, Environmental, Medication, Contact, Other>",
+    "severity": "<one of: Mild, Moderate, Severe>", "reactions": ["list"], "notes": "", "diagnosedDate": "YYYY-MM-DD or empty"
   },
   "bill": {
     "date": "YYYY-MM-DD or empty", "clinic": "clinic name", "invoiceNumber": "if visible",
@@ -55,13 +56,17 @@ Return a JSON object:
   },
   "weightReadings": [{ "date": "YYYY-MM-DD or empty", "weight": 0 }],
   "timelines": [
-    { "label": "e.g. Next vaccination due", "date": "YYYY-MM-DD", "type": "Vaccination|Vet Checkup|Medication|Other" }
+    { "label": "e.g. Next vaccination due", "date": "YYYY-MM-DD", "type": "<one of: Vaccination, Vet Checkup, Medication, Other>" }
   ],
   "abnormalities": [
     { "parameter": "name", "value": "value", "unit": "unit", "referenceRange": "range",
-      "status": "HIGH|LOW", "severity": "Mild|Moderate|Severe", "clinicalNote": "plain english explanation" }
+      "status": "<one of: HIGH, LOW>", "severity": "<one of: Mild, Moderate, Severe>", "clinicalNote": "plain english explanation" }
   ]
 }
+
+CHOOSING FROM A LIST: where a field says "one of: A, B, C", return exactly ONE of
+those words and nothing else. Never return the list itself, in any form — not
+"A, B, C" and not "A|B|C". If the document does not say which one, return "".
 
 VACCINATION RULES: one entry per vaccine product per row; separate entries for same vaccine on different dates; always return an array. Use the actual product name, not "Vaccine N".
 MEDICINES: extract ALL drugs/medications regardless of document type. Category = Flea/Tick for tick prevention, Deworming for dewormers.
@@ -298,6 +303,12 @@ export default async function handler(req) {
   } catch {
     return json({ error: 'Could not parse AI response. Please try again.' }, 502)
   }
+
+  // A model that answers a multiple-choice question with the question itself
+  // once put "Environmental|Food|Medication|Other" into a pet's allergy record,
+  // where it stayed for two and a half months. The prompt no longer invites it;
+  // this makes sure it cannot arrive anyway.
+  parsed = dropEchoedEnums(parsed)
 
   return json({
     result: parsed,
