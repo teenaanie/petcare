@@ -12,8 +12,20 @@ const SERVICE_KEY    = process.env.SUPABASE_SERVICE_KEY
 
 const PROVIDER_TYPES = ['Vet', 'Groomer', 'Store', 'Boarder', 'Special Services', 'Pet Loss & Memorial Services']
 
+// The app's WebView is a different origin from the functions -- Capacitor
+// serves the bundle from capacitor://localhost (iOS) or http://localhost
+// (Android) -- so these need the same CORS headers the other endpoints already
+// send, and have to answer the preflight.
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
 function json(status, body) {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+  return new Response(JSON.stringify(body), {
+    status, headers: { 'Content-Type': 'application/json', ...CORS },
+  })
 }
 
 function cleanString(value, maxLen) {
@@ -63,6 +75,7 @@ function notificationHtml(p) {
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 export default async function handler(req) {
+  if (req.method === 'OPTIONS') return new Response('', { status: 204, headers: CORS })
   if (req.method !== 'POST') {
     return json(405, { error: 'Method not allowed' })
   }

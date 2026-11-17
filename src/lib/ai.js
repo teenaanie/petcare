@@ -9,6 +9,7 @@
 // api/_lib/ai-complete.js.
 
 import { getSupabase } from './supabase.js'
+import { apiUrl } from './apiBase.js'
 import { transcriptionPrompt } from './petMeds.js'
 
 // The proxies need to know who is asking, both to reject anonymous callers and
@@ -53,7 +54,7 @@ async function post(path, body, session, timeoutMs = TIMEOUT_MS.complete) {
 
   let res
   try {
-    res = await fetch(path, {
+    res = await fetch(apiUrl(path), {
       method: 'POST', headers, body: JSON.stringify(body), signal: controller.signal,
     })
   } catch (e) {

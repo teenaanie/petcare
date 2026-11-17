@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { apiUrl } from '../lib/apiBase.js'
 import { Users, UserPlus, Trash2, X, Loader2, AlertCircle, Check } from 'lucide-react'
 import { getSupabase } from '../lib/supabase.js'
 import { trackEvent } from '../lib/analytics.js'
@@ -31,7 +32,7 @@ async function sendInviteEmail(memberId) {
     const { data } = await supabase.auth.getSession()
     const token = data?.session?.access_token
     if (!token) return { sent: false }
-    const res = await fetch('/api/share-invite', {
+    const res = await fetch(apiUrl('/api/share-invite'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ memberId }),

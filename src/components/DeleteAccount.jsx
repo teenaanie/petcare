@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { apiUrl } from '../lib/apiBase.js'
 import { reportHandled } from '../lib/errorReport.js'
 import { AlertTriangle, X, Loader2, Download, Trash2, Check } from 'lucide-react'
 import { getSupabase } from '../lib/supabase.js'
@@ -130,7 +131,7 @@ export default function DeleteAccount({ user, onClose, onDeleted }) {
       const token = data?.session?.access_token
       if (!token) throw new Error('Your session has expired. Please sign in again.')
 
-      const res = await fetch('/api/delete-account', {
+      const res = await fetch(apiUrl('/api/delete-account'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ confirm: 'DELETE' }),
