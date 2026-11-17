@@ -76,6 +76,7 @@
     "test:bell-tick-ui": "node scripts/test-bell-tick-ui.mjs",
     "test:add-pet-ui": "node scripts/test-add-pet-ui.mjs",
     "test:captured-edit-ui": "node scripts/test-captured-edit-ui.mjs",
+    "test:ai-enums": "node scripts/test-ai-enums.mjs",
     "test:api-base": "node scripts/test-api-base.mjs",
     "test:cors": "node scripts/test-cors-preflight.mjs",
     "build:native": "VITE_API_BASE_URL=https://pippypets.com vite build",
