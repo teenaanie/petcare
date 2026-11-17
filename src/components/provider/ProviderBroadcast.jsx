@@ -13,6 +13,7 @@
 // says so, because a provider who does not know that will think it is broken.
 
 import { useState, useEffect } from 'react'
+import { apiUrl } from '../../lib/apiBase.js'
 import { Megaphone, Loader2, AlertCircle, CheckCircle2, Send } from 'lucide-react'
 import { getSupabaseProvider } from '../../lib/supabase.js'
 import { reportHandled } from '../../lib/errorReport.js'
@@ -64,7 +65,7 @@ export default function ProviderBroadcast({ providerId }) {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) throw new Error('Please sign in again.')
 
-      const res = await fetch('/api/provider-mail?op=broadcast', {
+      const res = await fetch(apiUrl('/api/provider-mail?op=broadcast'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -2,6 +2,7 @@
 // This means all devices stay in sync automatically once Supabase is connected.
 
 import { getSupabase, isConfigured } from './supabase.js'
+import { apiUrl } from './apiBase.js'
 import { deletePetPhotos } from './conditions.js'
 import { deleteStayPhotos } from './stayUpdates.js'
 import { createReadCache } from './readCache.js'
@@ -225,7 +226,7 @@ async function _sendProviderNote(note) {
   // Not awaited, for the same reason the stay-update mail is not: the customer
   // is waiting on a screen, and an SMTP round trip is slower than the insert
   // that matters.
-  fetch('/api/provider-mail?op=inform', {
+  fetch(apiUrl('/api/provider-mail?op=inform'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json',
                authorization: `Bearer ${session.access_token || ''}` },

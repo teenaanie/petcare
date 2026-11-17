@@ -34,7 +34,17 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
-      if ('serviceWorker' in navigator) {
+      // Not in the app. Capacitor already serves the bundle from the device,
+      // so the worker caches a copy of a copy -- and its reload-on-update
+      // behaviour below exists to replace a stale bundle fetched over the
+      // network, which inside the app only ever ships with a store release.
+      // Left on, it has nothing useful to do and one reload it can still
+      // perform.
+      var pippyNative = !!(window.Capacitor && window.Capacitor.isNativePlatform
+        && window.Capacitor.isNativePlatform())
+        || location.protocol === 'capacitor:' || location.protocol === 'file:'
+
+      if (!pippyNative && 'serviceWorker' in navigator) {
         // Registration used to be fire-and-forget: no update check and no
         // reload, so a client that had cached an old build kept serving it
         // indefinitely. The worker calls skipWaiting() on install, so a new one

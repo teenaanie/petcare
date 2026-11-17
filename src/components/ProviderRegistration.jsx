@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { apiUrl } from '../lib/apiBase.js'
 import { reportHandled } from '../lib/errorReport.js'
 import { getSupabase, isConfigured } from '../lib/supabase.js'
 import { Loader2, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react'
@@ -59,7 +60,7 @@ export default function ProviderRegistration() {
     setStatus('submitting')
     setError(null)
     try {
-      const res = await fetch('/api/register-provider', {
+      const res = await fetch(apiUrl('/api/register-provider'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
