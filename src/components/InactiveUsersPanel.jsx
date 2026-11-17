@@ -20,6 +20,7 @@
 // sends a question rather than a conclusion.
 
 import { useEffect, useState } from 'react'
+import { apiUrl } from '../lib/apiBase.js'
 import { reportHandled } from '../lib/errorReport.js'
 import { Loader2, AlertCircle, Mail, Phone, PawPrint, Send, Check, Moon, Clock } from 'lucide-react'
 import { getSupabase } from '../lib/supabase.js'
@@ -36,7 +37,7 @@ async function sendCheckin(userId) {
   const { data } = await supabase.auth.getSession()
   const token = data?.session?.access_token
   if (!token) return { ok: false, reason: 'no_session' }
-  const res = await fetch('/api/checkin-email', {
+  const res = await fetch(apiUrl('/api/checkin-email'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ userId }),

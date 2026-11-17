@@ -1,4 +1,5 @@
 import { useState, useRef , useEffect } from 'react'
+import { apiUrl } from '../lib/apiBase.js'
 import { Share2, ChevronRight, Upload, Camera, FileText, Loader2, CheckCircle, AlertCircle, Wand2, Calendar, MessageSquare, Copy, Check, Syringe, Pill, Receipt, Weight, X } from 'lucide-react'
 import { saveMedicalRecord, saveVaccination, saveAllergy, saveReminder, saveMedicine, saveBill, saveWeightLog } from '../lib/storage.js'
 import { withRetry } from '../lib/net.js'
@@ -84,7 +85,7 @@ async function analyzeDocument(file, session) {
   // route for every user. There is now one door.
   if (!session?.access_token) throw new Error('Please sign in to use the scanner.')
 
-  const res = await fetch('/api/analyze-document', {
+  const res = await fetch(apiUrl('/api/analyze-document'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

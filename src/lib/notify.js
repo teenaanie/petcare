@@ -13,6 +13,7 @@
 // rather than an instruction.
 
 import { getSupabase } from './supabase.js'
+import { apiUrl } from './apiBase.js'
 
 // One alert per browser per account. The server also refuses anything older
 // than a few minutes, so this is about not being noisy rather than about
@@ -26,7 +27,7 @@ async function post(payload) {
     const { data } = await supabase.auth.getSession()
     const token = data?.session?.access_token
     if (!token) return
-    await fetch('/api/notify-owner', {
+    await fetch(apiUrl('/api/notify-owner'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(payload),

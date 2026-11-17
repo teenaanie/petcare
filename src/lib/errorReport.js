@@ -22,6 +22,7 @@
 // an unrecognised value is dropped rather than forwarded.
 
 import { isNetworkError } from './net.js'
+import { apiUrl } from './apiBase.js'
 
 // How much one session may send. The cap exists because an error inside a
 // render loop must not flood, and the per-fingerprint dedupe below means
@@ -235,10 +236,13 @@ export function reportError(error, opts = {}) {
     // sendBeacon survives the page being closed, which is exactly when a fatal
     // error tends to happen. It is fire-and-forget by design: there is no
     // response to wait for and nothing useful to do if it fails.
+    // Absolute in the app, relative on the web -- sendBeacon resolves a
+    // relative URL against the page, which inside a WebView is the bundle.
+    const url = apiUrl('/api/report-error')
     if (navigator.sendBeacon?.(
-      '/api/report-error', new Blob([body], { type: 'application/json' }))) return
+      url, new Blob([body], { type: 'application/json' }))) return
 
-    fetch('/api/report-error', {
+    fetch(url, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body, keepalive: true,
     }).catch(() => { /* reporting is best effort */ })

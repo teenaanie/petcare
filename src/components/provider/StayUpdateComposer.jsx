@@ -9,6 +9,7 @@
 // not twelve open forms.
 
 import { useState, useEffect } from 'react'
+import { apiUrl } from '../../lib/apiBase.js'
 import { Camera, Send, Loader2, AlertCircle, Trash2, X } from 'lucide-react'
 import { getSupabaseProvider } from '../../lib/supabase.js'
 import Dictate from './Dictate.jsx'
@@ -93,7 +94,7 @@ export default function StayUpdateComposer({ note, postedBy }) {
       // Telling the owner is the whole point, and it must not be able to fail
       // the post: the update is already saved and visible to them in the app.
       const { data: { session } } = await supabase.auth.getSession()
-      fetch('/api/provider-mail?op=stay-update', {
+      fetch(apiUrl('/api/provider-mail?op=stay-update'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json',
                    authorization: `Bearer ${session?.access_token || ''}` },

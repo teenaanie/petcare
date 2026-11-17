@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { apiUrl } from '../../lib/apiBase.js'
 import { MessageSquarePlus, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 import { getSupabaseProvider } from '../../lib/supabase.js'
 
@@ -38,7 +39,7 @@ export default function ProviderFeedback({ userId, providerId, context, open: in
     try {
       const { data: { session } } = await (await getSupabaseProvider()).auth.getSession()
       if (!session) return
-      await fetch('/api/provider-mail', {
+      await fetch(apiUrl('/api/provider-mail'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

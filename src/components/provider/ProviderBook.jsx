@@ -18,6 +18,7 @@
 //   {kind:'booking',  id}         one stay: edit it, tick it off, log the days
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { apiUrl } from '../../lib/apiBase.js'
 import {
   Loader2, AlertCircle, Plus, Users, Phone, Mail, MessageCircle,
   Trash2, Link2, ChevronLeft, ChevronRight, Home, Check, Pencil,
@@ -593,7 +594,7 @@ function CustomerDetail({ customer, pets, appointments, notes, onBack, onOpenBoo
                   const lines = criteriaLines(listing)
                   const sb = await getSupabaseProvider()
                   const { data: { session } } = await sb.auth.getSession()
-                  const res = await fetch('/api/provider-mail?op=criteria', {
+                  const res = await fetch(apiUrl('/api/provider-mail?op=criteria'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json',
                                authorization: `Bearer ${session?.access_token || ''}` },

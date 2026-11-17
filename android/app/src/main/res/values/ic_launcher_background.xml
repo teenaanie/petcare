@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Pippy's own yellow, sampled from the artwork so the
+         adaptive foreground sits on it without a seam. -->
+    <color name="ic_launcher_background">#F2B83B</color>
+</resources>

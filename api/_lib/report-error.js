@@ -39,7 +39,25 @@ function scrub(text, limit) {
     .slice(0, limit)
 }
 
+// The app's WebView is a different origin from the functions -- Capacitor
+// serves the bundle from capacitor://localhost (iOS) or http://localhost
+// (Android) -- so these need the same CORS headers the other endpoints already
+// send, and have to answer the preflight.
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
 export default async function handler(req) {
+  // 204 means "no content", and the Response constructor enforces that: a
+  // 204 with a body -- even an empty string -- throws, which Vercel serves as
+  // FUNCTION_INVOCATION_FAILED. Every preflight on this deployment was a 500.
+  //
+  // It went unnoticed because the web app is same-origin and so never sends a
+  // preflight. The Android app is not: it runs at https://localhost, so every
+  // call starts with an OPTIONS, and every network feature failed at once.
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS })
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
 
   let body
@@ -104,6 +122,6 @@ export default async function handler(req) {
 
 function json(body, status) {
   return new Response(JSON.stringify(body), {
-    status, headers: { 'Content-Type': 'application/json' },
+    status, headers: { 'Content-Type': 'application/json', ...CORS },
   })
 }
