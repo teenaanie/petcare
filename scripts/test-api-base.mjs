@@ -27,7 +27,13 @@ const load = async base => {
 
 // Minimal stand-ins for the three shells this runs in.
 const web      = { location: { protocol: 'https:' } }
-const android  = { location: { protocol: 'http:' }, Capacitor: { isNativePlatform: () => true } }
+// The REAL Android configuration. capacitor.config.json sets
+// androidScheme: "https", so the bundle is served from https://localhost --
+// a protocol the backstop below deliberately does not catch, because a plain
+// web page uses it too. On Android, detection rests entirely on Capacitor
+// having injected itself, which is the case this pins.
+const android  = { location: { protocol: 'https:', hostname: 'localhost' },
+                   Capacitor: { isNativePlatform: () => true } }
 const ios      = { location: { protocol: 'capacitor:' } }
 const iosCap   = { location: { protocol: 'capacitor:' }, Capacitor: { isNativePlatform: () => true } }
 const fileUrl  = { location: { protocol: 'file:' } }
@@ -36,7 +42,11 @@ console.log('\nTelling the app apart from a browser tab')
 {
   const { isNativeShell } = await load('https://pippypets.com')
   ok('a normal page is not native', isNativeShell(web) === false)
-  ok('Capacitor saying so is enough', isNativeShell(android) === true)
+  ok('Capacitor saying so is enough, even over https', isNativeShell(android) === true)
+  // The inverse, and the reason the protocol list stops where it does: a real
+  // web page is also https, so protocol alone must never imply native.
+  ok('https alone is not native',
+     isNativeShell({ location: { protocol: 'https:', hostname: 'localhost' } }) === false)
   // The protocol check is the backstop: a WebView is native whatever else is
   // or is not on window, and a wrong answer here is a feature that works
   // everywhere except the app nobody can debug.

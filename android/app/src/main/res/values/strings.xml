@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Pippy</string>
+    <string name="title_activity_main">Pippy</string>
+    <string name="package_name">com.pippypets.app</string>
+    <string name="custom_url_scheme">com.pippypets.app</string>
+</resources>
