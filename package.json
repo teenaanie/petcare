@@ -77,9 +77,15 @@
     "test:add-pet-ui": "node scripts/test-add-pet-ui.mjs",
     "test:captured-edit-ui": "node scripts/test-captured-edit-ui.mjs",
     "test:api-base": "node scripts/test-api-base.mjs",
-    "build:native": "VITE_API_BASE_URL=https://pippypets.com vite build"
+    "test:cors": "node scripts/test-cors-preflight.mjs",
+    "build:native": "VITE_API_BASE_URL=https://pippypets.com vite build",
+    "android:sync": "npm run build:native && npx cap sync android",
+    "android:build": "npm run android:sync && . ./scripts/android-env.sh && cd android && ./gradlew assembleDebug",
+    "android:run": "npm run android:build && . ./scripts/android-env.sh && adb install -r android/app/build/outputs/apk/debug/app-debug.apk && adb shell monkey -p com.pippypets.app -c android.intent.category.LAUNCHER 1"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/core": "^8.6.2",
     "@supabase/supabase-js": "^2.39.0",
     "date-fns": "^3.3.1",
     "lucide-react": "^0.383.0",
@@ -89,6 +95,7 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.6.2",
     "@eslint/js": "^9.39.5",
     "@types/react": "^18.2.55",
     "@types/react-dom": "^18.2.19",

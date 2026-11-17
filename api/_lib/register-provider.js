@@ -75,7 +75,14 @@ function notificationHtml(p) {
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 export default async function handler(req) {
-  if (req.method === 'OPTIONS') return new Response('', { status: 204, headers: CORS })
+  // 204 means "no content", and the Response constructor enforces that: a
+  // 204 with a body -- even an empty string -- throws, which Vercel serves as
+  // FUNCTION_INVOCATION_FAILED. Every preflight on this deployment was a 500.
+  //
+  // It went unnoticed because the web app is same-origin and so never sends a
+  // preflight. The Android app is not: it runs at https://localhost, so every
+  // call starts with an OPTIONS, and every network feature failed at once.
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS })
   if (req.method !== 'POST') {
     return json(405, { error: 'Method not allowed' })
   }

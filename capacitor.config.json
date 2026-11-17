@@ -1,0 +1,11 @@
+{
+  "appId": "com.pippypets.app",
+  "appName": "Pippy",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
