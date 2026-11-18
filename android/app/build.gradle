@@ -1,5 +1,49 @@
 apply plugin: 'com.android.application'
 
+// ── Version and signing, kept out of the android {} block for readability ───
+
+def pippyVersionProps() {
+    def f = file('../version.properties')
+    def p = new Properties()
+    if (f.exists()) f.withInputStream { p.load(it) }
+    return p
+}
+
+/** Monotonic, and Play will reject a repeat. */
+def pippyVersionCode() {
+    return (pippyVersionProps().getProperty('versionCode') ?: '1') as int
+}
+
+/** What a person sees in the store listing and in Settings > Apps. */
+def pippyVersionName() {
+    return pippyVersionProps().getProperty('versionName') ?: '1.0'
+}
+
+/**
+ * The upload key's details, or null when this machine does not have them.
+ *
+ * Returning null rather than failing is deliberate: a contributor, or CI,
+ * should still be able to build a release to check that it compiles without
+ * holding the key that can publish it.
+ */
+def pippySigning() {
+    def f = file('keystore.properties')
+    if (!f.exists()) return null
+    def p = new Properties()
+    f.withInputStream { p.load(it) }
+    for (k in ['storeFile', 'storePassword', 'keyAlias', 'keyPassword']) {
+        if (!p.getProperty(k)) {
+            throw new GradleException("android/app/keystore.properties is missing '${k}'")
+        }
+    }
+    if (!file(p.getProperty('storeFile')).exists()) {
+        throw new GradleException(
+            "Keystore not found at ${p.getProperty('storeFile')} " +
+            "(path is relative to android/app/, or use an absolute path)")
+    }
+    return p
+}
+
 android {
     namespace = "com.pippypets.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +51,12 @@ android {
         applicationId "com.pippypets.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // Play refuses an upload whose versionCode it has seen before, and the
+        // error arrives at the END of a slow upload rather than at build time.
+        // Both values come from version.properties so a release is one edit,
+        // and so the APK on a phone can be matched to a commit.
+        versionCode pippyVersionCode()
+        versionName pippyVersionName()
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +64,37 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // The upload key never lives in this repository.
+    //
+    // It is read from android/app/keystore.properties, which is gitignored, and
+    // the keystore file itself should sit outside the project entirely. This
+    // key is not replaceable: lose it and Play will not accept another update
+    // to this listing, ever -- only a brand new one, with the reviews and
+    // installs left behind.
+    //
+    // A build with no keystore.properties still works; it just produces an
+    // unsigned release, which is what CI and a local sanity check want.
+    signingConfigs {
+        release {
+            def props = pippySigning()
+            if (props != null) {
+                storeFile     file(props['storeFile'])
+                storePassword props['storePassword']
+                keyAlias      props['keyAlias']
+                keyPassword   props['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (pippySigning() != null) {
+                signingConfig signingConfigs.release
+            } else {
+                logger.lifecycle('pippy: no android/app/keystore.properties — release will be UNSIGNED')
+            }
         }
     }
 }
