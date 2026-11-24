@@ -24,6 +24,20 @@ const isRegisterRoute = path === '/register-provider'
 // config. Lazily loaded so a pet parent never downloads any of it.
 const isProviderRoute = path === '/business' || path.startsWith('/business/')
 
+// Two pages Google Play requires at a public URL: a privacy policy, and
+// instructions for deleting an account. Both must open without installing the
+// app and without signing in, so they cannot live behind the sign-in screen or
+// inside a modal — which is where the privacy notice lived until now.
+//
+// They render the SAME PrivacyNotice component the app shows, with asPage set,
+// rather than a second static copy. Two copies of a privacy notice drift, and
+// one that describes an older version of the app is worse than none.
+const isPrivacyRoute = path === '/privacy'
+const isDeleteAccountRoute = path === '/delete-account'
+
+import PrivacyNotice from './components/PrivacyNotice.jsx'
+import DeleteAccountInfo from './components/DeleteAccountInfo.jsx'
+
 const ProviderApp = lazy(() => import('./components/provider/ProviderApp.jsx'))
 
 function Booting() {
@@ -34,6 +48,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     {isProviderRoute
       ? <Suspense fallback={<Booting />}><ProviderApp /></Suspense>
+      : isPrivacyRoute ? <PrivacyNotice asPage />
+      : isDeleteAccountRoute ? <DeleteAccountInfo />
       : isRegisterRoute ? <ProviderRegistration /> : <App />}
   </React.StrictMode>,
 )
