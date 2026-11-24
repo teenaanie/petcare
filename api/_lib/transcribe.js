@@ -91,6 +91,45 @@ const AUDIO_TYPES = {
   'audio/wav': 'wav',   'audio/x-wav': 'wav', 'audio/ogg': 'ogg',
 }
 
+/** True when OpenAI refused a forced `language` rather than failing for another reason. */
+export function languageRefused(res) {
+  const msg = String(res?.out?.error?.message || '')
+  return !res?.ok && /language/i.test(msg) && /not supported|unsupported|invalid/i.test(msg)
+}
+
+/**
+ * POST to Whisper, forcing the user's language when we know it.
+ *
+ * Whisper decides which languages it will accept, not us, and it rejects a
+ * forced code it does not handle with "Language 'te' is not supported." —
+ * which used to reach the user verbatim, so choosing Telugu made voice input
+ * unusable. A forced language is only ever an accuracy aid, so when it is
+ * refused we retry once with auto-detect: the note is transcribed instead of
+ * the user being told off for their own language.
+ *
+ * `fetchFn` is injectable so this can be tested without the network.
+ */
+export async function whisperRequest(form, language, key, fetchFn = fetch) {
+  const post = async (f) => {
+    const res = await fetchFn('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}` },  // no Content-Type — FormData sets the boundary
+      body: f,
+    })
+    return { ok: res.ok, status: res.status, out: await res.json() }
+  }
+
+  if (!LANGUAGES.has(language)) return post(form)   // 'auto' / unknown: let Whisper detect
+
+  const forced = new FormData()
+  for (const [k, v] of form.entries()) forced.append(k, v)
+  forced.append('language', language)
+
+  const first = await post(forced)
+  if (!languageRefused(first)) return first
+  return post(form)                                  // same audio, no forced language
+}
+
 function cors(body, status = 200) {
   return new Response(body, {
     status,
@@ -188,8 +227,6 @@ export default async function handler(req) {
     const form = new FormData()
     form.append('file', new Blob([bytes], { type: baseType }), `recording.${ext}`)
     form.append('model', 'whisper-1')
-    // Omitted unless the user picked a language, so auto-detect stays the default.
-    if (LANGUAGES.has(language)) form.append('language', language)
 
     // Drug and vaccine names are exactly what transcription gets wrong, and
     // exactly what must not be wrong in a record a vet reads: "Nobivac" comes
@@ -205,12 +242,8 @@ export default async function handler(req) {
     if (vocab && vocab.length <= MAX_PROMPT_CHARS) form.append('prompt', vocab)
     else if (vocab) form.append('prompt', vocab.slice(0, MAX_PROMPT_CHARS))
 
-    const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${OPENAI_KEY}` },  // no Content-Type — FormData sets the boundary
-      body: form,
-    })
-    out = await res.json()
+    const res = await whisperRequest(form, language, OPENAI_KEY)
+    out = res.out
     if (!res.ok) return json({ error: out?.error?.message || `Transcription failed (${res.status})` }, 502)
   } catch (e) {
     return json({ error: `Could not reach OpenAI: ${e.message}` }, 502)
