@@ -21,7 +21,6 @@
 // since the code looked perfectly reasonable.
 
 import fs from 'node:fs'
-import path from 'node:path'
 
 let pass = 0, fail = 0
 const ok = (name, cond, got) => {

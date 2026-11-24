@@ -146,8 +146,15 @@ ck('filed under that customer', posted.pets[0]?.customer_id, customers[0].id)
 
 await page.getByRole('button', { name: 'Book a stay' }).click()
 await page.waitForTimeout(400)
-await page.locator('input[type="date"]').first().fill('2026-11-20')
-await page.locator('input[type="date"]').nth(1).fill('2026-11-25')
+// Relative to today: the suite relies on this being the only booking AND being
+// in the future (so the last twelve months are empty). Fixed dates went stale.
+const ymd = (offset) => {
+  const d = new Date(); d.setDate(d.getDate() + offset)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+const START = ymd(30), END = ymd(35)
+await page.locator('input[type="date"]').first().fill(START)
+await page.locator('input[type="date"]').nth(1).fill(END)
 // Optional, and it stays optional — but when it is typed it has to reach the
 // row, because every total on the dashboard counts from this column.
 await page.getByPlaceholder('₹ what you charged').fill('4500')
@@ -157,7 +164,7 @@ await page.getByRole('button', { name: 'Save booking' }).click()
 await page.waitForTimeout(1000)
 ck('a booking was written', posted.appointments.length, 1)
 ck('with the dates given', [posted.appointments[0]?.starts_on, posted.appointments[0]?.ends_on],
-   ['2026-11-20', '2026-11-25'])
+   [START, END])
 ck('the amount was recorded', posted.appointments[0]?.amount, 4500)
 ck('the trial flag was recorded', posted.appointments[0]?.trial_done, true)
 ck('and criteria left unticked', posted.appointments[0]?.criteria_met, false)
