@@ -154,8 +154,8 @@ const CITY_TO_DISTRICT = {
 // "Passport Office", "City Pride Road" and "India".
 //
 // There is no way to tell a district from a suburb by shape, so a name is
-// only accepted if it IS one. These are the districts of the two states the
-// directory covers. A business in a third state resolves to null until that
+// only accepted if it IS one. These are the districts of the states the
+// directory covers. A business in any other state resolves to null until that
 // state is added here, which is the intended behaviour: an unfiled provider
 // is recoverable, a misfiled one is not.
 
@@ -173,6 +173,10 @@ export const DISTRICTS_BY_STATE = {
     'Kottayam', 'Kozhikode', 'Malappuram', 'Palakkad', 'Pathanamthitta',
     'Thiruvananthapuram', 'Thrissur', 'Wayanad',
   ],
+  // Only the districts that have been scraped. The Chennai scrape (686 places,
+  // 2026-11-24) came back as Chennai throughout, suburbs included. Add the
+  // others as each is imported, not before.
+  'Tamil Nadu': ['Chennai'],
 }
 
 // Aurangabad and Osmanabad were renamed in 2023; Google still returns both.

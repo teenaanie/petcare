@@ -135,6 +135,28 @@ eq('district unknown state null',
 eq('district empty record', districtFromRecord({}), null)
 eq('district undefined', districtFromRecord(undefined), null)
 
+// Tamil Nadu: only Chennai is scraped so far. Google files Chennai suburbs
+// under "Chennai" and sometimes mangles the city text; the address still ends
+// in a Chennai pincode, so the district must resolve.
+eq('chennai district known', canonicalDistrict('Chennai'), 'Chennai')
+eq('tamil nadu lists chennai', DISTRICTS_BY_STATE['Tamil Nadu'].includes('Chennai'), true)
+eq('district chennai from address',
+  districtFromRecord({ address: 'Anna Salai, Nungambakkam, Chennai, Tamil Nadu 600034, India' }),
+  'Chennai')
+eq('district chennai from city',
+  districtFromRecord({ city: 'Chennai', address: 'nonsense' }), 'Chennai')
+// The city parser takes the last comma segment, so a locality there is not
+// guessed into a district. Left unfiled on purpose: recoverable, not misfiled.
+eq('district locality-last city stays unfiled',
+  districtFromRecord({ city: 'Chennai, Poombukar Nagar' }), null)
+eq('district chennai city with stray prefix',
+  districtFromRecord({ city: 'Salem, Chennai' }), 'Chennai')
+eq('state tamil nadu from chennai address',
+  stateFromRecord({ address: 'Anna Salai, Chennai, Tamil Nadu 600034, India' }), 'Tamil Nadu')
+// A Tamil Nadu district nobody has scraped must stay unfiled, not guessed.
+eq('district unscraped tamil nadu city null',
+  districtFromRecord({ address: 'X Rd, Coimbatore, Tamil Nadu 641001, India' }), null)
+
 // A state must never be mistaken for a district, or vice versa.
 eq('no name is both state and district',
   INDIAN_STATES.filter(s => canonicalDistrict(s)).length, 0)
