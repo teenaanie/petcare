@@ -32,19 +32,29 @@ function Row({ who, what, why }) {
   )
 }
 
-export default function PrivacyNotice({ onClose }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
-      <div className="w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col overflow-hidden"
-        style={{ backgroundColor: '#FFFEF8', maxHeight: '90vh' }}>
-
+/**
+ * The same notice, as a modal in the app or as a page at /privacy.
+ *
+ * Google Play needs a privacy policy at a URL anyone can open without
+ * installing anything. The obvious move is to write a second copy as static
+ * HTML, and the obvious move is wrong: two copies of a privacy notice drift,
+ * and a notice that describes an older version of the app is worse than none,
+ * because it is a statement that happens to be untrue.
+ *
+ * So this renders either way and there is one source of truth. `asPage` drops
+ * the overlay and the close button; everything below is shared.
+ */
+export default function PrivacyNotice({ onClose, asPage = false }) {
+  const body = (
+    <>
         <div className="flex items-center justify-between px-5 py-4 flex-shrink-0"
           style={{ borderBottom: '1px solid #ebe3d3' }}>
           <span className="font-black" style={{ color: '#7a4900' }}>Privacy &amp; Terms</span>
-          <button type="button" onClick={onClose} aria-label="Close">
-            <X className="w-5 h-5" style={{ color: '#73775b' }} />
-          </button>
+          {!asPage && (
+            <button type="button" onClick={onClose} aria-label="Close">
+              <X className="w-5 h-5" style={{ color: '#73775b' }} />
+            </button>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
@@ -205,13 +215,35 @@ export default function PrivacyNotice({ onClose }) {
           </p>
         </div>
 
-        <div className="px-5 py-4 flex-shrink-0" style={{ borderTop: '1px solid #ebe3d3' }}>
-          <button type="button" onClick={onClose}
-            className="w-full py-2.5 rounded-2xl font-black text-sm"
-            style={{ backgroundColor: '#f2b83d', color: '#7a4900' }}>
-            Close
-          </button>
-        </div>
+        {!asPage && (
+          <div className="px-5 py-4 flex-shrink-0" style={{ borderTop: '1px solid #ebe3d3' }}>
+            <button type="button" onClick={onClose}
+              className="w-full py-2.5 rounded-2xl font-black text-sm"
+              style={{ backgroundColor: '#f2b83d', color: '#7a4900' }}>
+              Close
+            </button>
+          </div>
+        )}
+    </>
+  )
+
+  // As a page: no overlay, no dimmed backdrop, and it scrolls with the window
+  // rather than inside a box, which is what someone arriving from a store
+  // listing on a phone expects.
+  if (asPage) {
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: '#FFFEF8' }}>
+        <div className="w-full max-w-2xl mx-auto">{body}</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
+      <div className="w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col overflow-hidden"
+        style={{ backgroundColor: '#FFFEF8', maxHeight: '90vh' }}>
+        {body}
       </div>
     </div>
   )

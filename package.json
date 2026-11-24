@@ -79,6 +79,7 @@
     "test:ai-enums": "node scripts/test-ai-enums.mjs",
     "test:api-base": "node scripts/test-api-base.mjs",
     "test:cors": "node scripts/test-cors-preflight.mjs",
+    "test:public-pages": "node scripts/test-public-pages-ui.mjs",
     "build:native": "VITE_API_BASE_URL=https://pippypets.com vite build",
     "android:sync": "npm run build:native && npx cap sync android",
     "android:build": "npm run android:sync && . ./scripts/android-env.sh && cd android && ./gradlew assembleDebug",
