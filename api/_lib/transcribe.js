@@ -11,6 +11,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { audioCost } from './_pricing.js'
+import { fetchWithTimeout } from './_fetch.js'
 
 const OPENAI_KEY   = process.env.OPENAI_API_KEY        // never VITE_ — server only
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -205,11 +206,11 @@ export default async function handler(req) {
     if (vocab && vocab.length <= MAX_PROMPT_CHARS) form.append('prompt', vocab)
     else if (vocab) form.append('prompt', vocab.slice(0, MAX_PROMPT_CHARS))
 
-    const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    const res = await fetchWithTimeout('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: { Authorization: `Bearer ${OPENAI_KEY}` },  // no Content-Type — FormData sets the boundary
       body: form,
-    })
+    }, { timeoutMs: 30000, retries: 1 })
     out = await res.json()
     if (!res.ok) return json({ error: out?.error?.message || `Transcription failed (${res.status})` }, 502)
   } catch (e) {

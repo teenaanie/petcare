@@ -11,3 +11,8 @@ data/
 # Claude Code local state. worktrees/ especially must never be committed —
 # each one is a full checkout of this same repo.
 .claude/
+
+# Android signing secrets. The example file next to it is the template.
+android/app/keystore.properties
+*.keystore
+*.jks
