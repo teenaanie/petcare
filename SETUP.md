@@ -28,15 +28,18 @@ npm run dev
 
 ## Enable AI Document Scanning (OpenAI)
 
-1. Go to [platform.openai.com](https://platform.openai.com) → sign up (free credits included)
-2. Create an API key under **API Keys**
-3. Add to `.env`:
+1. Go to [platform.openai.com](https://platform.openai.com) and create an API key under **API Keys**
+2. Add to `.env` (or the host's environment variables). **No `VITE_` prefix**: that
+   prefix puts the value in the public bundle, where anyone can read and spend it:
    ```
-   VITE_OPENAI_API_KEY=sk-...
+   OPENAI_API_KEY=sk-...
    ```
-4. Restart `npm run dev`
+3. Restart `npm run dev`
 
-The scanner uses **GPT-4o** (vision model) to read images and PDFs of vet reports, vaccination certificates, and lab results, then automatically creates the right record type.
+The key is only read by the serverless functions in `api/`, which check the
+caller's Supabase session and cap usage per user per month. See `.env.example`.
+
+The scanner uses **gpt-4o-mini** (vision model) to read images and PDFs of vet reports, vaccination certificates, and lab results, then automatically creates the right record type.
 
 ---
 

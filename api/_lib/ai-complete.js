@@ -15,6 +15,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { dropEchoedEnums } from '../../src/lib/aiEnums.js'
 import { chatCost } from './_pricing.js'
+import { fetchWithTimeout } from './_fetch.js'
 
 const OPENAI_KEY   = process.env.OPENAI_API_KEY        // never VITE_ — server only
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -538,7 +539,7 @@ export default async function handler(req) {
   const prompt = task.build(body)
   let out
   try {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    const res = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_KEY}` },
       body: JSON.stringify({
@@ -547,7 +548,7 @@ export default async function handler(req) {
         ...(task.json ? { response_format: { type: 'json_object' } } : {}),
         messages: [{ role: 'user', content: prompt }],
       }),
-    })
+    }, { timeoutMs: 40000, retries: 1 })
     out = await res.json()
     if (!res.ok) return json({ error: out?.error?.message || `OpenAI error ${res.status}` }, 502)
   } catch (e) {

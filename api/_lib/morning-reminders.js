@@ -7,6 +7,7 @@ import { RECORD_SOURCES, recordDueItems, CATCH_UP_DAYS } from '../../src/lib/due
 import webPush from 'web-push'
 import { maskEmail, maskPhone, bodyShape } from './_redact.js'
 import { sendEmail } from './_email.js'
+import { fetchWithTimeout } from './_fetch.js'
 
 const SUPABASE_URL   = process.env.SUPABASE_URL
 const SERVICE_KEY    = process.env.SUPABASE_SERVICE_KEY
@@ -35,14 +36,15 @@ async function sendSMS(to, body) {
     return
   }
   const url = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`
-  const res = await fetch(url, {
+  // No retry: a timed-out SMS may still have been delivered.
+  const res = await fetchWithTimeout(url, {
     method: 'POST',
     headers: {
       'Authorization': 'Basic ' + Buffer.from(`${TWILIO_SID}:${TWILIO_TOKEN}`).toString('base64'),
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: new URLSearchParams({ To: to, From: TWILIO_FROM, Body: body }).toString(),
-  })
+  }, { timeoutMs: 15000 })
   if (!res.ok) {
     const err = await res.json()
     throw new Error(`SMS failed: ${err.message}`)
