@@ -31,7 +31,7 @@ four white arcs where the rounded square's corners used to be.
 """
 
 import os
-from PIL import Image
+from PIL import Image, ImageDraw
 
 ROOT   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOURCE = os.path.join(ROOT, 'public', 'icon-512.png')
@@ -124,10 +124,77 @@ def main():
                 f'{BRAND_YELLOW[1]:02X}{BRAND_YELLOW[2]:02X}</color>\n</resources>\n')
     made.append(bg)
 
+    made += make_splashes(bleed)
+
     for p in made:
         print('  ', os.path.relpath(p, ROOT))
     print(f'\n{len(made)} files written')
 
+
+
+# ── Splash ───────────────────────────────────────────────────────────────────
+#
+# Capacitor ships a 480x320 white placeholder, used by the launch theme as a
+# plain android:background. That means it is STRETCHED to the screen, not
+# fitted -- so a drawing placed in it is distorted differently on every device.
+#
+# A nine-patch would solve that properly. The simpler answer, and the one that
+# cannot be distorted at all, is a solid brand-coloured background with the
+# mascot drawn at a fixed fraction of the shortest side, generated per
+# orientation and density so the stretch is never more than a rounding error.
+
+SPLASH_SIZES = {               # (portrait, landscape) per density
+    'mdpi':    ((320, 480),  (480, 320)),
+    'hdpi':    ((480, 800),  (800, 480)),
+    'xhdpi':   ((720, 1280), (1280, 720)),
+    'xxhdpi':  ((960, 1600), (1600, 960)),
+    'xxxhdpi': ((1280, 1920), (1920, 1280)),
+}
+# How much of the shortest side the mascot takes. Small on purpose: a splash is
+# a held breath, not a billboard, and an icon that fills the screen reads as a
+# loading failure.
+SPLASH_FRACTION = 0.34
+
+
+def rounded(art, size):
+    """The artwork as an app-icon-shaped tile.
+
+    Pasted square, the mascot reads as a cropped photo: the head meets the
+    bottom edge in a flat line and the whole thing shows as a rectangle a shade
+    off the background. Rounding it is what makes it read as the app's icon
+    resting on the splash rather than an image that failed to load.
+    """
+    tile = art.resize((size, size), Image.LANCZOS).convert('RGBA')
+    mask = Image.new('L', (size, size), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, size - 1, size - 1),
+                                           radius=int(size * 0.22), fill=255)
+    tile.putalpha(mask)
+    return tile
+
+
+def make_splashes(bleed):
+    made = []
+    for density, (portrait, landscape) in SPLASH_SIZES.items():
+        for orient, size in (('port', portrait), ('land', landscape)):
+            canvas = Image.new('RGB', size, BRAND_YELLOW)
+            d = int(min(size) * SPLASH_FRACTION)
+            art = rounded(bleed, d)
+            canvas.paste(art, ((size[0] - d) // 2, (size[1] - d) // 2), art)
+            folder = os.path.join(RES, f'drawable-{orient}-{density}')
+            os.makedirs(folder, exist_ok=True)
+            path = os.path.join(folder, 'splash.png')
+            canvas.save(path, 'PNG', optimize=True)
+            made.append(path)
+    # The orientation-less fallback, for anything that asks for plain
+    # @drawable/splash before it knows which way up it is.
+    canvas = Image.new('RGB', (1280, 1280), BRAND_YELLOW)
+    d = int(1280 * SPLASH_FRACTION)
+    art = rounded(bleed, d)
+    canvas.paste(art, ((1280 - d) // 2, (1280 - d) // 2), art)
+    p = os.path.join(RES, 'drawable', 'splash.png')
+    canvas.save(p, 'PNG', optimize=True)
+    made.append(p)
+    return made
 
 if __name__ == '__main__':
     main()
