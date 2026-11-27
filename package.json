@@ -30,6 +30,7 @@
     "test:own-criteria": "node scripts/test-boarding-custom.mjs",
     "test:voice-provider": "node scripts/test-provider-voice.mjs",
     "test:ceiling": "node scripts/test-voice-ceiling.mjs",
+    "test:transcribe-language": "node scripts/test-transcribe-language.mjs",
     "test:landing": "node scripts/test-provider-landing.mjs",
     "test:inbox-ui": "node scripts/test-provider-inbox-ui.mjs",
     "test:broadcast": "node scripts/test-provider-broadcast.mjs",
